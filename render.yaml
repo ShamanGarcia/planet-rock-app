@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: planet-rock
+    runtime: python
+    plan: free
+    buildCommand: "true"
+    startCommand: "python backend/server.py"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.2
