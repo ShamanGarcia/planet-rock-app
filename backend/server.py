@@ -24,11 +24,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
+from auth_util import hash_password, verify_password
 from seed_data import build_seed_data
 
 BACKEND_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BACKEND_DIR.parent
-DATA_DIR = BACKEND_DIR / "data"
+# DATA_DIR points at a Render persistent disk (or any mounted volume) when
+# the DATA_DIR env var is set; falls back to a folder next to this file for
+# local runs, where nothing needs to survive a restart anyway.
+DATA_DIR = Path(os.environ.get("DATA_DIR") or (BACKEND_DIR / "data"))
 UPLOADS_DIR = DATA_DIR / "uploads"
 DB_PATH = DATA_DIR / "db.json"
 MAX_GRADE = 10
@@ -240,8 +244,11 @@ def relationship(user_id, other_id):
 
 IMAGE_EXT = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif"}
 VIDEO_EXT = {"video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov", "video/x-m4v": "m4v"}
-MAX_PHOTO_BYTES = 12 * 1024 * 1024
-MAX_VIDEO_BYTES = 40 * 1024 * 1024
+# The browser already compresses photos and keeps anything over
+# SHARED_MEDIA_LIMIT_BYTES (see constants.js) on-device instead of uploading
+# it, so these are just a defensive backstop against a direct API call.
+MAX_PHOTO_BYTES = 6 * 1024 * 1024
+MAX_VIDEO_BYTES = 6 * 1024 * 1024
 
 
 def route_dir(route_id):
@@ -518,7 +525,7 @@ class Handler(BaseHTTPRequestHandler):
         if find_user_by_email(email):
             raise ApiError(409, "An account with that email already exists.")
         user = {
-            "id": uid("user"), "email": email, "password": password, "name": name,
+            "id": uid("user"), "email": email, "password": hash_password(password), "name": name,
             "profilePicture": None, "age": None, "hometown": None, "climbingStartDate": None,
             "favoriteHoldType": None, "selfReportedHighestGrade": None,
             "privacy": {"profilePublic": True, "logPublic": True}, "createdAt": now_iso(),
@@ -533,7 +540,7 @@ class Handler(BaseHTTPRequestHandler):
         body = self._body()
         email, password = body.get("email", "").strip(), body.get("password", "")
         user = find_user_by_email(email)
-        if not user or user["password"] != password:
+        if not user or not verify_password(password, user["password"]):
             raise ApiError(401, "Invalid email or password.")
         token = secrets.token_hex(20)
         DB["sessions"][token] = {"userId": user["id"], "gymId": DB["gyms"][0]["id"] if DB["gyms"] else None}
@@ -562,7 +569,7 @@ class Handler(BaseHTTPRequestHandler):
         user = find_user_by_email(body.get("email", ""))
         if not user:
             raise ApiError(404, "No account found with that email.")
-        user["password"] = body.get("password", "")
+        user["password"] = hash_password(body.get("password", ""))
         save_db(DB)
         self._json(200, {"ok": True})
 

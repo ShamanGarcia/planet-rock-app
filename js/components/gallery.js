@@ -1,10 +1,23 @@
 import { getRouteMedia } from "../data/api.js";
+import { getLocalMediaForRoute } from "../data/localMedia.js";
 import { escapeHtml, formatDateTime } from "../utils.js";
 
+// Merges the shared (server) gallery with anything this device kept private
+// because it was too large to upload (see SHARED_MEDIA_LIMIT_BYTES), newest
+// first, so the owner still sees everything even though no one else can.
+export async function getCombinedMedia(routeId) {
+  const [shared, local] = await Promise.all([
+    getRouteMedia(routeId).catch(() => []),
+    getLocalMediaForRoute(routeId).catch(() => []),
+  ]);
+  return [...shared, ...local].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
 function mediaThumbHTML(m, idx) {
+  const lockBadge = m.isLocal ? `<span class="gallery-lock" title="Private — only on this device">🔒</span>` : "";
   return m.type === "video"
-    ? `<button class="gallery-item" data-idx="${idx}" aria-label="Play video"><video src="${m.url}" muted></video><span class="gallery-play">▶</span></button>`
-    : `<button class="gallery-item" data-idx="${idx}" aria-label="View photo"><img src="${m.url}" alt="" loading="lazy"/></button>`;
+    ? `<button class="gallery-item" data-idx="${idx}" aria-label="Play video">${lockBadge}<video src="${m.url}" muted></video><span class="gallery-play">▶</span></button>`
+    : `<button class="gallery-item" data-idx="${idx}" aria-label="View photo">${lockBadge}<img src="${m.url}" alt="" loading="lazy"/></button>`;
 }
 
 function openLightbox(media, startIndex) {
@@ -22,7 +35,7 @@ function openLightbox(media, startIndex) {
         ${m.type === "video" ? `<video src="${m.url}" controls autoplay playsinline></video>` : `<img src="${m.url}" alt=""/>`}
       </div>
       ${media.length > 1 ? `<button class="lightbox-nav lightbox-next" aria-label="Next">›</button>` : ""}
-      <div class="lightbox-caption">${escapeHtml(m.uploadedByName || "")} · ${formatDateTime(m.createdAt)}</div>
+      <div class="lightbox-caption">${m.isLocal ? "🔒 Private, this device" : escapeHtml(m.uploadedByName || "")} · ${formatDateTime(m.createdAt)}</div>
     `;
     overlay.querySelector(".lightbox-close").addEventListener("click", close);
     overlay.querySelector(".lightbox-prev")?.addEventListener("click", () => { index = (index - 1 + media.length) % media.length; render(); });
@@ -60,7 +73,7 @@ export async function openFullGallery(routeId, label) {
 
   let media = [];
   try {
-    media = await getRouteMedia(routeId);
+    media = await getCombinedMedia(routeId);
   } catch {
     backdrop.querySelector("#gal-body").innerHTML = `<div class="empty-state">Couldn't load the gallery.</div>`;
     return;

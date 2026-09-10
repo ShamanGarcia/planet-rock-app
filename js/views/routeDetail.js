@@ -5,7 +5,7 @@ import { formatGrade, formatEstimate, MAX_GRADE, HOLD_COLOR_HEX, routeLabel } fr
 import { generateRoutePhotoSVG } from "../components/routePhoto.js";
 import { renderDonutChart } from "../components/charts.js";
 import { openLogSendSheet } from "../components/logSendSheet.js";
-import { openFullGallery } from "../components/gallery.js";
+import { openFullGallery, getCombinedMedia } from "../components/gallery.js";
 import { escapeHtml } from "../utils.js";
 
 export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
@@ -30,7 +30,8 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
       close();
       return;
     }
-    const { route, tagDetails, communityGrade, gradeDistribution, finishes, mySends, myEstimate, media } = detail;
+    const { route, tagDetails, communityGrade, gradeDistribution, finishes, mySends, myEstimate } = detail;
+    const media = await getCombinedMedia(routeId);
     const label = routeLabel(route);
     const hasEstimates = gradeDistribution.some((c) => c > 0);
     const linkedTagIds = new Set(route.tags);
@@ -96,10 +97,12 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
         <div class="section-title">Gallery</div>
         ${media.length ? `
           <div class="gallery-preview-row">
-            ${media.slice(0, 4).map((m) => m.type === "video"
-              ? `<div class="gallery-preview-thumb"><video src="${m.url}" muted></video><span class="gallery-play">▶</span></div>`
-              : `<div class="gallery-preview-thumb"><img src="${m.url}" alt=""/></div>`
-            ).join("")}
+            ${media.slice(0, 4).map((m) => `
+              <div class="gallery-preview-thumb">
+                ${m.isLocal ? `<span class="gallery-lock" title="Private — only on this device">🔒</span>` : ""}
+                ${m.type === "video" ? `<video src="${m.url}" muted></video><span class="gallery-play">▶</span>` : `<img src="${m.url}" alt=""/>`}
+              </div>
+            `).join("")}
           </div>
           <button class="btn btn-outline btn-sm btn-block" id="rd-view-gallery" style="margin-top:8px;">🖼 View Gallery (${media.length})</button>
         ` : `<div class="page-sub">No photos or videos yet — attach one next time you log a send.</div>`}

@@ -1,6 +1,7 @@
 import { createRoute } from "../data/api.js";
-import { HOLD_COLORS, HOLD_COLOR_HEX, HOLD_TYPES, MAX_GRADE, formatGrade } from "../data/constants.js";
-import { escapeHtml, fileToDataUrl } from "../utils.js";
+import { saveLocalMedia } from "../data/localMedia.js";
+import { HOLD_COLORS, HOLD_COLOR_HEX, HOLD_TYPES, MAX_GRADE, formatGrade, SHARED_MEDIA_LIMIT_BYTES } from "../data/constants.js";
+import { escapeHtml, compressImageFile, dataUrlByteSize } from "../utils.js";
 import { showToast } from "./toast.js";
 
 // Opens the "add a new route" drawer for a map position the user already
@@ -19,6 +20,8 @@ export function openAddRouteForm({ gymId, mapX, mapY, wallSection, allTags, onCr
   let selectedHoldType = null;
   const selectedTags = new Set();
   let photoDataUrl = null;
+  let photoTooBigForSharing = false;
+  let processingPhoto = false;
   let submitting = false;
   let error = "";
 
@@ -46,9 +49,10 @@ export function openAddRouteForm({ gymId, mapX, mapY, wallSection, allTags, onCr
             <label>Photo</label>
             <div id="ar-photo-preview" style="margin-bottom:8px; ${photoDataUrl ? "" : "display:none;"}">
               <div class="route-photo" style="max-height:180px;"><img src="${photoDataUrl || ""}" alt="Route preview" style="width:100%;height:100%;object-fit:cover;"/></div>
+              ${photoTooBigForSharing ? `<div class="field-hint">🔒 Still large after compression — will be saved privately on this device only.</div>` : ""}
             </div>
             <input type="file" accept="image/*" capture="environment" id="ar-photo-input" class="visually-hidden" />
-            <button type="button" class="btn btn-outline btn-sm" id="ar-photo-btn">📷 ${photoDataUrl ? "Retake / Change Photo" : "Take or Upload Photo"}</button>
+            <button type="button" class="btn btn-outline btn-sm" id="ar-photo-btn" ${processingPhoto ? "disabled" : ""}>📷 ${processingPhoto ? "Processing…" : photoDataUrl ? "Retake / Change Photo" : "Take or Upload Photo"}</button>
           </div>
 
           <div class="field">
@@ -131,13 +135,17 @@ export function openAddRouteForm({ gymId, mapX, mapY, wallSection, allTags, onCr
     photoInput.addEventListener("change", async () => {
       const file = photoInput.files?.[0];
       if (!file) return;
+      processingPhoto = true;
+      render();
       try {
-        photoDataUrl = await fileToDataUrl(file);
-        render();
+        photoDataUrl = await compressImageFile(file);
+        photoTooBigForSharing = dataUrlByteSize(photoDataUrl) > SHARED_MEDIA_LIMIT_BYTES;
       } catch {
         error = "Couldn't read that photo — try another file.";
-        render();
+        photoDataUrl = null;
       }
+      processingPhoto = false;
+      render();
     });
 
     backdrop.querySelector("#ar-form").addEventListener("submit", async (e) => {
@@ -150,6 +158,7 @@ export function openAddRouteForm({ gymId, mapX, mapY, wallSection, allTags, onCr
       error = "";
       render();
       try {
+        const shareablePhoto = photoDataUrl && !photoTooBigForSharing ? photoDataUrl : null;
         const route = await createRoute({
           gymId,
           wallSection,
@@ -159,8 +168,11 @@ export function openAddRouteForm({ gymId, mapX, mapY, wallSection, allTags, onCr
           holdTypes: [selectedHoldType],
           officialGrade: officialGrade === "" ? null : Number(officialGrade),
           tags: [...selectedTags],
-          photoDataUrl,
+          photoDataUrl: shareablePhoto,
         });
+        if (photoDataUrl && photoTooBigForSharing) {
+          await saveLocalMedia(route.id, "photo", photoDataUrl);
+        }
         close();
         showToast("Route added to the gym! 🧗", "🎉");
         onCreated?.(route);

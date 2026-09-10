@@ -1,9 +1,10 @@
 """Builds the initial mock database (same shape/content as the original
 client-side seed.js) the first time the backend runs with no db.json yet."""
 import random
-import time
 import uuid
 from datetime import datetime, timedelta
+
+from auth_util import hash_password
 
 DEFAULT_TAGS = [
     "Juggy", "Crimpy", "Slopers", "Pinches", "Static", "Dynamic", "Technical",
@@ -94,7 +95,7 @@ def build_seed_data():
         users[key] = {
             "id": uid("user"),
             "email": email,
-            "password": password,  # prototype-only plaintext; a real backend would hash this.
+            "password": hash_password(password),
             "name": name,
             "profilePicture": None,
             "age": age,

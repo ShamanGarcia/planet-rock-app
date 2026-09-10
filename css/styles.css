@@ -414,6 +414,10 @@ table.log-table tbody tr:hover{ background:#faf9f6; }
   position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
   color:#fff; font-size:20px; background:rgba(0,0,0,.25); text-shadow:0 1px 3px rgba(0,0,0,.5);
 }
+.gallery-lock{
+  position:absolute; top:4px; right:4px; z-index:2; font-size:11px; line-height:1;
+  background:rgba(0,0,0,.55); color:#fff; border-radius:999px; padding:3px 5px;
+}
 
 .lightbox-overlay{
   position:fixed; inset:0; background:rgba(10,10,10,.94); z-index:90;

@@ -8,3 +8,9 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.13.2
+      - key: DATA_DIR
+        value: /var/data
+    disk:
+      name: planet-rock-data
+      mountPath: /var/data
+      sizeGB: 1

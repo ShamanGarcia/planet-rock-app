@@ -76,6 +76,42 @@ export function fileToDataUrl(file) {
   });
 }
 
+// Downscales + re-encodes an image file entirely client-side (native canvas
+// API, no server round-trip needed) so uploaded photos stay small — roughly
+// 720p-equivalent on the longest edge, re-saved as JPEG. Non-image files
+// (video) are returned untouched via fileToDataUrl; browsers have no native
+// way to re-encode video, so video size is instead handled by the
+// shared/private split at the call site (see SHARED_MEDIA_LIMIT_BYTES).
+export function compressImageFile(file, { maxDim = 1280, quality = 0.82 } = {}) {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim) {
+        const scale = maxDim / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error("Couldn't read that image.")); };
+    img.src = objectUrl;
+  });
+}
+
+// Approximate decoded byte size of a base64 data URL (base64 is ~4/3 the
+// size of the raw bytes it encodes).
+export function dataUrlByteSize(dataUrl) {
+  const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+  return Math.round(base64.length * 0.75);
+}
+
 export function escapeHtml(str) {
   if (str === null || str === undefined) return "";
   return String(str)

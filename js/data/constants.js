@@ -27,6 +27,12 @@ export const DEFAULT_TAGS = [
 
 export const MAX_GRADE = 10; // V0..V10
 
+// Photos/videos at or under this size (after client-side photo compression)
+// upload to the shared server and appear in everyone's gallery. Anything
+// bigger stays on the uploader's own device (IndexedDB) instead, private to
+// them — keeps the small shared disk from filling up with large videos.
+export const SHARED_MEDIA_LIMIT_BYTES = 4 * 1024 * 1024;
+
 export function formatGrade(grade) {
   if (grade === null || grade === undefined) return "Ungraded";
   return `V${grade}`;
