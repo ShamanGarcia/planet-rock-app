@@ -1,4 +1,4 @@
-import { getRoutes, getAllTags } from "../data/api.js";
+import { getRoutes, getAllTags, getCurrentUser, getLogEntries } from "../data/api.js";
 import { HOLD_COLORS, HOLD_COLOR_HEX, HOLD_TYPES, WALL_SECTIONS, MAX_GRADE, formatGrade, routeLabel } from "../data/constants.js";
 import { openRouteDetail } from "./routeDetail.js";
 import { openAddRouteForm } from "../components/addRoute.js";
@@ -151,9 +151,15 @@ export function renderGymMap(container, gymId) {
 
   async function renderCanvasContents({ quiet = false } = {}) {
     let visibleRoutes;
+    let completedRouteIds = new Set();
     try {
-      const allRoutes = await getRoutes(gymId);
+      const currentUser = getCurrentUser();
+      const [allRoutes, myLog] = await Promise.all([
+        getRoutes(gymId),
+        currentUser ? getLogEntries(currentUser.id).catch(() => []) : [],
+      ]);
       if (destroyed) return;
+      completedRouteIds = new Set(myLog.map((e) => e.routeId));
       visibleRoutes = allRoutes.filter(routeMatches);
     } catch (err) {
       if (!quiet) container.querySelector("#result-count").textContent = "Couldn't load routes";
@@ -171,11 +177,13 @@ export function renderGymMap(container, gymId) {
     const markersHTML = visibleRoutes
       .map((r) => {
         const label = r.officialGrade === null ? "?" : `V${r.officialGrade}`;
+        const completed = completedRouteIds.has(r.id);
+        const dotColor = completed ? HOLD_COLOR_HEX[r.holdColor] : "var(--pr-slate)";
         return `
-          <div class="route-marker ${r.id === selectedRouteId ? "selected" : ""} ${!r.active ? "retired" : ""}"
-               style="left:${r.mapX * 10}px; top:${r.mapY * 10}px; background:${HOLD_COLOR_HEX[r.holdColor]};"
-               data-route-id="${r.id}" data-hold="${r.holdColor}"
-               role="button" tabindex="0" aria-label="${escapeHtml(routeLabel(r))}, ${r.holdType}${r.mediaCount ? `, ${r.mediaCount} photo${r.mediaCount === 1 ? "" : "s"}/videos` : ""}">
+          <div class="route-marker ${completed ? "completed" : "uncompleted"} ${r.id === selectedRouteId ? "selected" : ""} ${!r.active ? "retired" : ""}"
+               style="left:${r.mapX * 10}px; top:${r.mapY * 10}px; background:${dotColor};"
+               data-route-id="${r.id}" data-hold="${completed ? r.holdColor : ""}"
+               role="button" tabindex="0" aria-label="${escapeHtml(routeLabel(r))}, ${r.holdType}, ${completed ? "completed" : "not yet completed"}${r.mediaCount ? `, ${r.mediaCount} photo${r.mediaCount === 1 ? "" : "s"}/videos` : ""}">
             <span class="marker-grade">${label}</span>
           </div>
         `;

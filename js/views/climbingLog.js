@@ -1,12 +1,18 @@
 import { getLogEntries, computeUserStats, deleteLogEntry, getCurrentUser } from "../data/api.js";
-import { formatGrade, formatEstimate, HOLD_COLORS, HOLD_TYPES, MAX_GRADE } from "../data/constants.js";
+import { formatGrade, formatEstimate, HOLD_COLORS, HOLD_TYPES, MAX_GRADE, WALL_SECTIONS } from "../data/constants.js";
 import { formatDate, escapeHtml, monthLabel, clamp } from "../utils.js";
 import { renderBarChart, renderMultiBarChart, renderLineChart, PALETTE } from "../components/charts.js";
 import { openGalleryPrompt } from "../components/gallery.js";
 import { showToast } from "../components/toast.js";
 
+function wallSectionName(id) {
+  return WALL_SECTIONS.find((s) => s.id === id)?.name || null;
+}
+
 function snapshotLabel(snapshot) {
-  return `${snapshot.holdColor} ${formatGrade(snapshot.officialGrade)}`;
+  const base = `${snapshot.holdColor} ${formatGrade(snapshot.officialGrade)}`;
+  const place = wallSectionName(snapshot.wallSection);
+  return place ? `${base} - ${place}` : base;
 }
 
 export function renderClimbingLog(container, userId, { title = "Climbing Log", canGoBack = false, backHash = "#/friends" } = {}) {

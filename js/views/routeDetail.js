@@ -1,5 +1,6 @@
 import {
   getRouteDetail, voteTag, addTagToRoute, getAllTags, submitGradeEstimate,
+  getAcceptedFriends, getLogEntries,
 } from "../data/api.js";
 import { formatGrade, formatEstimate, MAX_GRADE, HOLD_COLOR_HEX, routeLabel } from "../data/constants.js";
 import { generateRoutePhotoSVG } from "../components/routePhoto.js";
@@ -29,6 +30,21 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
   function escHandler(e) { if (e.key === "Escape") close(); }
   document.addEventListener("keydown", escHandler);
 
+  // Friends' logs are fetched individually. Friends with a private log are
+  // skipped up front (the endpoint would 403 anyway) rather than contributing
+  // nothing to this section after a failed request.
+  async function getFriendsWhoSent() {
+    let friends = [];
+    try { friends = await getAcceptedFriends(); } catch { return []; }
+    const results = await Promise.all(friends.filter((f) => f.privacy?.logPublic).map(async (f) => {
+      try {
+        const log = await getLogEntries(f.id);
+        return log.some((e) => e.routeId === routeId) ? f : null;
+      } catch { return null; }
+    }));
+    return results.filter(Boolean);
+  }
+
   async function render() {
     let detail;
     try {
@@ -43,6 +59,8 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
     const hasEstimates = gradeDistribution.some((c) => c > 0);
     const linkedTagIds = new Set(route.tags);
     const availableTags = (await getAllTags()).filter((t) => !linkedTagIds.has(t.id));
+    const alreadySent = justSent || mySends > 0;
+    const friendsSent = await getFriendsWhoSent();
 
     backdrop.innerHTML = `
       <div class="drawer" role="dialog" aria-modal="true" aria-label="Route details for ${escapeHtml(label)}">
@@ -115,10 +133,15 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
         ` : `<div class="page-sub">No photos or videos yet — attach one next time you log a send.</div>`}
 
         <div class="log-send-bar">
-          <button class="btn ${justSent ? "btn-success" : "btn-primary"} btn-block" id="rd-log-send" ${!route.active ? "disabled" : ""} style="${justSent ? "cursor:default;" : ""}">
-            ${justSent ? "SENT!" : "Log Send"}
+          <button class="btn ${alreadySent ? "btn-success" : "btn-primary"} btn-block" id="rd-log-send" ${!route.active ? "disabled" : ""} style="${alreadySent ? "cursor:default;" : ""}">
+            ${alreadySent ? "SENT!" : "Log Send"}
           </button>
         </div>
+
+        <div class="section-title">Friends Who've Sent This</div>
+        ${friendsSent.length
+          ? `<div class="chip-row">${friendsSent.map((f) => `<span class="chip">${escapeHtml(f.name)}</span>`).join("")}</div>`
+          : `<div class="page-sub">None of your friends have sent this yet.</div>`}
       </div>
     `;
 
@@ -171,7 +194,7 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
     });
 
     backdrop.querySelector("#rd-log-send").addEventListener("click", () => {
-      if (justSent) {
+      if (alreadySent) {
         sentClickCount += 1;
         if (sentClickCount >= 3) showToast("You can delete sends in the climbing log", { small: true });
         return;

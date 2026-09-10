@@ -174,6 +174,7 @@ def build_seed_data():
                 "holdColor": route["holdColor"],
                 "holdType": route["holdType"],
                 "officialGrade": route["officialGrade"],
+                "wallSection": route.get("wallSection"),
             },
         })
 

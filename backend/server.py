@@ -772,7 +772,7 @@ class Handler(BaseHTTPRequestHandler):
             "id": uid("log"), "userId": user["id"], "routeId": route_id, "completedAt": now_iso(),
             "snapshot": {
                 "holdColor": route["holdColor"], "holdType": route["holdType"],
-                "officialGrade": route["officialGrade"],
+                "officialGrade": route["officialGrade"], "wallSection": route.get("wallSection"),
             },
         }
         DB["climbingLog"].append(entry)
