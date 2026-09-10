@@ -5,10 +5,10 @@ import { renderProfile } from "./views/profile.js";
 import { renderFriends } from "./views/friends.js";
 
 const NAV_ITEMS = [
-  { hash: "#/map", label: "Gym Map", icon: "🧗" },
-  { hash: "#/log", label: "Climbing Log", icon: "📒" },
-  { hash: "#/profile", label: "Profile", icon: "👤" },
-  { hash: "#/friends", label: "Friends", icon: "🤝" },
+  { hash: "#/map", label: "Gym Map" },
+  { hash: "#/log", label: "Climbing Log" },
+  { hash: "#/profile", label: "Profile" },
+  { hash: "#/friends", label: "Friends" },
 ];
 
 function currentBase(hash) {
@@ -21,7 +21,7 @@ function currentBase(hash) {
 function navLinksHTML(active) {
   return NAV_ITEMS.map(
     (item) => `<a href="${item.hash}" class="${active === item.hash ? "active" : ""}">
-      <span class="nav-icon">${item.icon}</span><span>${item.label}</span>
+      <span>${item.label}</span>
     </a>`
   ).join("");
 }
@@ -34,12 +34,12 @@ export async function renderShell(root, onLoggedOut) {
   root.innerHTML = `
     <div class="app-shell">
       <div class="topbar">
-        <div class="brand"><span class="logo-mark">🧗</span> Planet Rock</div>
+        <div class="brand">MATCHBOOK</div>
         <select class="gym-select" id="gym-select" aria-label="Select gym">
           ${gyms.map((g) => `<option value="${g.id}" ${g.id === gymId ? "selected" : ""}>${g.name}</option>`).join("")}
         </select>
         <div class="topbar-actions">
-          <button class="icon-btn" id="logout-btn" title="Log out" aria-label="Log out">⏻</button>
+          <button class="btn btn-sm" id="logout-btn" style="background:rgba(255,255,255,.15);color:#fff;" aria-label="Log out">Log Out</button>
         </div>
       </div>
       <div class="desktop-shell">

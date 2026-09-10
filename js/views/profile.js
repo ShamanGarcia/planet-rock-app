@@ -1,6 +1,6 @@
 import { getCurrentUser, updateUser, computeUserStats } from "../data/api.js";
 import { formatGrade, HOLD_TYPES, MAX_GRADE } from "../data/constants.js";
-import { escapeHtml } from "../utils.js";
+import { escapeHtml, compressImageFile } from "../utils.js";
 import { showToast } from "../components/toast.js";
 
 function initials(name) {
@@ -20,6 +20,7 @@ function climbingExperience(startDate) {
 export function renderProfile(container) {
   let editing = false;
   let stats = null;
+  let photoDataUrl = null; // null = keep existing user.profilePicture
 
   async function render() {
     const user = getCurrentUser();
@@ -78,7 +79,7 @@ export function renderProfile(container) {
     `;
 
     container.querySelector("#edit-btn")?.addEventListener("click", () => { editing = true; render(); });
-    container.querySelector("#cancel-btn")?.addEventListener("click", () => { editing = false; render(); });
+    container.querySelector("#cancel-btn")?.addEventListener("click", () => { editing = false; photoDataUrl = null; render(); });
     container.querySelector("#profile-form")?.addEventListener("submit", async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
@@ -89,12 +90,21 @@ export function renderProfile(container) {
         climbingStartDate: fd.get("climbingStartDate") || null,
         favoriteHoldType: fd.get("favoriteHoldType") || null,
         selfReportedHighestGrade: fd.get("selfReportedHighestGrade") !== "" ? Number(fd.get("selfReportedHighestGrade")) : null,
-        profilePicture: fd.get("profilePicture") || null,
+        profilePicture: photoDataUrl === "" ? null : photoDataUrl ?? user.profilePicture ?? null,
       });
       editing = false;
+      photoDataUrl = null;
       showToast("Profile updated");
       render();
     });
+    container.querySelector("#p-photo-btn")?.addEventListener("click", () => container.querySelector("#p-photo-input").click());
+    container.querySelector("#p-photo-input")?.addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      photoDataUrl = await compressImageFile(file, { maxDim: 400 });
+      render();
+    });
+    container.querySelector("#p-photo-remove")?.addEventListener("click", () => { photoDataUrl = ""; render(); });
     container.querySelector("#p-public")?.addEventListener("change", (e) => {
       updateUser(user.id, { privacy: { ...user.privacy, profilePublic: e.target.checked } });
     });
@@ -119,7 +129,13 @@ export function renderProfile(container) {
     return `
       <form id="profile-form" style="margin-top:10px;">
         <div class="field"><label>Name</label><input type="text" name="name" value="${escapeHtml(user.name)}"/></div>
-        <div class="field"><label>Profile Picture URL</label><input type="text" name="profilePicture" value="${escapeHtml(user.profilePicture || "")}" placeholder="https://…"/></div>
+        <div class="field">
+          <label>Profile Picture</label>
+          ${(photoDataUrl ?? user.profilePicture) ? `<div class="avatar" style="margin-bottom:8px;"><img src="${photoDataUrl ?? user.profilePicture}" alt=""/></div>` : ""}
+          <input type="file" accept="image/*" capture="environment" id="p-photo-input" class="visually-hidden"/>
+          <button type="button" class="btn btn-outline btn-sm" id="p-photo-btn">Take or Choose Photo</button>
+          ${(photoDataUrl ?? user.profilePicture) ? `<button type="button" class="btn btn-ghost btn-sm" id="p-photo-remove">Remove Photo</button>` : ""}
+        </div>
         <div class="form-row">
           <div class="field"><label>Age</label><input type="number" name="age" min="0" max="120" value="${user.age ?? ""}"/></div>
           <div class="field"><label>Hometown</label><input type="text" name="hometown" value="${escapeHtml(user.hometown || "")}"/></div>

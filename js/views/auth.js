@@ -10,7 +10,7 @@ export function renderAuth(root, onAuthed) {
     root.innerHTML = `
       <div class="auth-wrap">
         <div class="auth-card">
-          <div class="auth-logo"><span class="logo-mark">🧗</span><strong>Planet Rock</strong></div>
+          <div class="auth-logo"><strong>MATCHBOOK</strong></div>
           ${error ? `<div class="auth-error">${escapeHtml(error)}</div>` : ""}
           ${mode === "login" ? loginForm() : ""}
           ${mode === "signup" ? signupForm() : ""}

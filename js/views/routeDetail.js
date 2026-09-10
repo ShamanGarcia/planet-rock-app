@@ -6,12 +6,19 @@ import { generateRoutePhotoSVG } from "../components/routePhoto.js";
 import { renderDonutChart } from "../components/charts.js";
 import { openLogSendSheet } from "../components/logSendSheet.js";
 import { openFullGallery, getCombinedMedia } from "../components/gallery.js";
+import { showToast } from "../components/toast.js";
 import { escapeHtml } from "../utils.js";
 
 export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
   const backdrop = document.createElement("div");
   backdrop.className = "drawer-backdrop";
   document.body.appendChild(backdrop);
+
+  // Resets each time the drawer is opened — this just guards against
+  // mashing the button right after a send, not a permanent "already sent"
+  // lock (repeat sends on another visit are still allowed).
+  let justSent = false;
+  let sentClickCount = 0;
 
   function close() {
     backdrop.remove();
@@ -43,7 +50,7 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
         <div class="drawer-header">
           <div class="route-title-row" style="width:100%">
             <h2>${escapeHtml(label)}</h2>
-            <button class="icon-btn" style="background:#efece5;color:#1b1d21" id="rd-close" aria-label="Close">✕</button>
+            <button class="icon-btn" style="background:#efece5;color:#1b1d21" id="rd-close" aria-label="Close">X</button>
           </div>
         </div>
 
@@ -99,17 +106,17 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
           <div class="gallery-preview-row">
             ${media.slice(0, 4).map((m) => `
               <div class="gallery-preview-thumb">
-                ${m.isLocal ? `<span class="gallery-lock" title="Private — only on this device">🔒</span>` : ""}
-                ${m.type === "video" ? `<video src="${m.url}" muted></video><span class="gallery-play">▶</span>` : `<img src="${m.url}" alt=""/>`}
+                ${m.isLocal ? `<span class="gallery-lock" title="Private — only on this device">PRIVATE</span>` : ""}
+                ${m.type === "video" ? `<video src="${m.url}" muted></video><span class="gallery-play">PLAY</span>` : `<img src="${m.url}" alt=""/>`}
               </div>
             `).join("")}
           </div>
-          <button class="btn btn-outline btn-sm btn-block" id="rd-view-gallery" style="margin-top:8px;">🖼 View Gallery (${media.length})</button>
+          <button class="btn btn-outline btn-sm btn-block" id="rd-view-gallery" style="margin-top:8px;">View Gallery (${media.length})</button>
         ` : `<div class="page-sub">No photos or videos yet — attach one next time you log a send.</div>`}
 
         <div class="log-send-bar">
-          <button class="btn btn-primary btn-block" id="rd-log-send" ${!route.active ? "disabled" : ""}>
-            🧗 Log Send
+          <button class="btn ${justSent ? "btn-success" : "btn-primary"} btn-block" id="rd-log-send" ${!route.active ? "disabled" : ""} style="${justSent ? "cursor:default;" : ""}">
+            ${justSent ? "SENT!" : "Log Send"}
           </button>
         </div>
       </div>
@@ -164,8 +171,13 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
     });
 
     backdrop.querySelector("#rd-log-send").addEventListener("click", () => {
+      if (justSent) {
+        sentClickCount += 1;
+        if (sentClickCount >= 3) showToast("You can delete sends in the climbing log", { small: true });
+        return;
+      }
       openLogSendSheet(routeId, label, {
-        onLogged: () => { onChanged?.(); render(); },
+        onLogged: () => { justSent = true; onChanged?.(); render(); },
       });
     });
   }
@@ -178,8 +190,8 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
           <div class="tag-score">Score ${t.score >= 0 ? "+" : ""}${t.score} · ${t.votes} vote${t.votes === 1 ? "" : "s"}</div>
         </div>
         <div class="vote-btns">
-          <button class="vote-btn ${t.myVote === 1 ? "active-up" : ""}" data-vote-tag="${t.tagId}" data-vote-value="1" aria-label="Thumbs up ${escapeHtml(t.name)}">👍</button>
-          <button class="vote-btn ${t.myVote === -1 ? "active-down" : ""}" data-vote-tag="${t.tagId}" data-vote-value="-1" aria-label="Thumbs down ${escapeHtml(t.name)}">👎</button>
+          <button class="vote-btn ${t.myVote === 1 ? "active-up" : ""}" data-vote-tag="${t.tagId}" data-vote-value="1" aria-label="Thumbs up ${escapeHtml(t.name)}">+1</button>
+          <button class="vote-btn ${t.myVote === -1 ? "active-down" : ""}" data-vote-tag="${t.tagId}" data-vote-value="-1" aria-label="Thumbs down ${escapeHtml(t.name)}">-1</button>
         </div>
       </div>
     `;

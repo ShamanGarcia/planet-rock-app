@@ -1,14 +1,16 @@
-import { getLogEntries, computeUserStats } from "../data/api.js";
+import { getLogEntries, computeUserStats, deleteLogEntry, getCurrentUser } from "../data/api.js";
 import { formatGrade, formatEstimate, HOLD_COLORS, HOLD_TYPES, MAX_GRADE } from "../data/constants.js";
-import { formatDate, escapeHtml, monthLabel } from "../utils.js";
+import { formatDate, escapeHtml, monthLabel, clamp } from "../utils.js";
 import { renderBarChart, renderMultiBarChart, renderLineChart, PALETTE } from "../components/charts.js";
 import { openGalleryPrompt } from "../components/gallery.js";
+import { showToast } from "../components/toast.js";
 
 function snapshotLabel(snapshot) {
   return `${snapshot.holdColor} ${formatGrade(snapshot.officialGrade)}`;
 }
 
 export function renderClimbingLog(container, userId, { title = "Climbing Log", canGoBack = false, backHash = "#/friends" } = {}) {
+  const isOwn = getCurrentUser()?.id === userId;
   let mode = "table";
   let sortField = "completedAt";
   let sortDir = "desc";
@@ -60,13 +62,24 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
     render();
   }
 
+  async function handleDelete(entry) {
+    try {
+      await deleteLogEntry(entry.id);
+      allEntries = allEntries.filter((e) => e.id !== entry.id);
+      showToast("Send removed");
+      render();
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
   function render() {
     const entries = loaded ? getFiltered() : [];
     container.innerHTML = `
       <div class="page">
         <div class="page-header">
           <div>
-            ${canGoBack ? `<a href="${backHash}" class="btn btn-ghost btn-sm" style="padding-left:0;">← Back</a>` : ""}
+            ${canGoBack ? `<a href="${backHash}" class="btn btn-ghost btn-sm" style="padding-left:0;">Back</a>` : ""}
             <h1>${escapeHtml(title)}</h1>
             <div class="page-sub">${loaded ? `${entries.length} climb${entries.length === 1 ? "" : "s"} recorded` : "Loading…"}</div>
           </div>
@@ -112,6 +125,7 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
             ${headerCell("Community Est.", "estimatedGrade")}
             ${headerCell("Hold Type", "holdType")}
             <th>Style / Tags</th>
+            ${isOwn ? "<th></th>" : ""}
           </tr></thead>
           <tbody>
             ${entries.map((e) => `
@@ -122,6 +136,7 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
                 <td>${e.estimatedGrade === null ? "—" : formatEstimate(e.estimatedGrade)}</td>
                 <td>${e.snapshot.holdType || "—"}</td>
                 <td>${e.topTags.map((t) => `<span class="chip" style="margin:2px;">${escapeHtml(t.name)}</span>`).join("") || "—"}</td>
+                ${isOwn ? `<td><button class="btn btn-ghost btn-sm" data-delete-id="${e.id}" style="color:var(--pr-danger);">Delete</button></td>` : ""}
               </tr>
             `).join("")}
           </tbody>
@@ -129,16 +144,19 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
       </div>
       <div class="log-card-list">
         ${entries.map((e) => `
-          <button class="log-card" data-route-id="${e.routeId}" data-label="${escapeHtml(snapshotLabel(e.snapshot))}">
-            <div class="log-card-top">
-              <span class="hold-dot" style="background:var(--hold-${e.snapshot.holdColor.toLowerCase()})"></span>
-              <strong>${escapeHtml(snapshotLabel(e.snapshot))}</strong>
-              ${!e.route ? '<span class="badge-soft">retired</span>' : ""}
-              <span class="log-card-date">${formatDate(e.completedAt)}</span>
-            </div>
-            <div class="log-card-meta">${e.snapshot.holdType || "—"} · Community Est. ${e.estimatedGrade === null ? "—" : formatEstimate(e.estimatedGrade)}</div>
-            ${e.topTags.length ? `<div class="log-card-tags">${e.topTags.map((t) => `<span class="chip">${escapeHtml(t.name)}</span>`).join("")}</div>` : ""}
-          </button>
+          <div class="swipe-row" data-entry-id="${e.id}">
+            ${isOwn ? `<button class="swipe-delete-btn" aria-label="Delete this send">Delete</button>` : ""}
+            <button class="log-card" data-route-id="${e.routeId}" data-label="${escapeHtml(snapshotLabel(e.snapshot))}">
+              <div class="log-card-top">
+                <span class="hold-dot" style="background:var(--hold-${e.snapshot.holdColor.toLowerCase()})"></span>
+                <strong>${escapeHtml(snapshotLabel(e.snapshot))}</strong>
+                ${!e.route ? '<span class="badge-soft">retired</span>' : ""}
+                <span class="log-card-date">${formatDate(e.completedAt)}</span>
+              </div>
+              <div class="log-card-meta">${e.snapshot.holdType || "—"} · Community Est. ${e.estimatedGrade === null ? "—" : formatEstimate(e.estimatedGrade)}</div>
+              ${e.topTags.length ? `<div class="log-card-tags">${e.topTags.map((t) => `<span class="chip">${escapeHtml(t.name)}</span>`).join("")}</div>` : ""}
+            </button>
+          </div>
         `).join("")}
       </div>`}
     `;
@@ -156,9 +174,20 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
         render();
       })
     );
-    body.querySelectorAll("tr[data-route-id], .log-card[data-route-id]").forEach((el) =>
+    body.querySelectorAll("tr[data-route-id]").forEach((el) =>
       el.addEventListener("click", () => openGalleryPrompt(el.getAttribute("data-route-id"), el.getAttribute("data-label")))
     );
+    body.querySelectorAll("[data-delete-id]").forEach((btn) =>
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const entry = entries.find((x) => x.id === btn.getAttribute("data-delete-id"));
+        if (entry) handleDelete(entry);
+      })
+    );
+    body.querySelectorAll(".swipe-row").forEach((row) => {
+      const entry = entries.find((x) => x.id === row.getAttribute("data-entry-id"));
+      wireLogCard(row, () => entry && handleDelete(entry));
+    });
     body.querySelector("#f-from").addEventListener("change", (e) => { filterState.dateFrom = e.target.value; render(); });
     body.querySelector("#f-to").addEventListener("change", (e) => { filterState.dateTo = e.target.value; render(); });
     body.querySelector("#f-grade").addEventListener("change", (e) => { filterState.officialGrade = e.target.value; render(); });
@@ -171,8 +200,58 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
     });
   }
 
+  // Wires a mobile log card: tap opens the gallery prompt; if a delete
+  // button is present (own log only), swiping the card left with native
+  // pointer events (no gesture library) reveals it underneath.
+  function wireLogCard(rowEl, onDelete) {
+    const card = rowEl.querySelector(".log-card");
+    const deleteBtn = rowEl.querySelector(".swipe-delete-btn");
+    if (!card) return;
+    const OPEN_X = -84;
+    let startX = 0, baseX = 0, dragging = false, open = false, moved = false;
+
+    if (deleteBtn) {
+      card.style.touchAction = "pan-y";
+      card.addEventListener("pointerdown", (e) => {
+        if (e.pointerType === "mouse" && e.button !== 0) return;
+        dragging = true; moved = false;
+        startX = e.clientX; baseX = open ? OPEN_X : 0;
+        card.style.transition = "none";
+        card.setPointerCapture(e.pointerId);
+      });
+      card.addEventListener("pointermove", (e) => {
+        if (!dragging) return;
+        const dx = e.clientX - startX;
+        if (Math.abs(dx) > 4) moved = true;
+        card.style.transform = `translateX(${clamp(baseX + dx, OPEN_X, 0)}px)`;
+      });
+      const endDrag = (e) => {
+        if (!dragging) return;
+        dragging = false;
+        card.style.transition = "";
+        const dx = e.clientX - startX;
+        open = clamp(baseX + dx, OPEN_X, 0) < OPEN_X / 2;
+        card.style.transform = `translateX(${open ? OPEN_X : 0}px)`;
+      };
+      card.addEventListener("pointerup", endDrag);
+      card.addEventListener("pointercancel", endDrag);
+      deleteBtn.addEventListener("click", (e) => { e.stopPropagation(); onDelete(); });
+    }
+
+    card.addEventListener("click", (e) => {
+      if (moved) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+      if (open) {
+        e.preventDefault(); e.stopImmediatePropagation();
+        open = false;
+        card.style.transform = "translateX(0)";
+        return;
+      }
+      openGalleryPrompt(card.getAttribute("data-route-id"), card.getAttribute("data-label"));
+    });
+  }
+
   function emptyState() {
-    return `<div class="empty-state card"><div class="empty-emoji">🧗</div><div>No climbs match these filters yet.</div></div>`;
+    return `<div class="empty-state card"><div>No climbs match these filters yet.</div></div>`;
   }
 
   async function renderStats(body) {
@@ -185,7 +264,7 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
       return;
     }
     if (stats.totalClimbs === 0) {
-      body.innerHTML = `<div class="empty-state card"><div class="empty-emoji">📊</div><div>Log a send to start seeing your stats.</div></div>`;
+      body.innerHTML = `<div class="empty-state card"><div>Log a send to start seeing your stats.</div></div>`;
       return;
     }
     const gradeLabels = stats.gradeDistribution.map((_, g) => `V${g}`);

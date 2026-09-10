@@ -181,6 +181,10 @@ export function getLogEntries(userId) {
   return request("GET", `/api/users/${userId}/log`);
 }
 
+export function deleteLogEntry(logId) {
+  return request("DELETE", `/api/log/${logId}`);
+}
+
 export function computeUserStats(userId) {
   return request("GET", `/api/users/${userId}/stats`);
 }

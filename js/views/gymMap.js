@@ -69,7 +69,7 @@ export function renderGymMap(container, gymId) {
   container.innerHTML = `
     <div class="page map-page">
       <div class="map-toolbar">
-        <button class="btn btn-outline btn-sm" id="open-filters">⚙️ Filters</button>
+        <button class="btn btn-outline btn-sm" id="open-filters">Filters</button>
         <button class="btn btn-ghost btn-sm ${isFilterActive() ? "" : "hidden"}" id="clear-filters">Clear all</button>
         <span class="result-count" id="result-count">Loading…</span>
       </div>
@@ -112,7 +112,7 @@ export function renderGymMap(container, gymId) {
   function enterPlacementMode() {
     placementMode = true;
     selectedRouteId = null;
-    addBtn.textContent = "✕ Cancel";
+    addBtn.textContent = "Cancel";
     addBtn.classList.remove("btn-primary");
     addBtn.classList.add("btn-danger");
     hint.textContent = "Tap the wall where the route starts to place it";
@@ -336,7 +336,7 @@ export function renderGymMap(container, gymId) {
       backdrop.innerHTML = `
         <div class="drawer" role="dialog" aria-modal="true" aria-label="Filter routes">
           <div class="drawer-handle"></div>
-          <div class="drawer-header"><h2>Filter Routes</h2><button class="icon-btn" style="background:#efece5;color:#1b1d21" id="fd-close">✕</button></div>
+          <div class="drawer-header"><h2>Filter Routes</h2><button class="icon-btn" style="background:#efece5;color:#1b1d21" id="fd-close">X</button></div>
 
           <div class="filter-group">
             <h3>Official Grade</h3>

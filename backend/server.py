@@ -397,6 +397,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_PATCH(self):
         self._dispatch("PATCH")
 
+    def do_DELETE(self):
+        self._dispatch("DELETE")
+
     def _dispatch(self, method):
         parsed = urlsplit(self.path)
         path = parsed.path
@@ -490,6 +493,9 @@ class Handler(BaseHTTPRequestHandler):
         m = re.match(r"^/api/users/([^/]+)/log$", path)
         if method == "GET" and m:
             return self._user_log(m.group(1))
+        m = re.match(r"^/api/log/([^/]+)$", path)
+        if method == "DELETE" and m:
+            return self._delete_log_entry(m.group(1))
         m = re.match(r"^/api/users/([^/]+)/stats$", path)
         if method == "GET" and m:
             return self._user_stats(m.group(1))
@@ -824,6 +830,22 @@ class Handler(BaseHTTPRequestHandler):
         if not self._can_view_log(target, viewer):
             raise ApiError(403, "This climbing log is not available to view.")
         self._json(200, get_log_entries(user_id))
+
+    def _delete_log_entry(self, log_id):
+        _, user = self._auth()
+        entry = find(DB["climbingLog"], id=log_id)
+        if not entry:
+            raise ApiError(404, "Log entry not found.")
+        if entry["userId"] != user["id"]:
+            raise ApiError(403, "You can only delete your own log entries.")
+        linked_media = [m for m in DB["routeMedia"] if m.get("logEntryId") == log_id]
+        for m in linked_media:
+            if m["url"].startswith("/uploads/"):
+                (UPLOADS_DIR / m["url"][len("/uploads/"):]).unlink(missing_ok=True)
+        DB["routeMedia"] = [m for m in DB["routeMedia"] if m.get("logEntryId") != log_id]
+        DB["climbingLog"].remove(entry)
+        save_db(DB)
+        self._json(200, {"ok": True})
 
     def _user_stats(self, user_id):
         _, viewer = self._auth(required=False)

@@ -67,7 +67,7 @@ function renderFriendsList(container) {
 
     const resultsHTML = results.length ? (await Promise.all(results.map((u) => friendCard(u, { actionsHTML: searchActionHTML(u) })))).join("") : "";
     const friendsHTML = friends.length === 0
-      ? `<div class="empty-state card"><div class="empty-emoji">🤝</div><div>Search above to add your first climbing friend.</div></div>`
+      ? `<div class="empty-state card"><div>Search above to add your first climbing friend.</div></div>`
       : (await Promise.all(friends.map((f) => friendCard(f, {
           actionsHTML: `<div style="display:flex;flex-direction:column;gap:6px;"><button class="btn btn-outline btn-sm" data-view="${f.id}">View Profile</button></div>`,
         })))).join("");
@@ -112,7 +112,7 @@ function renderFriendsList(container) {
     }));
     content.querySelectorAll("[data-accept]").forEach((btn) => btn.addEventListener("click", async () => {
       await respondToRequest(btn.getAttribute("data-accept"), true);
-      showToast("Friend added 🎉");
+      showToast("Friend added");
       renderContent();
     }));
     content.querySelectorAll("[data-decline]").forEach((btn) => btn.addEventListener("click", async () => {
@@ -146,7 +146,7 @@ function renderFriendProfile(container, friendId) {
 
     container.innerHTML = `
       <div class="page">
-        <a href="#/friends" class="btn btn-ghost btn-sm" style="padding-left:0;">← Back to Friends</a>
+        <a href="#/friends" class="btn btn-ghost btn-sm" style="padding-left:0;">Back to Friends</a>
         <div class="card card-pad section-block">
           <div class="profile-header">
             <div class="avatar">${user.profilePicture ? `<img src="${user.profilePicture}" alt=""/>` : initials(user.name)}</div>
@@ -158,7 +158,7 @@ function renderFriendProfile(container, friendId) {
           <div style="margin-top:10px;">${actionHTML}</div>
         </div>
 
-        ${!canSeeFull || !stats ? `<div class="empty-state card"><div class="empty-emoji">🔒</div><div>${escapeHtml(user.name)} has set their profile to private.</div></div>` : `
+        ${!canSeeFull || !stats ? `<div class="empty-state card"><div>${escapeHtml(user.name)} has set their profile to private.</div></div>` : `
           <div class="two-col section-block">
             <div class="card card-pad">
               <div class="info-list">
@@ -186,7 +186,7 @@ function renderFriendProfile(container, friendId) {
       const incoming = await getIncomingRequests();
       const inc = incoming.find((i) => i.user.id === friendId);
       if (inc) await respondToRequest(inc.friendship.id, true);
-      showToast("Friend added 🎉");
+      showToast("Friend added");
       render();
     });
     container.querySelector("#remove-friend-btn")?.addEventListener("click", async () => { await removeFriend(friendId); location.hash = "#/friends"; });
@@ -204,7 +204,7 @@ function renderFriendLog(container, friendId) {
     const rel = user ? await relationshipWith(friendId) : "none";
     const relationship = typeof rel === "string" ? rel : rel.status;
     if (!user || relationship !== "accepted" || !user.privacy.logPublic) {
-      container.innerHTML = `<div class="page"><a href="#/friends" class="btn btn-ghost btn-sm" style="padding-left:0;">← Back to Friends</a><div class="empty-state card"><div class="empty-emoji">🔒</div><div>This climbing log isn't available to view.</div></div></div>`;
+      container.innerHTML = `<div class="page"><a href="#/friends" class="btn btn-ghost btn-sm" style="padding-left:0;">Back to Friends</a><div class="empty-state card"><div>This climbing log isn't available to view.</div></div></div>`;
       return;
     }
     renderClimbingLog(container, friendId, { title: `${user.name}'s Climbing Log`, canGoBack: true, backHash: `#/friends/${friendId}` });

@@ -4,6 +4,9 @@
 
 const PALETTE = ["#ff5a1f", "#1e88e5", "#43a047", "#8e24aa", "#fdd835", "#e53935", "#212121", "#6b6f76", "#00897b", "#f4511e", "#5c6bc0"];
 
+// Canvas text doesn't inherit page CSS fonts, so Chart.js needs this set once.
+Chart.defaults.font.family = "W95FA, sans-serif";
+
 function mount(canvas, config) {
   if (canvas._chartInstance) canvas._chartInstance.destroy();
   canvas._chartInstance = new Chart(canvas.getContext("2d"), config);

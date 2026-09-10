@@ -38,7 +38,7 @@ export function openAddRouteForm({ gymId, mapX, mapY, wallSection, allTags, onCr
         <div class="drawer-handle"></div>
         <div class="drawer-header">
           <h2>${escapeHtml(previewLabel())}</h2>
-          <button class="icon-btn" style="background:#efece5;color:#1b1d21" id="ar-close" aria-label="Cancel">✕</button>
+          <button class="icon-btn" style="background:#efece5;color:#1b1d21" id="ar-close" aria-label="Cancel">X</button>
         </div>
         <div class="page-sub" style="margin-bottom:12px;">Placed on ${wallSection ? escapeHtml(wallSection.replace(/-/g, " ")) : "the gym floor plan"} · you can drag the map before placing next time to fine-tune position.</div>
 
@@ -49,10 +49,11 @@ export function openAddRouteForm({ gymId, mapX, mapY, wallSection, allTags, onCr
             <label>Photo</label>
             <div id="ar-photo-preview" style="margin-bottom:8px; ${photoDataUrl ? "" : "display:none;"}">
               <div class="route-photo" style="max-height:180px;"><img src="${photoDataUrl || ""}" alt="Route preview" style="width:100%;height:100%;object-fit:cover;"/></div>
-              ${photoTooBigForSharing ? `<div class="field-hint">🔒 Still large after compression — will be saved privately on this device only.</div>` : ""}
+              ${photoTooBigForSharing ? `<div class="field-hint">Still large after compression — will be saved privately on this device only.</div>` : ""}
             </div>
             <input type="file" accept="image/*" capture="environment" id="ar-photo-input" class="visually-hidden" />
-            <button type="button" class="btn btn-outline btn-sm" id="ar-photo-btn" ${processingPhoto ? "disabled" : ""}>📷 ${processingPhoto ? "Processing…" : photoDataUrl ? "Retake / Change Photo" : "Take or Upload Photo"}</button>
+            <button type="button" class="btn btn-outline btn-sm" id="ar-photo-btn" ${processingPhoto ? "disabled" : ""}>${processingPhoto ? "Processing…" : photoDataUrl ? "Retake / Change Photo" : "Take or Upload Photo"}</button>
+            ${photoDataUrl ? `<button type="button" class="btn btn-ghost btn-sm" id="ar-photo-remove">Remove Photo</button>` : ""}
           </div>
 
           <div class="field">
@@ -94,7 +95,7 @@ export function openAddRouteForm({ gymId, mapX, mapY, wallSection, allTags, onCr
           </div>
 
           <button class="btn btn-primary btn-block" type="submit" ${submitting ? "disabled" : ""}>
-            ${submitting ? "Uploading…" : "🧗 Add Route to Gym"}
+            ${submitting ? "Uploading…" : "Add Route to Gym"}
           </button>
           <button class="btn btn-ghost btn-block" type="button" id="ar-cancel" style="margin-top:6px;">Cancel</button>
         </form>
@@ -132,6 +133,11 @@ export function openAddRouteForm({ gymId, mapX, mapY, wallSection, allTags, onCr
 
     const photoInput = backdrop.querySelector("#ar-photo-input");
     backdrop.querySelector("#ar-photo-btn").addEventListener("click", () => photoInput.click());
+    backdrop.querySelector("#ar-photo-remove")?.addEventListener("click", () => {
+      photoDataUrl = null;
+      photoTooBigForSharing = false;
+      render();
+    });
     photoInput.addEventListener("change", async () => {
       const file = photoInput.files?.[0];
       if (!file) return;
@@ -174,7 +180,7 @@ export function openAddRouteForm({ gymId, mapX, mapY, wallSection, allTags, onCr
           await saveLocalMedia(route.id, "photo", photoDataUrl);
         }
         close();
-        showToast("Route added to the gym! 🧗", "🎉");
+        showToast("Route added to the gym");
         onCreated?.(route);
       } catch (err) {
         submitting = false;

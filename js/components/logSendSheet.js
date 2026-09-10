@@ -32,13 +32,14 @@ export function openLogSendSheet(routeId, label, { onLogged } = {}) {
           <div class="route-photo" style="max-height:160px;margin-bottom:6px;">
             ${mediaKind === "video" ? `<video src="${mediaDataUrl}" style="width:100%;height:100%;object-fit:cover;" muted></video>` : `<img src="${mediaDataUrl}" alt="" style="width:100%;height:100%;object-fit:cover;"/>`}
           </div>
-          ${tooBigForSharing ? `<div class="field-hint" style="margin-bottom:10px;">🔒 This file is large — it'll be saved privately on this device only, not shared with other climbers.</div>` : `<div class="field-hint" style="margin-bottom:10px;">Will be added to the shared gallery for everyone to see.</div>`}
+          ${tooBigForSharing ? `<div class="field-hint" style="margin-bottom:10px;">This file is large — it'll be saved privately on this device only, not shared with other climbers.</div>` : `<div class="field-hint" style="margin-bottom:10px;">Will be added to the shared gallery for everyone to see.</div>`}
         ` : ""}
         <input type="file" accept="image/*,video/*" capture="environment" id="ls-media-input" class="visually-hidden" />
         <button type="button" class="btn btn-outline btn-sm btn-block" id="ls-media-btn" style="margin-bottom:10px;" ${processingFile ? "disabled" : ""}>
-          📷 ${processingFile ? "Processing…" : mediaDataUrl ? "Change Photo/Video" : "Add a Photo or Video (optional)"}
+          ${processingFile ? "Processing…" : mediaDataUrl ? "Change Photo/Video" : "Add a Photo or Video (optional)"}
         </button>
-        <button class="btn btn-primary btn-block" id="ls-confirm" ${submitting ? "disabled" : ""}>${submitting ? "Logging…" : "🧗 Log Send"}</button>
+        ${mediaDataUrl ? `<button type="button" class="btn btn-ghost btn-sm btn-block" id="ls-media-remove" style="margin-bottom:10px;">Remove Photo/Video</button>` : ""}
+        <button class="btn btn-primary btn-block" id="ls-confirm" ${submitting ? "disabled" : ""}>${submitting ? "Logging…" : "Log Send"}</button>
         <button class="btn btn-ghost btn-block" id="ls-cancel" style="margin-top:6px;">Cancel</button>
       </div>
     `;
@@ -48,6 +49,12 @@ export function openLogSendSheet(routeId, label, { onLogged } = {}) {
 
     const mediaInput = backdrop.querySelector("#ls-media-input");
     backdrop.querySelector("#ls-media-btn").addEventListener("click", () => mediaInput.click());
+    backdrop.querySelector("#ls-media-remove")?.addEventListener("click", () => {
+      mediaDataUrl = null;
+      mediaKind = null;
+      tooBigForSharing = false;
+      render();
+    });
     mediaInput.addEventListener("change", async () => {
       const file = mediaInput.files?.[0];
       if (!file) return;
@@ -78,7 +85,7 @@ export function openLogSendSheet(routeId, label, { onLogged } = {}) {
           await saveLocalMedia(routeId, mediaKind, mediaDataUrl);
         }
         close();
-        showToast(tooBigForSharing && mediaDataUrl ? "Send logged — photo/video saved privately 🔒" : "Send logged! 🎉");
+        showToast(tooBigForSharing && mediaDataUrl ? "Send logged — photo/video saved privately" : "Send logged");
         onLogged?.();
       } catch (err) {
         submitting = false;
