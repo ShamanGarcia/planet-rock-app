@@ -44,6 +44,12 @@ MAX_GRADE = 10
 # Given to route setters so they can clear a wall before resetting it —
 # intentionally a shared plain-text key, not a per-user permission system.
 ROUTESETTER_KEY = "TEARDOWN"
+# One-time key for the factory-reset endpoint below, used once to wipe the
+# launch-testing data off the live site, then the endpoint gets deleted.
+# Read from the environment (set in the Render dashboard, never committed)
+# so the secret never ends up in git history; unset means the route refuses
+# every request instead of falling back to a guessable default.
+FACTORY_RESET_KEY = os.environ.get("FACTORY_RESET_KEY")
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
@@ -626,6 +632,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/friends/remove" and method == "POST":
             return self._friends_remove()
 
+        if path == "/api/admin/factory-reset" and method == "POST":
+            return self._factory_reset()
+
         raise ApiError(404, f"No such endpoint: {method} {path}")
 
     # ---------- Auth ----------
@@ -977,6 +986,23 @@ class Handler(BaseHTTPRequestHandler):
         DB["routes"] = [r for r in DB["routes"] if r["id"] not in target_ids]
         save_db(DB)
         self._json(200, {"ok": True, "removed": len(target_ids)})
+
+    # One-time launch helper: wipes every account/route/log back to the
+    # empty seed state. No self._auth() check, since after a reset there
+    # may be no accounts left to authenticate as — the shared key is the
+    # only gate. Remove this endpoint once it's been used.
+    def _factory_reset(self):
+        if not FACTORY_RESET_KEY:
+            raise ApiError(403, "Factory reset is disabled (no FACTORY_RESET_KEY set).")
+        body = self._body()
+        if body.get("key") != FACTORY_RESET_KEY:
+            raise ApiError(403, "Incorrect reset key.")
+        global DB
+        DB = build_seed_data()
+        shutil.rmtree(UPLOADS_DIR, ignore_errors=True)
+        UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+        save_db(DB)
+        self._json(200, {"ok": True})
 
     def _user_stats(self, user_id):
         _, viewer = self._auth(required=False)

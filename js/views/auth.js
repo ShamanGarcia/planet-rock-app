@@ -25,13 +25,12 @@ export function renderAuth(root, onAuthed) {
   function loginForm() {
     return `
       <form id="login-form">
-        <div class="field"><label>Email</label><input type="email" name="email" required placeholder="you@example.com" value="shgarcia@umich.edu"/></div>
-        <div class="field"><label>Password</label><input type="password" name="password" required placeholder="Password" value="climb123"/></div>
+        <div class="field"><label>Email</label><input type="email" name="email" required placeholder="you@example.com"/></div>
+        <div class="field"><label>Password</label><input type="password" name="password" required placeholder="Password"/></div>
         <button class="btn btn-primary btn-block" type="submit">Log In</button>
       </form>
       <div class="auth-switch"><button id="to-reset">Forgot password?</button></div>
       <div class="auth-switch">No account? <button id="to-signup">Sign up</button></div>
-      <div class="auth-note">Demo account pre-filled: shgarcia@umich.edu / climb123</div>
     `;
   }
 
