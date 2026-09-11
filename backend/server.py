@@ -44,6 +44,8 @@ MAX_GRADE = 10
 # Given to route setters so they can clear a wall before resetting it —
 # intentionally a shared plain-text key, not a per-user permission system.
 ROUTESETTER_KEY = "TEARDOWN"
+# Same shared-key style, scoped to deleting a single route from the map.
+DELETE_ROUTE_PASSWORD = "TAKEAWAY"
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
@@ -557,6 +559,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._get_route(m.group(1))
         if method == "PATCH" and m:
             return self._update_route(m.group(1))
+        if method == "DELETE" and m:
+            return self._delete_route(m.group(1))
         if path == "/api/routes" and method == "GET":
             return self._list_routes(qs)
         if path == "/api/routes" and method == "POST":
@@ -800,6 +804,28 @@ class Handler(BaseHTTPRequestHandler):
                 route[field] = body[field]
         save_db(DB)
         self._json(200, route_summary(route))
+
+    def _delete_route(self, route_id):
+        self._auth()
+        body = self._body()
+        if body.get("password") != DELETE_ROUTE_PASSWORD:
+            raise ApiError(403, "Incorrect delete password.")
+        route = find(DB["routes"], id=route_id)
+        if not route:
+            raise ApiError(404, "Route not found.")
+        for m in [m for m in DB["routeMedia"] if m["routeId"] == route_id]:
+            if m["url"].startswith("/uploads/"):
+                (UPLOADS_DIR / m["url"][len("/uploads/"):]).unlink(missing_ok=True)
+        shutil.rmtree(UPLOADS_DIR / "routes" / route_id, ignore_errors=True)
+        DB["routeMedia"] = [m for m in DB["routeMedia"] if m["routeId"] != route_id]
+        DB["routeTags"] = [rt for rt in DB["routeTags"] if rt["routeId"] != route_id]
+        DB["tagVotes"] = [v for v in DB["tagVotes"] if v["routeId"] != route_id]
+        DB["gradeEstimates"] = [e for e in DB["gradeEstimates"] if e["routeId"] != route_id]
+        # climbingLog entries are left alone, same as the wall-section reset —
+        # they already show as "retired" once get_route() can't find it.
+        DB["routes"] = [r for r in DB["routes"] if r["id"] != route_id]
+        save_db(DB)
+        self._json(200, {"ok": True})
 
     def _get_route_tags(self, route_id):
         _, user = self._auth(required=False)

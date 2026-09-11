@@ -145,6 +145,10 @@ export function retireRoute(routeId) {
   return request("PATCH", `/api/routes/${routeId}`, { active: false });
 }
 
+export function deleteRoute(routeId, password) {
+  return request("DELETE", `/api/routes/${routeId}`, { password });
+}
+
 export function voteTag(routeId, tagId, vote) {
   return request("POST", `/api/routes/${routeId}/tags/${tagId}/vote`, { vote });
 }

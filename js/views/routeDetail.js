@@ -1,11 +1,12 @@
 import {
   getRouteDetail, voteTag, addTagToRoute, getAllTags, submitGradeEstimate,
-  getAcceptedFriends, getLogEntries,
+  getAcceptedFriends, getLogEntries, updateRoute,
 } from "../data/api.js";
 import { formatGrade, formatEstimate, MAX_GRADE, HOLD_COLOR_HEX, routeLabel } from "../data/constants.js";
 import { renderDonutChart } from "../components/charts.js";
 import { openLogSendSheet } from "../components/logSendSheet.js";
 import { openFullGallery, getCombinedMedia } from "../components/gallery.js";
+import { openDeleteRouteModal } from "../components/deleteRouteModal.js";
 import { showToast } from "../components/toast.js";
 import { escapeHtml, dismissOverlay } from "../utils.js";
 
@@ -19,6 +20,7 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
   // lock (repeat sends on another visit are still allowed).
   let justSent = false;
   let sentClickCount = 0;
+  let editingGrade = false;
 
   function close() {
     dismissOverlay(backdrop);
@@ -92,6 +94,19 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
         <div class="section-title">Grade Distribution</div>
         ${hasEstimates ? `<div class="chart-box small"><canvas id="rd-donut"></canvas></div>` : `<div class="empty-state" style="padding:16px;"><div>No community estimate yet</div></div>`}
 
+        <button class="btn btn-outline btn-sm btn-block" id="rd-grade-toggle" style="margin-top:10px;">
+          ${route.officialGrade === null || route.officialGrade === undefined ? "+ Add Official Grade" : "Change Official Grade"}
+        </button>
+        ${editingGrade ? `
+          <form class="estimate-form" id="rd-grade-form" style="margin-top:8px;">
+            <select name="grade" aria-label="Official grade">
+              <option value="">Ungraded</option>
+              ${Array.from({ length: MAX_GRADE + 1 }, (_, g) => `<option value="${g}" ${route.officialGrade === g ? "selected" : ""}>V${g}</option>`).join("")}
+            </select>
+            <button class="btn btn-primary btn-sm" type="submit">Save</button>
+          </form>
+        ` : ""}
+
         <div class="section-title">Submit Your Estimate</div>
         <form class="estimate-form" id="rd-estimate-form">
           <select name="grade" aria-label="Your grade estimate">
@@ -139,6 +154,8 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
         ${friendsSent.length
           ? `<div class="chip-row">${friendsSent.map((f) => `<span class="chip">${escapeHtml(f.name)}</span>`).join("")}</div>`
           : `<div class="page-sub">None of your friends have sent this yet.</div>`}
+
+        <button class="btn btn-danger btn-block" id="rd-delete-route" style="margin-top:20px;">Delete This Climb</button>
       </div>
     `;
 
@@ -158,6 +175,26 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
       await submitGradeEstimate(routeId, grade);
       onChanged?.();
       render();
+    });
+
+    backdrop.querySelector("#rd-grade-toggle").addEventListener("click", () => {
+      editingGrade = !editingGrade;
+      render();
+    });
+
+    backdrop.querySelector("#rd-grade-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const val = new FormData(e.target).get("grade");
+      await updateRoute(routeId, { officialGrade: val === "" ? null : Number(val) });
+      editingGrade = false;
+      onChanged?.();
+      render();
+    });
+
+    backdrop.querySelector("#rd-delete-route").addEventListener("click", () => {
+      openDeleteRouteModal(routeId, label, {
+        onDeleted: () => { onChanged?.(); close(); },
+      });
     });
 
     backdrop.querySelectorAll("[data-vote-tag]").forEach((btn) => {
