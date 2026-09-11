@@ -4,6 +4,7 @@ import {
 } from "../data/constants.js";
 import { openRouteDetail } from "./routeDetail.js";
 import { openAddRouteForm } from "../components/addRoute.js";
+import { openResetWallModal } from "../components/resetWallModal.js";
 import { showToast } from "../components/toast.js";
 import { escapeHtml, clamp, pointInPolygon, polygonCentroid, polygonBounds } from "../utils.js";
 
@@ -96,6 +97,7 @@ export function renderGymMap(container, gymId) {
         </div>
         <button class="btn btn-primary" id="add-route-btn" style="position:absolute; left:12px; top:12px; z-index:25;">+ Add Route</button>
         <button class="btn btn-outline btn-sm hidden" id="back-to-map-btn" style="position:absolute; left:12px; top:56px; z-index:25; background:#fff;">&larr; All Areas</button>
+        <button class="btn btn-danger btn-sm hidden" id="reset-wall-btn" style="position:absolute; left:12px; top:100px; z-index:25;">RESET</button>
         <div class="map-hint" id="map-hint">Pinch or scroll to zoom · drag to pan · tap a wall to zoom in · tap a marker for details</div>
       </div>
     </div>
@@ -106,6 +108,7 @@ export function renderGymMap(container, gymId) {
   const hint = container.querySelector("#map-hint");
   const addBtn = container.querySelector("#add-route-btn");
   const backBtn = container.querySelector("#back-to-map-btn");
+  const resetBtn = container.querySelector("#reset-wall-btn");
   canvas.style.width = `${CANVAS_W}px`;
   canvas.style.height = `${CANVAS_H}px`;
 
@@ -123,15 +126,23 @@ export function renderGymMap(container, gymId) {
     fitToScreen();
   });
 
+  resetBtn.addEventListener("click", () => {
+    const section = WALL_SECTIONS.find((s) => s.id === zoomedSectionId);
+    if (!section) return;
+    openResetWallModal(gymId, section.id, section.name, { onReset: () => renderCanvasContents() });
+  });
+
   function exitZoomedSection() {
     zoomedSectionId = null;
     backBtn.classList.add("hidden");
+    resetBtn.classList.add("hidden");
     renderCanvasContents();
   }
 
   function enterZoomedSection(sectionId) {
     zoomedSectionId = sectionId;
     backBtn.classList.remove("hidden");
+    resetBtn.classList.remove("hidden");
     const section = WALL_SECTIONS.find((s) => s.id === sectionId);
     const pct = polygonBounds(section.points);
     fitToBounds({

@@ -108,6 +108,10 @@ export function getGym(id) {
   return request("GET", `/api/gyms/${id}`);
 }
 
+export function resetWallSection(gymId, wallSection, routesetterKey) {
+  return request("POST", `/api/gyms/${gymId}/wall-sections/${wallSection}/reset`, { routesetterKey });
+}
+
 // ===================== Tags =====================
 
 export function getAllTags() {

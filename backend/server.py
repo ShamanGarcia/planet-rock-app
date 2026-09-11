@@ -11,13 +11,18 @@ A dependency-free (stdlib only) HTTP server that:
 
 Run: python backend/server.py [port]
 """
+import atexit
 import base64
+import gzip
 import json
 import mimetypes
 import os
 import re
 import secrets
+import shutil
+import signal
 import threading
+import time
 import uuid
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -36,6 +41,9 @@ DATA_DIR = Path(os.environ.get("DATA_DIR") or (BACKEND_DIR / "data"))
 UPLOADS_DIR = DATA_DIR / "uploads"
 DB_PATH = DATA_DIR / "db.json"
 MAX_GRADE = 10
+# Given to route setters so they can clear a wall before resetting it —
+# intentionally a shared plain-text key, not a per-user permission system.
+ROUTESETTER_KEY = "TEARDOWN"
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
@@ -54,18 +62,68 @@ def load_db():
             entry.get("snapshot", {}).pop("routeName", None)
         return db
     db = build_seed_data()
-    save_db(db)
+    _write_db_to_disk(db)
     return db
 
 
-def save_db(db):
+def _atomic_write(text):
     tmp = DB_PATH.with_suffix(".tmp")
     with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(db, f)
+        f.write(text)
     os.replace(tmp, DB_PATH)
 
 
+def _write_db_to_disk(db):
+    _atomic_write(json.dumps(db))
+
+
+# Every request handler that mutates DB runs inside `with LOCK` (see
+# _dispatch) and calls save_db() at the end — but the actual disk write
+# doesn't need to happen inside that critical section. A slow write (disk
+# latency, a large file) would otherwise block every other concurrent
+# user's request, reads included, for its whole duration.
+#
+# So save_db() just flags the DB as dirty (near-instant) and returns; a
+# single background thread does the real write shortly after, off the
+# request path. Tradeoff: on an unclean process kill (not a normal
+# shutdown — see _flush_now/atexit/SIGTERM below, which all flush
+# immediately), writes from the last _FLUSH_INTERVAL are lost rather than
+# corrupted. For a small shared JSON file backing a friend-group gym app,
+# that's the right side of the durability/latency trade.
+_FLUSH_INTERVAL = 1.0
+_dirty = threading.Event()
+_flush_lock = threading.Lock()  # the background loop and shutdown can both call _flush_now
+
+
+def save_db(db):
+    _dirty.set()
+
+
+def _flush_now():
+    with _flush_lock:
+        if not _dirty.is_set():
+            return
+        _dirty.clear()
+        with LOCK:
+            snapshot = json.dumps(DB)  # cheap, in-memory — the only part that needs the lock
+        _atomic_write(snapshot)
+
+
+def _flush_loop():
+    while True:
+        _dirty.wait()
+        time.sleep(_FLUSH_INTERVAL)  # small debounce so a burst of writes coalesces
+        _flush_now()
+
+
+def _on_sigterm(signum, frame):
+    raise SystemExit(0)  # unwinds normally so atexit (and _flush_now) still runs
+
+
 DB = load_db()
+threading.Thread(target=_flush_loop, daemon=True).start()
+atexit.register(_flush_now)
+signal.signal(signal.SIGTERM, _on_sigterm)
 
 
 def now_iso():
@@ -320,12 +378,25 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type,Authorization")
 
+    def _accepts_gzip(self):
+        return "gzip" in self.headers.get("Accept-Encoding", "")
+
+    # Compresses text-ish bodies when the client supports it and it's worth
+    # the CPU cost — small bodies barely shrink once gzip's own header/footer
+    # overhead is counted, so skip those.
+    def _maybe_gzip(self, body, min_size=512):
+        if len(body) < min_size or not self._accepts_gzip():
+            return body, False
+        return gzip.compress(body, compresslevel=6), True
+
     def _json(self, status, obj):
-        body = json.dumps(obj).encode("utf-8")
+        body, compressed = self._maybe_gzip(json.dumps(obj).encode("utf-8"))
         try:
             self.send_response(status)
             self._cors()
             self.send_header("Content-Type", "application/json")
+            if compressed:
+                self.send_header("Content-Encoding", "gzip")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -359,6 +430,11 @@ class Handler(BaseHTTPRequestHandler):
             return None, None
         return session, user
 
+    # File types worth gzipping — everything else (images, fonts) is already
+    # compressed, so gzipping it again just burns CPU for no size benefit.
+    _COMPRESSIBLE_TYPES = {"text/html", "text/css", "text/javascript", "application/javascript",
+                            "application/json", "image/svg+xml"}
+
     def _serve_file(self, base_dir, rel_path):
         file_path = (base_dir / rel_path.lstrip("/")).resolve()
         try:
@@ -369,13 +445,33 @@ class Handler(BaseHTTPRequestHandler):
         if not file_path.is_file():
             self.send_error(404)
             return
+        stat = file_path.stat()
+        etag = f'"{int(stat.st_mtime_ns):x}-{stat.st_size:x}"'
+        if self.headers.get("If-None-Match") == etag:
+            try:
+                self.send_response(304)
+                self._cors()
+                self.send_header("ETag", etag)
+                self.end_headers()
+            except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
+                pass
+            return
         ctype, _ = mimetypes.guess_type(str(file_path))
         data = file_path.read_bytes()
+        compressed = False
+        if (ctype or "") in self._COMPRESSIBLE_TYPES:
+            data, compressed = self._maybe_gzip(data)
         try:
             self.send_response(200)
             self._cors()
             self.send_header("Content-Type", ctype or "application/octet-stream")
+            if compressed:
+                self.send_header("Content-Encoding", "gzip")
             self.send_header("Content-Length", str(len(data)))
+            self.send_header("ETag", etag)
+            # Always revalidate (no long-lived caching, since a redeploy can
+            # change these files at any time) — but revalidation itself is
+            # now a cheap 304 via ETag above instead of a full re-download.
             self.send_header("Cache-Control", "no-cache")
             self.end_headers()
             self.wfile.write(data)
@@ -465,6 +561,9 @@ class Handler(BaseHTTPRequestHandler):
         if method == "GET" and m:
             gym = find(DB["gyms"], id=m.group(1))
             return self._json(200, gym) if gym else self._json(404, {"error": "Gym not found"})
+        m = re.match(r"^/api/gyms/([^/]+)/wall-sections/([^/]+)/reset$", path)
+        if method == "POST" and m:
+            return self._reset_wall_section(m.group(1), m.group(2))
 
         if path == "/api/tags" and method == "GET":
             return self._json(200, DB["tags"])
@@ -848,6 +947,28 @@ class Handler(BaseHTTPRequestHandler):
         save_db(DB)
         self._json(200, {"ok": True})
 
+    def _reset_wall_section(self, gym_id, wall_section):
+        self._auth()
+        body = self._body()
+        if body.get("routesetterKey") != ROUTESETTER_KEY:
+            raise ApiError(403, "Incorrect routesetter key.")
+        targets = [r for r in DB["routes"] if r["gymId"] == gym_id and r.get("wallSection") == wall_section]
+        target_ids = {r["id"] for r in targets}
+        for route_id in target_ids:
+            for m in [m for m in DB["routeMedia"] if m["routeId"] == route_id]:
+                if m["url"].startswith("/uploads/"):
+                    (UPLOADS_DIR / m["url"][len("/uploads/"):]).unlink(missing_ok=True)
+            shutil.rmtree(UPLOADS_DIR / "routes" / route_id, ignore_errors=True)
+        DB["routeMedia"] = [m for m in DB["routeMedia"] if m["routeId"] not in target_ids]
+        DB["routeTags"] = [rt for rt in DB["routeTags"] if rt["routeId"] not in target_ids]
+        DB["tagVotes"] = [v for v in DB["tagVotes"] if v["routeId"] not in target_ids]
+        DB["gradeEstimates"] = [e for e in DB["gradeEstimates"] if e["routeId"] not in target_ids]
+        # climbingLog entries are left alone — they already show as
+        # "retired" once get_route() can no longer find the route.
+        DB["routes"] = [r for r in DB["routes"] if r["id"] not in target_ids]
+        save_db(DB)
+        self._json(200, {"ok": True, "removed": len(target_ids)})
+
     def _user_stats(self, user_id):
         _, viewer = self._auth(required=False)
         target = find(DB["users"], id=user_id)
@@ -937,6 +1058,8 @@ def main():
         server.serve_forever()
     except KeyboardInterrupt:
         pass
+    finally:
+        _flush_now()
 
 
 if __name__ == "__main__":

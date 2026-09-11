@@ -164,8 +164,20 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
       btn.addEventListener("click", async () => {
         const tagId = btn.getAttribute("data-vote-tag");
         const vote = Number(btn.getAttribute("data-vote-value"));
-        await voteTag(routeId, tagId, vote);
-        render();
+        // Show the pressed state immediately instead of waiting on the
+        // round trip — the real score still comes from the render() below,
+        // this just removes the "did my click register?" delay.
+        const row = btn.closest(".vote-btns");
+        row.querySelectorAll(".vote-btn").forEach((b) => {
+          b.classList.remove("active-up", "active-down");
+          b.disabled = true;
+        });
+        btn.classList.add(vote === 1 ? "active-up" : "active-down");
+        try {
+          await voteTag(routeId, tagId, vote);
+        } finally {
+          render();
+        }
       });
     });
 
