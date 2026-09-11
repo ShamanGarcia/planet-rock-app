@@ -1,6 +1,7 @@
 import { bootSession, getCurrentUser } from "./data/api.js";
 import { renderAuth } from "./views/auth.js";
 import { renderShell } from "./shell.js";
+import { maybeShowOnboarding } from "./components/onboarding.js";
 
 async function boot() {
   const root = document.getElementById("app");
@@ -11,6 +12,7 @@ async function boot() {
     renderAuth(root, boot);
   } else {
     renderShell(root, boot);
+    maybeShowOnboarding();
   }
 }
 
