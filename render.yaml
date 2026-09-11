@@ -14,3 +14,6 @@ services:
       name: planet-rock-data
       mountPath: /var/data
       sizeGB: 1
+    domains:
+      - thematchbook.org
+      - www.thematchbook.org
