@@ -6,7 +6,7 @@ import { openRouteDetail } from "./routeDetail.js";
 import { openAddRouteForm } from "../components/addRoute.js";
 import { openResetWallModal } from "../components/resetWallModal.js";
 import { showToast } from "../components/toast.js";
-import { escapeHtml, clamp, pointInPolygon, polygonCentroid, polygonBounds } from "../utils.js";
+import { escapeHtml, clamp, pointInPolygon, polygonCentroid, polygonBounds, dismissOverlay } from "../utils.js";
 
 // The canvas is sized in CSS pixels at this fixed base (before pan/zoom
 // scaling) so it matches the sketch's own proportions; every zone/marker
@@ -123,13 +123,21 @@ export function renderGymMap(container, gymId) {
 
   backBtn.addEventListener("click", () => {
     exitZoomedSection();
-    fitToScreen();
+    animateNextTransform(fitToScreen);
   });
 
   resetBtn.addEventListener("click", () => {
     const section = WALL_SECTIONS.find((s) => s.id === zoomedSectionId);
     if (!section) return;
-    openResetWallModal(gymId, section.id, section.name, { onReset: () => renderCanvasContents() });
+    openResetWallModal(gymId, section.id, section.name, {
+      onReset: () => {
+        // Zoomed mode already shows only this section's markers, so every
+        // one on screen right now is one being cleared — fade them out
+        // instead of having them just vanish on the next render.
+        canvas.querySelectorAll(".route-marker[data-route-id]").forEach((el) => el.classList.add("removed"));
+        setTimeout(() => renderCanvasContents(), 180);
+      },
+    });
   });
 
   function exitZoomedSection() {
@@ -145,10 +153,10 @@ export function renderGymMap(container, gymId) {
     resetBtn.classList.remove("hidden");
     const section = WALL_SECTIONS.find((s) => s.id === sectionId);
     const pct = polygonBounds(section.points);
-    fitToBounds({
+    animateNextTransform(() => fitToBounds({
       minX: (pct.minX / 100) * CANVAS_W, maxX: (pct.maxX / 100) * CANVAS_W,
       minY: (pct.minY / 100) * CANVAS_H, maxY: (pct.maxY / 100) * CANVAS_H,
-    });
+    }));
     renderCanvasContents();
   }
 
@@ -185,6 +193,16 @@ export function renderGymMap(container, gymId) {
 
   function applyTransform() {
     canvas.style.transform = `translate(${viewState.tx}px, ${viewState.ty}px) scale(${viewState.scale})`;
+  }
+
+  // Eases an explicit, discrete view change (zoom into a wall, back to the
+  // full map, tap +/-) instead of it snapping instantly. Never used for a
+  // live pinch/drag, which must track the finger with zero added delay.
+  function animateNextTransform(fn) {
+    canvas.classList.add("animating");
+    fn();
+    canvas.addEventListener("transitionend", () => canvas.classList.remove("animating"), { once: true });
+    setTimeout(() => canvas.classList.remove("animating"), 400); // safety net
   }
 
   // Fits a canvas-space pixel box (in the 0..CANVAS_W / 0..CANVAS_H frame)
@@ -418,15 +436,15 @@ export function renderGymMap(container, gymId) {
 
     container.querySelector("#zoom-in").addEventListener("click", () => {
       const rect = viewport.getBoundingClientRect();
-      zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, 1.2);
+      animateNextTransform(() => zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, 1.2));
     });
     container.querySelector("#zoom-out").addEventListener("click", () => {
       const rect = viewport.getBoundingClientRect();
-      zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, 0.8);
+      animateNextTransform(() => zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, 0.8));
     });
     container.querySelector("#zoom-reset").addEventListener("click", () => {
       if (zoomedSectionId) exitZoomedSection();
-      fitToScreen();
+      animateNextTransform(fitToScreen);
     });
 
     applyTransform();
@@ -437,7 +455,7 @@ export function renderGymMap(container, gymId) {
     backdrop.className = "drawer-backdrop";
     document.body.appendChild(backdrop);
 
-    function close() { backdrop.remove(); }
+    function close() { dismissOverlay(backdrop); }
 
     async function renderDrawer() {
       const allTags = await getAllTags();

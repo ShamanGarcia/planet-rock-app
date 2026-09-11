@@ -91,6 +91,24 @@ export function polygonBounds(polygon) {
   return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
 }
 
+// Plays a backdrop/panel's reverse-open transition (see the .closing rules
+// in styles.css for .drawer-backdrop / .mini-popup-backdrop) before actually
+// removing it, instead of the panel just vanishing. Falls back to an
+// immediate remove if transitions are disabled (prefers-reduced-motion sets
+// near-zero durations, so transitionend still fires quickly either way) —
+// the timeout is only a safety net in case transitionend never fires.
+export function dismissOverlay(backdrop, duration = 280) {
+  backdrop.classList.add("closing");
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    backdrop.remove();
+  };
+  backdrop.addEventListener("transitionend", finish, { once: true });
+  setTimeout(finish, duration + 80);
+}
+
 export function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

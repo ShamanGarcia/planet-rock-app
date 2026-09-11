@@ -337,23 +337,30 @@ def save_route_media_file(route_id, data_url):
     return kind, f"/uploads/routes/{route_id}/{filename}"
 
 
-def add_route_media(route_id, user_id, kind, url, log_entry_id=None):
+def add_route_media(route_id, user_id, kind, url, log_entry_id=None, visibility="public"):
     media = {
         "id": uid("media"), "routeId": route_id, "type": kind, "url": url,
-        "uploadedBy": user_id, "logEntryId": log_entry_id, "createdAt": now_iso(),
+        "uploadedBy": user_id, "logEntryId": log_entry_id, "visibility": visibility, "createdAt": now_iso(),
     }
     DB["routeMedia"].append(media)
     route = get_route(route_id)
-    if route is not None and not route.get("photoUrl") and kind == "photo":
+    # A private upload must never leak into the route's public cover photo.
+    if route is not None and not route.get("photoUrl") and kind == "photo" and visibility == "public":
         route["photoUrl"] = url
     return media
 
 
-def get_route_media(route_id):
+def get_route_media(route_id, viewer_id=None):
     items = [m for m in DB["routeMedia"] if m["routeId"] == route_id]
-    items.sort(key=lambda m: m["createdAt"], reverse=True)
+    # Private media is only visible to whoever uploaded it.
+    visible = [m for m in items if m.get("visibility", "public") == "public" or m["uploadedBy"] == viewer_id]
+    # Stable sort twice: newest-first within each group, then the viewer's
+    # own private items pulled to the very front ("always listed first for
+    # that user") without disturbing the newest-first order within each group.
+    visible.sort(key=lambda m: m["createdAt"], reverse=True)
+    visible.sort(key=lambda m: 0 if (m.get("visibility") == "private" and m["uploadedBy"] == viewer_id) else 1)
     out = []
-    for m in items:
+    for m in visible:
         uploader = find(DB["users"], id=m["uploadedBy"])
         out.append({**m, "uploadedByName": uploader["name"] if uploader else "Unknown"})
     return out
@@ -705,13 +712,14 @@ class Handler(BaseHTTPRequestHandler):
             "finishes": get_route_finishes(route_id),
             "mySends": get_user_send_count(uid_, route_id) if uid_ else 0,
             "myEstimate": (get_user_estimate(route_id, uid_) or {}).get("grade") if uid_ else None,
-            "media": get_route_media(route_id),
+            "media": get_route_media(route_id, uid_),
         })
 
     def _get_media(self, route_id):
+        _, user = self._auth(required=False)
         if not get_route(route_id):
             raise ApiError(404, "Route not found.")
-        self._json(200, get_route_media(route_id))
+        self._json(200, get_route_media(route_id, user["id"] if user else None))
 
     def _post_media(self, route_id):
         _, user = self._auth()
@@ -721,11 +729,12 @@ class Handler(BaseHTTPRequestHandler):
         body = self._body()
         if not body.get("dataUrl"):
             raise ApiError(400, "dataUrl is required.")
+        visibility = "private" if body.get("visibility") == "private" else "public"
         try:
             kind, url = save_route_media_file(route_id, body["dataUrl"])
         except ValueError as e:
             raise ApiError(400, str(e))
-        media = add_route_media(route_id, user["id"], kind, url)
+        media = add_route_media(route_id, user["id"], kind, url, visibility=visibility)
         save_db(DB)
         self._json(201, media)
 

@@ -165,8 +165,8 @@ export function getRouteMedia(routeId) {
   return request("GET", `/api/routes/${routeId}/media`);
 }
 
-export function addRouteMedia(routeId, dataUrl) {
-  return request("POST", `/api/routes/${routeId}/media`, { dataUrl });
+export function addRouteMedia(routeId, dataUrl, visibility = "public") {
+  return request("POST", `/api/routes/${routeId}/media`, { dataUrl, visibility });
 }
 
 // ===================== Users =====================

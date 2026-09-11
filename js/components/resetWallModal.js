@@ -1,6 +1,6 @@
 import { resetWallSection } from "../data/api.js";
 import { showToast } from "./toast.js";
-import { escapeHtml } from "../utils.js";
+import { escapeHtml, dismissOverlay } from "../utils.js";
 
 // Given to route setters when they physically take down a wall's holds —
 // lets them clear every posted route for that zone before setting new ones.
@@ -13,7 +13,7 @@ export function openResetWallModal(gymId, wallSectionId, wallSectionName, { onRe
   backdrop.className = "mini-popup-backdrop";
   document.body.appendChild(backdrop);
 
-  function close() { backdrop.remove(); }
+  function close() { dismissOverlay(backdrop); }
 
   backdrop.innerHTML = `
     <div class="mini-popup" role="dialog" aria-modal="true" aria-label="Reset ${escapeHtml(wallSectionName)}">

@@ -77,14 +77,21 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
     render();
   }
 
-  async function handleDelete(entry) {
+  async function handleDelete(entry, rowEl) {
+    // Fades/collapses the row immediately instead of it just vanishing when
+    // the next render rebuilds the list; the actual re-render still waits
+    // for the server to confirm (and for the animation to finish), so a
+    // failed delete can put the row back rather than leaving a gap.
+    rowEl?.classList.add("row-removing");
+    const minDuration = new Promise((resolve) => setTimeout(resolve, 200));
     try {
-      await deleteLogEntry(entry.id);
+      await Promise.all([deleteLogEntry(entry.id), minDuration]);
       allEntries = allEntries.filter((e) => e.id !== entry.id);
       showToast("Send removed");
       render();
     } catch (err) {
       showToast(err.message);
+      rowEl?.classList.remove("row-removing");
     }
   }
 
@@ -199,12 +206,12 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const entry = entries.find((x) => x.id === btn.getAttribute("data-delete-id"));
-        if (entry) handleDelete(entry);
+        if (entry) handleDelete(entry, btn.closest("tr"));
       })
     );
     body.querySelectorAll(".swipe-row").forEach((row) => {
       const entry = entries.find((x) => x.id === row.getAttribute("data-entry-id"));
-      wireLogCard(row, () => entry && handleDelete(entry));
+      wireLogCard(row, () => entry && handleDelete(entry, row));
     });
     body.querySelector("#f-from").addEventListener("change", (e) => { filterState.dateFrom = e.target.value; render(); });
     body.querySelector("#f-to").addEventListener("change", (e) => { filterState.dateTo = e.target.value; render(); });

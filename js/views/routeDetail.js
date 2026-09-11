@@ -7,7 +7,7 @@ import { renderDonutChart } from "../components/charts.js";
 import { openLogSendSheet } from "../components/logSendSheet.js";
 import { openFullGallery, getCombinedMedia } from "../components/gallery.js";
 import { showToast } from "../components/toast.js";
-import { escapeHtml } from "../utils.js";
+import { escapeHtml, dismissOverlay } from "../utils.js";
 
 export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
   const backdrop = document.createElement("div");
@@ -21,7 +21,7 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
   let sentClickCount = 0;
 
   function close() {
-    backdrop.remove();
+    dismissOverlay(backdrop);
     document.removeEventListener("keydown", escHandler);
     onClose?.();
   }

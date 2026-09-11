@@ -1,7 +1,7 @@
 import { createRoute } from "../data/api.js";
 import { saveLocalMedia } from "../data/localMedia.js";
 import { HOLD_COLORS, HOLD_COLOR_HEX, HOLD_TYPES, MAX_GRADE, formatGrade, SHARED_MEDIA_LIMIT_BYTES } from "../data/constants.js";
-import { escapeHtml, compressImageFile, dataUrlByteSize } from "../utils.js";
+import { escapeHtml, compressImageFile, dataUrlByteSize, dismissOverlay } from "../utils.js";
 import { showToast } from "./toast.js";
 
 // Opens the "add a new route" drawer for a map position the user already
@@ -25,7 +25,7 @@ export function openAddRouteForm({ gymId, mapX, mapY, wallSection, allTags, onCr
   let submitting = false;
   let error = "";
 
-  function close() { backdrop.remove(); }
+  function close() { dismissOverlay(backdrop); }
 
   function previewLabel() {
     if (!selectedColor) return "New Route";
@@ -51,7 +51,7 @@ export function openAddRouteForm({ gymId, mapX, mapY, wallSection, allTags, onCr
               <div class="route-photo" style="max-height:180px;"><img src="${photoDataUrl || ""}" alt="Route preview" style="width:100%;height:100%;object-fit:cover;"/></div>
               ${photoTooBigForSharing ? `<div class="field-hint">Still large after compression — will be saved privately on this device only.</div>` : ""}
             </div>
-            <input type="file" accept="image/*" capture="environment" id="ar-photo-input" class="visually-hidden" />
+            <input type="file" accept="image/*" id="ar-photo-input" class="visually-hidden" />
             <button type="button" class="btn btn-outline btn-sm" id="ar-photo-btn" ${processingPhoto ? "disabled" : ""}>${processingPhoto ? "Processing…" : photoDataUrl ? "Retake / Change Photo" : "Take or Upload Photo"}</button>
             ${photoDataUrl ? `<button type="button" class="btn btn-ghost btn-sm" id="ar-photo-remove">Remove Photo</button>` : ""}
           </div>

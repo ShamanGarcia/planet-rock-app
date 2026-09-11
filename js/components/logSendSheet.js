@@ -1,7 +1,7 @@
 import { logSend } from "../data/api.js";
 import { saveLocalMedia } from "../data/localMedia.js";
 import { SHARED_MEDIA_LIMIT_BYTES } from "../data/constants.js";
-import { escapeHtml, fileToDataUrl, compressImageFile, dataUrlByteSize } from "../utils.js";
+import { escapeHtml, fileToDataUrl, compressImageFile, dataUrlByteSize, dismissOverlay } from "../utils.js";
 import { showToast } from "./toast.js";
 
 // Small confirm step before logging a send, with an optional photo/video
@@ -22,7 +22,7 @@ export function openLogSendSheet(routeId, label, { onLogged } = {}) {
   let flash = false;
   let error = "";
 
-  function close() { backdrop.remove(); }
+  function close() { dismissOverlay(backdrop); }
 
   function render() {
     backdrop.innerHTML = `
@@ -35,7 +35,7 @@ export function openLogSendSheet(routeId, label, { onLogged } = {}) {
           </div>
           ${tooBigForSharing ? `<div class="field-hint" style="margin-bottom:10px;">This file is large — it'll be saved privately on this device only, not shared with other climbers.</div>` : `<div class="field-hint" style="margin-bottom:10px;">Will be added to the shared gallery for everyone to see.</div>`}
         ` : ""}
-        <input type="file" accept="image/*,video/*" capture="environment" id="ls-media-input" class="visually-hidden" />
+        <input type="file" accept="image/*,video/*" id="ls-media-input" class="visually-hidden" />
         <button type="button" class="btn btn-outline btn-sm btn-block" id="ls-media-btn" style="margin-bottom:10px;" ${processingFile ? "disabled" : ""}>
           ${processingFile ? "Processing…" : mediaDataUrl ? "Change Photo/Video" : "Add a Photo or Video (optional)"}
         </button>

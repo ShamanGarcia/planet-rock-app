@@ -62,7 +62,7 @@ export async function renderShell(root, onLoggedOut) {
   const contentArea = root.querySelector("#content-area");
   let activeCleanup = null;
 
-  function renderRoute() {
+  function applyRoute() {
     if (typeof activeCleanup === "function") activeCleanup();
     activeCleanup = null;
 
@@ -88,7 +88,24 @@ export async function renderShell(root, onLoggedOut) {
     if (typeof result === "function") activeCleanup = result;
   }
 
+  // Crossfades old/new page content on every tab switch — the native
+  // View Transitions API handles the before/after snapshotting itself,
+  // no manual fade-out/fade-in choreography needed. Browsers without it
+  // (a small minority) just get the instant swap as before.
+  function renderRoute() {
+    if (document.startViewTransition) {
+      // .ready rejects (AbortError) when a transition is superseded by a
+      // newer one — expected on a fast double tap between tabs, not a bug.
+      document.startViewTransition(applyRoute).ready.catch(() => {});
+    } else {
+      applyRoute();
+    }
+  }
+
   window.addEventListener("hashchange", renderRoute);
+  // Setting location.hash below fires "hashchange" itself, which would
+  // call renderRoute() a second time (and, with view transitions, made the
+  // first one visibly abort) if this also called it unconditionally.
   if (!location.hash) location.hash = "#/map";
-  renderRoute();
+  else renderRoute();
 }

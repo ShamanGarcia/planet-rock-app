@@ -132,7 +132,7 @@ export function renderProfile(container) {
         <div class="field">
           <label>Profile Picture</label>
           ${(photoDataUrl ?? user.profilePicture) ? `<div class="avatar" style="margin-bottom:8px;"><img src="${photoDataUrl ?? user.profilePicture}" alt=""/></div>` : ""}
-          <input type="file" accept="image/*" capture="environment" id="p-photo-input" class="visually-hidden"/>
+          <input type="file" accept="image/*" id="p-photo-input" class="visually-hidden"/>
           <button type="button" class="btn btn-outline btn-sm" id="p-photo-btn">Take or Choose Photo</button>
           ${(photoDataUrl ?? user.profilePicture) ? `<button type="button" class="btn btn-ghost btn-sm" id="p-photo-remove">Remove Photo</button>` : ""}
         </div>
