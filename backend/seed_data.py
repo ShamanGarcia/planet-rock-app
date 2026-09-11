@@ -12,17 +12,18 @@ DEFAULT_TAGS = [
     "Endurance", "Slab", "Overhang",
 ]
 
+# Must mirror WALL_SECTIONS in js/data/constants.js — the frontend map's
+# real zone shapes. Kept as plain polygons (not shared with the JS file)
+# since seed data only needs to place routes inside a valid zone.
 WALL_SECTIONS = [
-    {"id": "slab", "name": "Slab", "x": 4, "y": 4, "w": 26, "h": 22},
-    {"id": "vertical-a", "name": "Vertical Wall", "x": 32, "y": 4, "w": 30, "h": 14},
-    {"id": "arete", "name": "Arête", "x": 64, "y": 4, "w": 14, "h": 30},
-    {"id": "overhang", "name": "Overhang", "x": 80, "y": 4, "w": 16, "h": 40},
-    {"id": "cave", "name": "The Cave", "x": 64, "y": 46, "w": 32, "h": 20},
-    {"id": "vertical-b", "name": "Vertical Wall", "x": 4, "y": 34, "w": 26, "h": 32},
-    {"id": "corner", "name": "Corner Wall", "x": 32, "y": 22, "w": 30, "h": 20},
-    {"id": "tension-board", "name": "Training Board", "x": 4, "y": 70, "w": 20, "h": 18},
-    {"id": "lead-wall", "name": "Lead Wall", "x": 32, "y": 44, "w": 28, "h": 44},
-    {"id": "kids-area", "name": "Kids Area", "x": 64, "y": 70, "w": 32, "h": 18},
+    {"id": "arch", "points": [[1.63, 0], [17.17, 0], [17.17, 10.9], [11.17, 31.41], [6.27, 35.9], [5.45, 8.97]]},
+    {"id": "long-wall", "points": [[18.8, 0], [58.31, 0.64], [57.49, 19.87], [18.8, 14.74]]},
+    {"id": "competition", "points": [[61.04, 0], [100, 0], [100, 48.08], [95.9, 48.08], [95.9, 18.59], [61.04, 18.59]]},
+    {"id": "island", "points": [[27.25, 52.56], [40.33, 53.21], [44.41, 59.62], [43.87, 73.08], [37.33, 79.49],
+                                 [26.98, 74.36], [24.25, 65.38], [25.61, 56.41]]},
+    {"id": "slab", "points": [[62.13, 44.87], [89.1, 44.23], [91.28, 47.44], [74.39, 65.38]]},
+    {"id": "notch", "points": [[62.13, 44.87], [74.39, 65.38], [63.22, 98.08]]},
+    {"id": "overhang", "points": [[91.28, 47.44], [90.74, 58.97], [63.22, 98.08], [74.39, 65.38]]},
 ]
 
 ROUTE_DEFS = [
@@ -30,31 +31,31 @@ ROUTE_DEFS = [
     ("Green Machine", "slab", .6, .5, "Green", "Jug", 1, ["Juggy", "Static"]),
     ("Purple Rain", "slab", .45, .75, "Purple", "Crimp", 2, ["Technical", "Slab", "Balance"]),
     ("Black Ice", "slab", .8, .2, "Black", "Crimp", 4, ["Crimpy", "Technical", "Slab"]),
-    ("Blue Steel", "vertical-a", .15, .5, "Blue", "Jug", 1, ["Juggy", "Static"]),
-    ("Red Alert", "vertical-a", .4, .4, "Red", "Crimp", 3, ["Crimpy", "Technical"]),
-    ("Orange Crush", "vertical-a", .65, .6, "Orange", "Pocket", 5, ["Crimpy", "Technical", "Static"]),
-    ("White Noise", "vertical-a", .88, .3, "White", "Volume", 2, ["Coordination", "Balance"]),
-    ("The Prow", "arete", .5, .2, "Orange", "Crimp", 6, ["Technical", "Reachy", "Balance"]),
-    ("Knife Edge", "arete", .4, .55, "Black", "Pinch", 7, ["Pinches", "Powerful", "Technical"]),
-    ("Yellow Fever", "arete", .6, .85, "Yellow", "Sloper", 3, ["Slopers", "Balance"]),
+    ("Blue Steel", "long-wall", .15, .5, "Blue", "Jug", 1, ["Juggy", "Static"]),
+    ("Red Alert", "long-wall", .4, .4, "Red", "Crimp", 3, ["Crimpy", "Technical"]),
+    ("Orange Crush", "long-wall", .65, .6, "Orange", "Pocket", 5, ["Crimpy", "Technical", "Static"]),
+    ("White Noise", "long-wall", .88, .3, "White", "Volume", 2, ["Coordination", "Balance"]),
+    ("The Prow", "competition", .5, .2, "Orange", "Crimp", 6, ["Technical", "Reachy", "Balance"]),
+    ("Knife Edge", "competition", .4, .55, "Black", "Pinch", 7, ["Pinches", "Powerful", "Technical"]),
+    ("Yellow Fever", "competition", .6, .85, "Yellow", "Sloper", 3, ["Slopers", "Balance"]),
     ("Gravity Check", "overhang", .3, .15, "Red", "Jug", 4, ["Juggy", "Powerful", "Overhang"]),
     ("Powerhouse", "overhang", .55, .4, "Black", "Sloper", 8, ["Powerful", "Burly", "Dynamic", "Overhang"]),
     ("Campus King", "overhang", .35, .65, "Purple", "Pocket", 9, ["Powerful", "Dynamic", "Compression"]),
     ("Ungraded Mystery", "overhang", .7, .85, "Green", "Volume", None, ["Compression", "Powerful"]),
     ("Double Dyno", "overhang", .5, .95, "Orange", "Jug", 10, ["Dynamic", "Powerful", "Reachy"]),
-    ("Bat Cave", "cave", .2, .3, "Black", "Jug", 7, ["Overhang", "Compression", "Powerful"]),
-    ("Roof Runner", "cave", .5, .5, "Blue", "Pinch", 6, ["Pinches", "Powerful", "Endurance"]),
-    ("Cave Crawler", "cave", .8, .7, "Orange", "Volume", 5, ["Compression", "Technical"]),
-    ("Left Field", "vertical-b", .3, .2, "Green", "Crimp", 2, ["Crimpy", "Technical"]),
-    ("Balance Beam", "vertical-b", .5, .45, "Blue", "Sloper", 1, ["Balance", "Technical", "Coordination"]),
-    ("Undercling Alley", "vertical-b", .65, .75, "White", "Pinch", 3, ["Pinches", "Technical"]),
-    ("Corner Pocket", "corner", .35, .3, "Yellow", "Pocket", 3, ["Technical", "Static"]),
-    ("The Squeeze", "corner", .6, .65, "Purple", "Pinch", 4, ["Pinches", "Powerful", "Compression"]),
-    ("Board Buster", "tension-board", .5, .4, "Red", "Crimp", 9, ["Crimpy", "Powerful", "Endurance"]),
-    ("Sloper Storm", "lead-wall", .25, .2, "Green", "Sloper", 5, ["Slopers", "Powerful"]),
-    ("Endurance Test", "lead-wall", .5, .5, "Blue", "Jug", 6, ["Endurance", "Static", "Technical"]),
-    ("Retired Relic", "lead-wall", .7, .8, "White", "Crimp", 5, ["Crimpy", "Technical"], True),
-    ("Little Sender", "kids-area", .4, .4, "Yellow", "Jug", 0, ["Juggy", "Static"]),
+    ("Bat Cave", "island", .2, .3, "Black", "Jug", 7, ["Overhang", "Compression", "Powerful"]),
+    ("Roof Runner", "island", .5, .5, "Blue", "Pinch", 6, ["Pinches", "Powerful", "Endurance"]),
+    ("Cave Crawler", "island", .8, .7, "Orange", "Volume", 5, ["Compression", "Technical"]),
+    ("Left Field", "arch", .3, .2, "Green", "Crimp", 2, ["Crimpy", "Technical"]),
+    ("Balance Beam", "arch", .5, .45, "Blue", "Sloper", 1, ["Balance", "Technical", "Coordination"]),
+    ("Undercling Alley", "arch", .65, .75, "White", "Pinch", 3, ["Pinches", "Technical"]),
+    ("Corner Pocket", "notch", .35, .3, "Yellow", "Pocket", 3, ["Technical", "Static"]),
+    ("The Squeeze", "notch", .6, .65, "Purple", "Pinch", 4, ["Pinches", "Powerful", "Compression"]),
+    ("Board Buster", "notch", .5, .4, "Red", "Crimp", 9, ["Crimpy", "Powerful", "Endurance"]),
+    ("Sloper Storm", "competition", .25, .2, "Green", "Sloper", 5, ["Slopers", "Powerful"]),
+    ("Endurance Test", "competition", .5, .5, "Blue", "Jug", 6, ["Endurance", "Static", "Technical"]),
+    ("Retired Relic", "competition", .7, .8, "White", "Crimp", 5, ["Crimpy", "Technical"], True),
+    ("Little Sender", "arch", .4, .4, "Yellow", "Jug", 0, ["Juggy", "Static"]),
 ]
 
 USER_DEFS = [
@@ -76,9 +77,41 @@ def days_ago(n):
     return d.isoformat() + "Z"
 
 
+def _point_in_polygon(x, y, poly):
+    inside = False
+    j = len(poly) - 1
+    for i, (xi, yi) in enumerate(poly):
+        xj, yj = poly[j]
+        if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / (yj - yi) + xi:
+            inside = not inside
+        j = i
+    return inside
+
+
 def place_in_section(section_id, fx, fy):
-    s = next(w for w in WALL_SECTIONS if w["id"] == section_id)
-    return s["x"] + s["w"] * fx, s["y"] + s["h"] * fy
+    poly = next(w["points"] for w in WALL_SECTIONS if w["id"] == section_id)
+    xs = [p[0] for p in poly]
+    ys = [p[1] for p in poly]
+    minx, maxx, miny, maxy = min(xs), max(xs), min(ys), max(ys)
+    # (fx, fy) picks a point in the zone's bounding box; these zones are
+    # irregular (some concave, e.g. the L-shaped competition wall), so that
+    # point can land outside the shape — if so, use the closest point on a
+    # grid over the same box that IS inside.
+    target = (minx + (maxx - minx) * fx, miny + (maxy - miny) * fy)
+    if _point_in_polygon(*target, poly):
+        return target
+    best, best_dist = None, None
+    steps = 20
+    for gx in range(steps + 1):
+        for gy in range(steps + 1):
+            x = minx + (maxx - minx) * gx / steps
+            y = miny + (maxy - miny) * gy / steps
+            if not _point_in_polygon(x, y, poly):
+                continue
+            dist = (x - target[0]) ** 2 + (y - target[1]) ** 2
+            if best is None or dist < best_dist:
+                best, best_dist = (x, y), dist
+    return best or target
 
 
 def build_seed_data():

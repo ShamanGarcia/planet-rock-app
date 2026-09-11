@@ -3,7 +3,6 @@ import {
   getAcceptedFriends, getLogEntries,
 } from "../data/api.js";
 import { formatGrade, formatEstimate, MAX_GRADE, HOLD_COLOR_HEX, routeLabel } from "../data/constants.js";
-import { generateRoutePhotoSVG } from "../components/routePhoto.js";
 import { renderDonutChart } from "../components/charts.js";
 import { openLogSendSheet } from "../components/logSendSheet.js";
 import { openFullGallery, getCombinedMedia } from "../components/gallery.js";
@@ -71,8 +70,6 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
             <button class="icon-btn" style="background:#efece5;color:#1b1d21" id="rd-close" aria-label="Close">X</button>
           </div>
         </div>
-
-        <div class="route-photo" id="rd-photo"></div>
 
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
           <span class="hold-dot" style="background:${HOLD_COLOR_HEX[route.holdColor]}"></span>
@@ -145,9 +142,6 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
       </div>
     `;
 
-    backdrop.querySelector("#rd-photo").innerHTML = route.photoUrl
-      ? `<img src="${route.photoUrl}" alt="Photo of ${escapeHtml(label)}" style="width:100%;height:100%;object-fit:cover;"/>`
-      : generateRoutePhotoSVG(route);
     if (hasEstimates) {
       const labels = gradeDistribution.map((c, g) => `V${g}`).filter((_, g) => gradeDistribution[g] > 0);
       const data = gradeDistribution.filter((c) => c > 0);

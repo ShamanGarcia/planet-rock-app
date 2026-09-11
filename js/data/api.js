@@ -153,8 +153,8 @@ export function submitGradeEstimate(routeId, grade) {
   return request("POST", `/api/routes/${routeId}/estimate`, { grade });
 }
 
-export function logSend(routeId, { mediaDataUrl } = {}) {
-  return request("POST", `/api/routes/${routeId}/log`, mediaDataUrl ? { mediaDataUrl } : {});
+export function logSend(routeId, { mediaDataUrl, flash } = {}) {
+  return request("POST", `/api/routes/${routeId}/log`, { mediaDataUrl: mediaDataUrl || null, flash: !!flash });
 }
 
 export function getRouteMedia(routeId) {

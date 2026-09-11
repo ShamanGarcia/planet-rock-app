@@ -770,6 +770,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, {"ok": True, "entry": l, "duplicate": True})
         entry = {
             "id": uid("log"), "userId": user["id"], "routeId": route_id, "completedAt": now_iso(),
+            "flash": bool(body.get("flash")),
             "snapshot": {
                 "holdColor": route["holdColor"], "holdType": route["holdType"],
                 "officialGrade": route["officialGrade"], "wallSection": route.get("wallSection"),

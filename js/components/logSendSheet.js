@@ -19,6 +19,7 @@ export function openLogSendSheet(routeId, label, { onLogged } = {}) {
   let tooBigForSharing = false;
   let processingFile = false;
   let submitting = false;
+  let flash = false;
   let error = "";
 
   function close() { backdrop.remove(); }
@@ -39,6 +40,9 @@ export function openLogSendSheet(routeId, label, { onLogged } = {}) {
           ${processingFile ? "Processing…" : mediaDataUrl ? "Change Photo/Video" : "Add a Photo or Video (optional)"}
         </button>
         ${mediaDataUrl ? `<button type="button" class="btn btn-ghost btn-sm btn-block" id="ls-media-remove" style="margin-bottom:10px;">Remove Photo/Video</button>` : ""}
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:13.5px;">
+          <input type="checkbox" id="ls-flash" ${flash ? "checked" : ""} /> Flash
+        </label>
         <button class="btn btn-primary btn-block" id="ls-confirm" ${submitting ? "disabled" : ""}>${submitting ? "Logging…" : "Log Send"}</button>
         <button class="btn btn-ghost btn-block" id="ls-cancel" style="margin-top:6px;">Cancel</button>
       </div>
@@ -73,6 +77,8 @@ export function openLogSendSheet(routeId, label, { onLogged } = {}) {
       render();
     });
 
+    backdrop.querySelector("#ls-flash").addEventListener("change", (e) => { flash = e.target.checked; });
+
     backdrop.querySelector("#ls-confirm").addEventListener("click", async () => {
       if (submitting) return;
       submitting = true;
@@ -80,7 +86,7 @@ export function openLogSendSheet(routeId, label, { onLogged } = {}) {
       render();
       try {
         const shareable = mediaDataUrl && !tooBigForSharing;
-        await logSend(routeId, { mediaDataUrl: shareable ? mediaDataUrl : null });
+        await logSend(routeId, { mediaDataUrl: shareable ? mediaDataUrl : null, flash });
         if (mediaDataUrl && tooBigForSharing) {
           await saveLocalMedia(routeId, mediaKind, mediaDataUrl);
         }

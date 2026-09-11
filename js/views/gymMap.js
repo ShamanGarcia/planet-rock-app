@@ -1,8 +1,21 @@
 import { getRoutes, getAllTags, getCurrentUser, getLogEntries } from "../data/api.js";
-import { HOLD_COLORS, HOLD_COLOR_HEX, HOLD_TYPES, WALL_SECTIONS, MAX_GRADE, formatGrade, routeLabel } from "../data/constants.js";
+import {
+  HOLD_COLORS, HOLD_COLOR_HEX, HOLD_TYPES, WALL_SECTIONS, MAP_ASPECT_RATIO, MAX_GRADE, formatGrade, routeLabel,
+} from "../data/constants.js";
 import { openRouteDetail } from "./routeDetail.js";
 import { openAddRouteForm } from "../components/addRoute.js";
-import { escapeHtml, clamp } from "../utils.js";
+import { showToast } from "../components/toast.js";
+import { escapeHtml, clamp, pointInPolygon, polygonCentroid, polygonBounds } from "../utils.js";
+
+// The canvas is sized in CSS pixels at this fixed base (before pan/zoom
+// scaling) so it matches the sketch's own proportions; every zone/marker
+// position is a 0-100 percentage of these, same convention as mapX/mapY.
+const CANVAS_W = 1000;
+const CANVAS_H = Math.round(CANVAS_W / MAP_ASPECT_RATIO);
+
+function toSvgPoints(points) {
+  return points.map(([x, y]) => `${x},${y}`).join(" ");
+}
 
 // Persisted at module scope so pan/zoom feels stable across re-renders
 // (filter changes, navigating away and back) within the same session.
@@ -53,7 +66,7 @@ function routeMatches(route) {
 }
 
 function findWallSectionAt(x, y) {
-  const hit = WALL_SECTIONS.find((s) => x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h);
+  const hit = WALL_SECTIONS.find((s) => pointInPolygon(x, y, s.points));
   return hit ? hit.id : null;
 }
 
@@ -65,6 +78,7 @@ export function renderGymMap(container, gymId) {
   let panMoved = false;
   let destroyed = false;
   let pendingPoint = null; // {mapX, mapY, wallSection} while the add-route form is open
+  let zoomedSectionId = null; // set after tapping a zone; null shows the full map
 
   container.innerHTML = `
     <div class="page map-page">
@@ -81,7 +95,8 @@ export function renderGymMap(container, gymId) {
           <button id="zoom-reset" aria-label="Reset view" style="font-size:13px;">⤢</button>
         </div>
         <button class="btn btn-primary" id="add-route-btn" style="position:absolute; left:12px; top:12px; z-index:25;">+ Add Route</button>
-        <div class="map-hint" id="map-hint">Pinch or scroll to zoom · drag to pan · tap a marker for details</div>
+        <button class="btn btn-outline btn-sm hidden" id="back-to-map-btn" style="position:absolute; left:12px; top:56px; z-index:25; background:#fff;">&larr; All Areas</button>
+        <div class="map-hint" id="map-hint">Pinch or scroll to zoom · drag to pan · tap a wall to zoom in · tap a marker for details</div>
       </div>
     </div>
   `;
@@ -90,6 +105,9 @@ export function renderGymMap(container, gymId) {
   const canvas = container.querySelector("#map-canvas");
   const hint = container.querySelector("#map-hint");
   const addBtn = container.querySelector("#add-route-btn");
+  const backBtn = container.querySelector("#back-to-map-btn");
+  canvas.style.width = `${CANVAS_W}px`;
+  canvas.style.height = `${CANVAS_H}px`;
 
   if (!hasFitToScreen) {
     fitToScreen();
@@ -99,6 +117,29 @@ export function renderGymMap(container, gymId) {
   }
   renderCanvasContents();
   wirePanZoom();
+
+  backBtn.addEventListener("click", () => {
+    exitZoomedSection();
+    fitToScreen();
+  });
+
+  function exitZoomedSection() {
+    zoomedSectionId = null;
+    backBtn.classList.add("hidden");
+    renderCanvasContents();
+  }
+
+  function enterZoomedSection(sectionId) {
+    zoomedSectionId = sectionId;
+    backBtn.classList.remove("hidden");
+    const section = WALL_SECTIONS.find((s) => s.id === sectionId);
+    const pct = polygonBounds(section.points);
+    fitToBounds({
+      minX: (pct.minX / 100) * CANVAS_W, maxX: (pct.maxX / 100) * CANVAS_W,
+      minY: (pct.minY / 100) * CANVAS_H, maxY: (pct.maxY / 100) * CANVAS_H,
+    });
+    renderCanvasContents();
+  }
 
   const pollTimer = setInterval(() => {
     if (!placementMode) renderCanvasContents({ quiet: true });
@@ -126,7 +167,7 @@ export function renderGymMap(container, gymId) {
     addBtn.textContent = "+ Add Route";
     addBtn.classList.remove("btn-danger");
     addBtn.classList.add("btn-primary");
-    hint.textContent = "Pinch or scroll to zoom · drag to pan · tap a marker for details";
+    hint.textContent = "Pinch or scroll to zoom · drag to pan · tap a wall to zoom in · tap a marker for details";
     viewport.classList.remove("placement-active");
     renderCanvasContents();
   }
@@ -135,18 +176,25 @@ export function renderGymMap(container, gymId) {
     canvas.style.transform = `translate(${viewState.tx}px, ${viewState.ty}px) scale(${viewState.scale})`;
   }
 
-  // Fits the whole 1000x1000 gym canvas inside whatever viewport this device
-  // has, centered, so a narrow phone screen shows the entire map at once
-  // instead of scale=1 (a small slice of it, with lots of bare background
-  // showing between wall sections that looked like a rendering glitch).
-  function fitToScreen() {
+  // Fits a canvas-space pixel box (in the 0..CANVAS_W / 0..CANVAS_H frame)
+  // into whatever viewport this device has, centered, so a narrow phone
+  // screen shows the whole area at once instead of scale=1 (a small sliver
+  // of it, with lots of bare background that looked like a rendering glitch).
+  function fitToBounds(box) {
     const rect = viewport.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
-    const scale = clamp(Math.min(rect.width / 1000, rect.height / 1000) * 0.94, MIN_SCALE, MAX_SCALE);
+    const w = box.maxX - box.minX || 1;
+    const h = box.maxY - box.minY || 1;
+    const scale = clamp(Math.min(rect.width / w, rect.height / h) * 0.85, MIN_SCALE, MAX_SCALE);
     viewState.scale = scale;
-    viewState.tx = (rect.width - 1000 * scale) / 2;
-    viewState.ty = (rect.height - 1000 * scale) / 2;
+    viewState.tx = (rect.width - w * scale) / 2 - box.minX * scale;
+    viewState.ty = (rect.height - h * scale) / 2 - box.minY * scale;
     applyTransform();
+  }
+
+  // Fits the whole gym canvas inside the viewport (see fitToBounds above).
+  function fitToScreen() {
+    fitToBounds({ minX: 0, maxX: CANVAS_W, minY: 0, maxY: CANVAS_H });
   }
 
   async function renderCanvasContents({ quiet = false } = {}) {
@@ -166,22 +214,45 @@ export function renderGymMap(container, gymId) {
       return;
     }
 
-    const sectionsHTML = WALL_SECTIONS.map(
-      (s) => `
-        <div style="position:absolute; left:${s.x * 10}px; top:${s.y * 10}px; width:${s.w * 10}px; height:${s.h * 10}px;
-             background:#e2ded4; border:2px solid #cfc9ba; border-radius:10px;"></div>
-        <div class="wall-label" style="left:${s.x * 10 + 8}px; top:${s.y * 10 + 6}px;">${escapeHtml(s.name)}</div>
-      `
-    ).join("");
+    const visibleSections = zoomedSectionId ? WALL_SECTIONS.filter((s) => s.id === zoomedSectionId) : WALL_SECTIONS;
+
+    const zonesHTML = `
+      <svg class="floor-plan" viewBox="0 0 100 100" preserveAspectRatio="none">
+        ${visibleSections.map((s) => `<polygon class="wall-zone" data-section-id="${s.id}" points="${toSvgPoints(s.points)}"></polygon>`).join("")}
+      </svg>
+    `;
+
+    const labelsHTML = visibleSections.map((s) => {
+      const [cx, cy] = polygonCentroid(s.points);
+      const bounds = polygonBounds(s.points);
+      const margin = 3;
+      let left = cx, top = bounds.minY - margin, anchor = "";
+      if (s.labelPlacement === "left") { left = bounds.minX - margin; top = cy; }
+      else if (s.labelPlacement === "bottom-right") {
+        // Text's own right/bottom edge lands exactly on the polygon's
+        // right edge and bottom corner, instead of centering on a point.
+        left = bounds.maxX - margin; top = bounds.maxY - margin; anchor = "transform:translate(-100%,-100%);";
+      }
+      return `<div class="wall-label" style="left:${left}%; top:${top}%; ${anchor}">${escapeHtml(s.name)}</div>`;
+    }).join("");
+
+    // Only routes placed inside a wall section ever render as markers; when
+    // zoomed into one section, only its own routes show.
+    visibleRoutes = visibleRoutes.filter((r) => {
+      const sectionId = findWallSectionAt(r.mapX, r.mapY);
+      return sectionId && (!zoomedSectionId || sectionId === zoomedSectionId);
+    });
 
     const markersHTML = visibleRoutes
       .map((r) => {
-        const label = r.officialGrade === null ? "?" : `V${r.officialGrade}`;
+        const label = r.officialGrade !== null ? `V${r.officialGrade}`
+          : r.communityGrade != null ? `${r.communityGrade.toFixed(1)}?`
+          : "?";
         const completed = completedRouteIds.has(r.id);
         const dotColor = completed ? HOLD_COLOR_HEX[r.holdColor] : "var(--pr-slate)";
         return `
-          <div class="route-marker ${completed ? "completed" : "uncompleted"} ${r.id === selectedRouteId ? "selected" : ""} ${!r.active ? "retired" : ""}"
-               style="left:${r.mapX * 10}px; top:${r.mapY * 10}px; background:${dotColor};"
+          <div class="route-marker ${completed ? "completed" : "uncompleted"} ${r.id === selectedRouteId ? "selected" : ""} ${!r.active ? "retired" : ""} ${zoomedSectionId ? "zoomed" : ""}"
+               style="left:${r.mapX}%; top:${r.mapY}%; background:${dotColor};"
                data-route-id="${r.id}" data-hold="${completed ? r.holdColor : ""}"
                role="button" tabindex="0" aria-label="${escapeHtml(routeLabel(r))}, ${r.holdType}, ${completed ? "completed" : "not yet completed"}${r.mediaCount ? `, ${r.mediaCount} photo${r.mediaCount === 1 ? "" : "s"}/videos` : ""}">
             <span class="marker-grade">${label}</span>
@@ -191,10 +262,16 @@ export function renderGymMap(container, gymId) {
       .join("");
 
     const pendingHTML = pendingPoint
-      ? `<div class="route-marker pending" style="left:${pendingPoint.mapX * 10}px; top:${pendingPoint.mapY * 10}px;"><span class="marker-grade">NEW</span></div>`
+      ? `<div class="route-marker pending" style="left:${pendingPoint.mapX}%; top:${pendingPoint.mapY}%;"><span class="marker-grade">NEW</span></div>`
       : "";
 
-    canvas.innerHTML = sectionsHTML + markersHTML + pendingHTML;
+    canvas.innerHTML = zonesHTML + labelsHTML + markersHTML + pendingHTML;
+    canvas.querySelectorAll(".wall-zone").forEach((el) => {
+      el.addEventListener("click", () => {
+        if (panMoved || placementMode || zoomedSectionId) return;
+        enterZoomedSection(el.getAttribute("data-section-id"));
+      });
+    });
     canvas.querySelectorAll(".route-marker[data-route-id]").forEach((el) => {
       el.addEventListener("click", () => {
         if (panMoved || placementMode) return;
@@ -252,12 +329,18 @@ export function renderGymMap(container, gymId) {
       dragging = true;
       panMoved = false;
       lastX = e.clientX; lastY = e.clientY;
-      viewport.setPointerCapture(e.pointerId);
+      // Capture is deferred until real dragging is confirmed below — capturing
+      // on every pointerdown (even a plain tap) made Chromium route the
+      // resulting "click" to the viewport instead of the marker/zone under
+      // the finger, so nothing tappable on the map ever fired its handler.
     });
     viewport.addEventListener("pointermove", (e) => {
       if (!dragging) return;
       const dx = e.clientX - lastX, dy = e.clientY - lastY;
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) panMoved = true;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        if (!panMoved) viewport.setPointerCapture(e.pointerId);
+        panMoved = true;
+      }
       viewState.tx += dx; viewState.ty += dy;
       lastX = e.clientX; lastY = e.clientY;
       applyTransform();
@@ -303,7 +386,12 @@ export function renderGymMap(container, gymId) {
       const relY = (e.clientY - rect.top) / rect.height;
       const mapX = clamp(relX * 100, 0, 100);
       const mapY = clamp(relY * 100, 0, 100);
-      pendingPoint = { mapX, mapY, wallSection: findWallSectionAt(mapX, mapY) };
+      const wallSection = findWallSectionAt(mapX, mapY);
+      if (!wallSection) {
+        showToast("Tap inside a wall section to place a route", { small: true });
+        return;
+      }
+      pendingPoint = { mapX, mapY, wallSection };
       renderCanvasContents();
       getAllTags().then((tags) => {
         openAddRouteForm({
@@ -326,6 +414,7 @@ export function renderGymMap(container, gymId) {
       zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, 0.8);
     });
     container.querySelector("#zoom-reset").addEventListener("click", () => {
+      if (zoomedSectionId) exitZoomedSection();
       fitToScreen();
     });
 

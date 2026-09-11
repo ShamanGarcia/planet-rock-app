@@ -9,10 +9,19 @@ function wallSectionName(id) {
   return WALL_SECTIONS.find((s) => s.id === id)?.name || null;
 }
 
-function snapshotLabel(snapshot) {
+function snapshotLabel(entry) {
+  const snapshot = entry.snapshot;
   const base = `${snapshot.holdColor} ${formatGrade(snapshot.officialGrade)}`;
   const place = wallSectionName(snapshot.wallSection);
   return place ? `${base} - ${place}` : base;
+}
+
+function areaLabel(entry) {
+  return wallSectionName(entry.snapshot.wallSection) || "—";
+}
+
+function gradeAreaLabel(entry) {
+  return `${formatGrade(entry.snapshot.officialGrade)} - ${areaLabel(entry)}`;
 }
 
 export function renderClimbingLog(container, userId, { title = "Climbing Log", canGoBack = false, backHash = "#/friends" } = {}) {
@@ -37,7 +46,7 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
     entries = [...entries].sort((a, b) => {
       let av, bv;
       switch (sortField) {
-        case "route": av = snapshotLabel(a.snapshot); bv = snapshotLabel(b.snapshot); break;
+        case "area": av = areaLabel(a); bv = areaLabel(b); break;
         case "holdColor": av = a.snapshot.holdColor; bv = b.snapshot.holdColor; break;
         case "officialGrade": av = a.snapshot.officialGrade ?? -1; bv = b.snapshot.officialGrade ?? -1; break;
         case "estimatedGrade": av = a.estimatedGrade ?? -1; bv = b.estimatedGrade ?? -1; break;
@@ -126,7 +135,7 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
         <table class="log-table">
           <thead><tr>
             ${headerCell("Date", "completedAt")}
-            ${headerCell("Route", "route")}
+            ${headerCell("Area", "area")}
             ${headerCell("Official Grade", "officialGrade")}
             ${headerCell("Community Est.", "estimatedGrade")}
             ${headerCell("Hold Type", "holdType")}
@@ -135,13 +144,16 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
           </tr></thead>
           <tbody>
             ${entries.map((e) => `
-              <tr data-route-id="${e.routeId}" data-label="${escapeHtml(snapshotLabel(e.snapshot))}" tabindex="0">
+              <tr data-route-id="${e.routeId}" data-label="${escapeHtml(snapshotLabel(e))}" tabindex="0">
                 <td>${formatDate(e.completedAt)}</td>
-                <td><span class="hold-dot" style="background:var(--hold-${e.snapshot.holdColor.toLowerCase()})"></span>${escapeHtml(snapshotLabel(e.snapshot))}${!e.route ? ' <span class="badge-soft">retired</span>' : ""}</td>
+                <td><span class="hold-dot" style="background:var(--hold-${e.snapshot.holdColor.toLowerCase()})"></span> ${escapeHtml(gradeAreaLabel(e))}${!e.route ? ' <span class="badge-soft">retired</span>' : ""}</td>
                 <td>${formatGrade(e.snapshot.officialGrade)}</td>
                 <td>${e.estimatedGrade === null ? "—" : formatEstimate(e.estimatedGrade)}</td>
                 <td>${e.snapshot.holdType || "—"}</td>
-                <td>${e.topTags.map((t) => `<span class="chip" style="margin:2px;">${escapeHtml(t.name)}</span>`).join("") || "—"}</td>
+                <td>${[
+                  e.flash ? `<span class="chip flash-chip" style="margin:2px;">FLASH</span>` : "",
+                  ...e.topTags.map((t) => `<span class="chip" style="margin:2px;">${escapeHtml(t.name)}</span>`),
+                ].join("") || "—"}</td>
                 ${isOwn ? `<td><button class="btn btn-ghost btn-sm" data-delete-id="${e.id}" style="color:var(--pr-danger);">Delete</button></td>` : ""}
               </tr>
             `).join("")}
@@ -152,15 +164,15 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
         ${entries.map((e) => `
           <div class="swipe-row" data-entry-id="${e.id}">
             ${isOwn ? `<button class="swipe-delete-btn" aria-label="Delete this send">Delete</button>` : ""}
-            <button class="log-card" data-route-id="${e.routeId}" data-label="${escapeHtml(snapshotLabel(e.snapshot))}">
+            <button class="log-card" data-route-id="${e.routeId}" data-label="${escapeHtml(snapshotLabel(e))}">
               <div class="log-card-top">
                 <span class="hold-dot" style="background:var(--hold-${e.snapshot.holdColor.toLowerCase()})"></span>
-                <strong>${escapeHtml(snapshotLabel(e.snapshot))}</strong>
+                <strong>${escapeHtml(gradeAreaLabel(e))}</strong>
                 ${!e.route ? '<span class="badge-soft">retired</span>' : ""}
                 <span class="log-card-date">${formatDate(e.completedAt)}</span>
               </div>
               <div class="log-card-meta">${e.snapshot.holdType || "—"} · Community Est. ${e.estimatedGrade === null ? "—" : formatEstimate(e.estimatedGrade)}</div>
-              ${e.topTags.length ? `<div class="log-card-tags">${e.topTags.map((t) => `<span class="chip">${escapeHtml(t.name)}</span>`).join("")}</div>` : ""}
+              ${e.flash || e.topTags.length ? `<div class="log-card-tags">${e.flash ? `<span class="chip flash-chip">FLASH</span>` : ""}${e.topTags.map((t) => `<span class="chip">${escapeHtml(t.name)}</span>`).join("")}</div>` : ""}
             </button>
           </div>
         `).join("")}

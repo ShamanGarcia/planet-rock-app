@@ -67,6 +67,30 @@ export function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
 }
 
+// Ray-casting point-in-polygon test. `polygon` is an array of [x, y] pairs.
+export function pointInPolygon(x, y, polygon) {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, yi] = polygon[i];
+    const [xj, yj] = polygon[j];
+    const intersects = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+export function polygonCentroid(polygon) {
+  const n = polygon.length;
+  const sum = polygon.reduce((acc, [x, y]) => [acc[0] + x, acc[1] + y], [0, 0]);
+  return [sum[0] / n, sum[1] / n];
+}
+
+export function polygonBounds(polygon) {
+  const xs = polygon.map((p) => p[0]);
+  const ys = polygon.map((p) => p[1]);
+  return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
+}
+
 export function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

@@ -1,7 +1,7 @@
 // Shared enums / lookup tables. Keeping these centralized makes it easy to
 // extend (new hold colors, tags, grades) without touching business logic.
 
-export const HOLD_COLORS = ["Red", "Orange", "Yellow", "Green", "Blue", "Purple", "Black", "White"];
+export const HOLD_COLORS = ["Red", "Orange", "Yellow", "Green", "Blue", "Purple", "Pink", "Black", "White"];
 
 export const HOLD_COLOR_HEX = {
   Red: "var(--hold-red)",
@@ -10,6 +10,7 @@ export const HOLD_COLOR_HEX = {
   Green: "var(--hold-green)",
   Blue: "var(--hold-blue)",
   Purple: "var(--hold-purple)",
+  Pink: "var(--hold-pink)",
   Black: "var(--hold-black)",
   White: "var(--hold-white)",
 };
@@ -50,15 +51,40 @@ export function routeLabel(route) {
   return `${route.holdColor} ${formatGrade(route.officialGrade)}`;
 }
 
+// Real wall-section shapes, traced from the gym's own sketch. Coordinates
+// are percentages (0-100) of the map canvas's width (x) / height (y) — same
+// convention as a route's mapX/mapY — so zone shapes and route markers share
+// one coordinate system.
+export const MAP_ASPECT_RATIO = 1835 / 780;
+
 export const WALL_SECTIONS = [
-  { id: "slab", name: "Slab", x: 4, y: 4, w: 26, h: 22 },
-  { id: "vertical-a", name: "Vertical Wall", x: 32, y: 4, w: 30, h: 14 },
-  { id: "arete", name: "Arête", x: 64, y: 4, w: 14, h: 30 },
-  { id: "overhang", name: "Overhang", x: 80, y: 4, w: 16, h: 40 },
-  { id: "cave", name: "The Cave", x: 64, y: 46, w: 32, h: 20 },
-  { id: "vertical-b", name: "Vertical Wall", x: 4, y: 34, w: 26, h: 32 },
-  { id: "corner", name: "Corner Wall", x: 32, y: 22, w: 30, h: 20 },
-  { id: "tension-board", name: "Training Board", x: 4, y: 70, w: 20, h: 18 },
-  { id: "lead-wall", name: "Lead Wall", x: 32, y: 44, w: 28, h: 44 },
-  { id: "kids-area", name: "Kids Area", x: 64, y: 70, w: 32, h: 18 },
+  {
+    id: "arch", name: "Arch",
+    points: [[1.63, 0], [17.17, 0], [17.17, 10.9], [11.17, 31.41], [6.27, 35.9], [5.45, 8.97]],
+  },
+  {
+    id: "long-wall", name: "Long Wall",
+    points: [[18.8, 0], [58.31, 0.64], [57.49, 19.87], [18.8, 14.74]],
+  },
+  {
+    id: "competition", name: "Competition",
+    points: [[61.04, 0], [100, 0], [100, 48.08], [95.9, 48.08], [95.9, 18.59], [61.04, 18.59]],
+  },
+  {
+    id: "island", name: "Island",
+    points: [[27.25, 52.56], [40.33, 53.21], [44.41, 59.62], [43.87, 73.08], [37.33, 79.49],
+      [26.98, 74.36], [24.25, 65.38], [25.61, 56.41]],
+  },
+  {
+    id: "slab", name: "Slab",
+    points: [[62.13, 44.87], [89.1, 44.23], [91.28, 47.44], [74.39, 65.38]],
+  },
+  {
+    id: "notch", name: "Notch", labelPlacement: "left",
+    points: [[62.13, 44.87], [74.39, 65.38], [63.22, 98.08]],
+  },
+  {
+    id: "overhang", name: "Overhang", labelPlacement: "bottom-right",
+    points: [[91.28, 47.44], [90.74, 58.97], [63.22, 98.08], [74.39, 65.38]],
+  },
 ];

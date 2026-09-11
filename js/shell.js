@@ -34,7 +34,7 @@ export async function renderShell(root, onLoggedOut) {
   root.innerHTML = `
     <div class="app-shell">
       <div class="topbar">
-        <div class="brand">MATCHBOOK</div>
+        <a href="#/map" class="brand" style="text-decoration:none;">MATCHBOOK</a>
         <select class="gym-select" id="gym-select" aria-label="Select gym">
           ${gyms.map((g) => `<option value="${g.id}" ${g.id === gymId ? "selected" : ""}>${g.name}</option>`).join("")}
         </select>
