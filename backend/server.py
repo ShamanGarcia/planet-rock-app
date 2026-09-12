@@ -630,9 +630,6 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/friends/remove" and method == "POST":
             return self._friends_remove()
 
-        if path == "/api/admin/list-users" and method == "POST":
-            return self._list_users()
-
         raise ApiError(404, f"No such endpoint: {method} {path}")
 
     # ---------- Auth ----------
@@ -1017,20 +1014,6 @@ class Handler(BaseHTTPRequestHandler):
         if not allowed:
             raise ApiError(403, "This profile is private.")
         self._json(200, compute_user_stats(user_id))
-
-    # Temporary diagnostic for the login/signup persistence issue — gated by
-    # an env var (never committed) like the earlier factory-reset endpoint,
-    # and removed once we've confirmed what's actually in the database.
-    # Deliberately excludes password hashes, only id/name/email/createdAt.
-    def _list_users(self):
-        key = os.environ.get("LIST_USERS_KEY")
-        if not key:
-            raise ApiError(403, "Listing is disabled (no LIST_USERS_KEY set).")
-        body = self._body()
-        if body.get("key") != key:
-            raise ApiError(403, "Incorrect key.")
-        users = [{"id": u["id"], "name": u["name"], "email": u["email"], "createdAt": u["createdAt"]} for u in DB["users"]]
-        self._json(200, users)
 
     def _search_users(self, q):
         _, viewer = self._auth()
