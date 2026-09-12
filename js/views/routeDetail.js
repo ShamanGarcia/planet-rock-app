@@ -22,7 +22,71 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
   let sentClickCount = 0;
   let editingGrade = false;
 
+  // Tag votes are applied to this in-memory copy immediately (so clicking
+  // +1/-1 feels instant and never re-fetches/re-renders the whole drawer),
+  // and only sent to the server in one batch when the user commits to
+  // something — closing the drawer or logging a send — via flushPendingVotes.
+  let currentTagDetails = [];
+  const pendingVotes = new Map(); // tagId -> { original, local }
+
+  function applyPendingOverride(t) {
+    const entry = pendingVotes.get(t.tagId);
+    if (!entry) return;
+    const wasVoted = t.myVote !== 0;
+    const isVoted = entry.local !== 0;
+    t.score += entry.local - t.myVote;
+    if (!wasVoted && isVoted) t.votes += 1;
+    else if (wasVoted && !isVoted) t.votes -= 1;
+    t.myVote = entry.local;
+  }
+
+  function toggleTagVote(t, requestedVote) {
+    if (!pendingVotes.has(t.tagId)) pendingVotes.set(t.tagId, { original: t.myVote, local: t.myVote });
+    const entry = pendingVotes.get(t.tagId);
+    const newLocal = entry.local === requestedVote ? 0 : requestedVote;
+    const wasVoted = entry.local !== 0;
+    const isVoted = newLocal !== 0;
+    t.score += newLocal - entry.local;
+    if (!wasVoted && isVoted) t.votes += 1;
+    else if (wasVoted && !isVoted) t.votes -= 1;
+    t.myVote = newLocal;
+    entry.local = newLocal;
+    if (entry.local === entry.original) pendingVotes.delete(t.tagId);
+  }
+
+  async function flushPendingVotes() {
+    if (!pendingVotes.size) return;
+    const entries = [...pendingVotes.entries()];
+    pendingVotes.clear();
+    await Promise.all(entries.map(([tagId, { original, local }]) =>
+      voteTag(routeId, tagId, local === 0 ? original : local).catch(() => {})
+    ));
+  }
+
+  function wireTagVoteButtons() {
+    backdrop.querySelectorAll("[data-vote-tag]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const tagId = btn.getAttribute("data-vote-tag");
+        const requestedVote = Number(btn.getAttribute("data-vote-value"));
+        const t = currentTagDetails.find((x) => x.tagId === tagId);
+        if (!t) return;
+        toggleTagVote(t, requestedVote);
+        renderTagsOnly();
+      });
+    });
+  }
+
+  function renderTagsOnly() {
+    const container = backdrop.querySelector("#rd-tags");
+    if (!container) return;
+    container.innerHTML = currentTagDetails.length
+      ? currentTagDetails.map((t) => tagRow(t)).join("")
+      : `<div class="page-sub">No tags yet — be the first to add one.</div>`;
+    wireTagVoteButtons();
+  }
+
   function close() {
+    flushPendingVotes();
     dismissOverlay(backdrop);
     document.removeEventListener("keydown", escHandler);
     onClose?.();
@@ -55,6 +119,8 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
       return;
     }
     const { route, tagDetails, communityGrade, gradeDistribution, finishes, mySends, myEstimate } = detail;
+    currentTagDetails = tagDetails;
+    currentTagDetails.forEach(applyPendingOverride);
     const media = await getCombinedMedia(routeId);
     const label = routeLabel(route);
     const hasEstimates = gradeDistribution.some((c) => c > 0);
@@ -117,7 +183,7 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
 
         <div class="section-title">Route Tags</div>
         <div id="rd-tags">
-          ${tagDetails.length ? tagDetails.map((t) => tagRow(t)).join("") : `<div class="page-sub">No tags yet — be the first to add one.</div>`}
+          ${currentTagDetails.length ? currentTagDetails.map((t) => tagRow(t)).join("") : `<div class="page-sub">No tags yet — be the first to add one.</div>`}
         </div>
         <div class="add-tag-row">
           <select id="rd-tag-select">
@@ -197,26 +263,7 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
       });
     });
 
-    backdrop.querySelectorAll("[data-vote-tag]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const tagId = btn.getAttribute("data-vote-tag");
-        const vote = Number(btn.getAttribute("data-vote-value"));
-        // Show the pressed state immediately instead of waiting on the
-        // round trip — the real score still comes from the render() below,
-        // this just removes the "did my click register?" delay.
-        const row = btn.closest(".vote-btns");
-        row.querySelectorAll(".vote-btn").forEach((b) => {
-          b.classList.remove("active-up", "active-down");
-          b.disabled = true;
-        });
-        btn.classList.add(vote === 1 ? "active-up" : "active-down");
-        try {
-          await voteTag(routeId, tagId, vote);
-        } finally {
-          render();
-        }
-      });
-    });
+    wireTagVoteButtons();
 
     backdrop.querySelector("#rd-add-tag-btn").addEventListener("click", async () => {
       const select = backdrop.querySelector("#rd-tag-select");
@@ -238,12 +285,13 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
 
     backdrop.querySelector("#rd-log-send").addEventListener("click", () => {
       if (alreadySent) {
+        flushPendingVotes();
         sentClickCount += 1;
         if (sentClickCount >= 3) showToast("You can delete sends in the climbing log", { small: true });
         return;
       }
       openLogSendSheet(routeId, label, {
-        onLogged: () => { justSent = true; onChanged?.(); render(); },
+        onLogged: async () => { await flushPendingVotes(); justSent = true; onChanged?.(); render(); },
       });
     });
   }
