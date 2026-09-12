@@ -80,6 +80,7 @@ export function renderGymMap(container, gymId) {
   let destroyed = false;
   let pendingPoint = null; // {mapX, mapY, wallSection} while the add-route form is open
   let zoomedSectionId = null; // set after tapping a zone; null shows the full map
+  let newlyAddedRouteId = null; // yellow-ringed until any route marker is clicked (this view instance resets it on navigation)
 
   container.innerHTML = `
     <div class="page map-page">
@@ -278,11 +279,11 @@ export function renderGymMap(container, gymId) {
           : r.communityGrade != null ? `${r.communityGrade.toFixed(1)}?`
           : "?";
         const completed = completedRouteIds.has(r.id);
-        const dotColor = completed ? HOLD_COLOR_HEX[r.holdColor] : "var(--pr-slate)";
+        const isNew = r.id === newlyAddedRouteId;
         return `
-          <div class="route-marker ${completed ? "completed" : "uncompleted"} ${r.id === selectedRouteId ? "selected" : ""} ${!r.active ? "retired" : ""} ${zoomedSectionId ? "zoomed" : ""}"
-               style="left:${r.mapX}%; top:${r.mapY}%; background:${dotColor};"
-               data-route-id="${r.id}" data-hold="${completed ? r.holdColor : ""}"
+          <div class="route-marker ${completed ? "completed" : "uncompleted"} ${isNew ? "just-added" : ""} ${r.id === selectedRouteId ? "selected" : ""} ${!r.active ? "retired" : ""} ${zoomedSectionId ? "zoomed" : ""}"
+               style="left:${r.mapX}%; top:${r.mapY}%; background:${HOLD_COLOR_HEX[r.holdColor]};"
+               data-route-id="${r.id}" data-hold="${r.holdColor}"
                role="button" tabindex="0" aria-label="${escapeHtml(routeLabel(r))}, ${r.holdType}, ${completed ? "completed" : "not yet completed"}${r.mediaCount ? `, ${r.mediaCount} photo${r.mediaCount === 1 ? "" : "s"}/videos` : ""}">
             <span class="marker-grade">${label}</span>
           </div>
@@ -305,7 +306,8 @@ export function renderGymMap(container, gymId) {
       el.addEventListener("click", () => {
         if (panMoved || placementMode) return;
         selectedRouteId = el.getAttribute("data-route-id");
-        canvas.querySelectorAll(".route-marker").forEach((m) => m.classList.remove("selected"));
+        newlyAddedRouteId = null;
+        canvas.querySelectorAll(".route-marker").forEach((m) => m.classList.remove("selected", "just-added"));
         el.classList.add("selected");
         openRouteDetail(selectedRouteId, {
           onClose: () => { selectedRouteId = null; renderCanvasContents(); },
@@ -428,7 +430,7 @@ export function renderGymMap(container, gymId) {
           mapX, mapY,
           wallSection: pendingPoint.wallSection,
           allTags: tags,
-          onCreated: () => { exitPlacementMode(); renderCanvasContents(); },
+          onCreated: (route) => { newlyAddedRouteId = route.id; exitPlacementMode(); renderCanvasContents(); },
           onCancel: () => exitPlacementMode(),
         });
       });

@@ -239,6 +239,8 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
   color:#fff; text-shadow:0 1px 1px rgba(0,0,0,.4); z-index:5;
 }
 .route-marker.zoomed{ transform:scale(.5); }
+.route-marker.completed{ box-shadow:0 0 0 3px var(--pr-success), 0 2px 6px rgba(0,0,0,.35); }
+.route-marker.just-added{ box-shadow:0 0 0 3px #FFD500, 0 2px 6px rgba(0,0,0,.35); }
 .route-marker.selected{ outline:3px solid var(--pr-ink); outline-offset:2px; z-index:10; transform:scale(1.15); }
 .route-marker[data-hold="Yellow"], .route-marker[data-hold="White"]{ color:#1b1d21; text-shadow:none; }
 .route-marker .marker-grade{ pointer-events:none; }
