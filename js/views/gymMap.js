@@ -29,13 +29,15 @@ const MAGMA_11 = [
 ];
 const HEAT_NO_DATA = "#6b6f76"; // same as --pr-text-soft — kept distinct from magma's black so "no data" never reads as "hardest/least"
 
-function magmaBucket(index) {
-  return MAGMA_11[clamp(Math.round(index), 0, 10)];
+// Inverted: low value -> pale (index 0 end of MAGMA_11), high value -> dark.
+function magmaStyle(valueIndex) {
+  const idx = clamp(Math.round(10 - valueIndex), 0, 10);
+  return { bg: MAGMA_11[idx], isDark: idx < 9 };
 }
 
-// Small pixel-art icons for the heatmap toggle buttons, built from a grid of
-// square cells (matching the blocky reference art the user provided) rather
-// than a font glyph or icon library — consistent with this file's existing
+// Pixel-art checkmark icon for the completed-climbs toggle, built from a
+// grid of square cells (matching the user's reference art) instead of a
+// font glyph or icon library — consistent with this file's existing
 // "plain characters only" chrome, just rendered as blocks instead of text.
 function pixelIconSVG(cells, cols, rows) {
   const size = 0.86;
@@ -45,7 +47,6 @@ function pixelIconSVG(cells, cols, rows) {
 }
 
 const PIXEL_CHECK_ICON = pixelIconSVG([[1, 2], [2, 3], [3, 4], [4, 3], [5, 2], [6, 1], [7, 0]], 9, 6);
-const PIXEL_V_ICON = pixelIconSVG([[0, 1], [1, 2], [2, 3], [3, 4], [4, 4], [5, 3], [6, 2], [7, 1], [8, 0], [3, 5]], 9, 6);
 
 // Persisted at module scope so pan/zoom feels stable across re-renders
 // (filter changes, navigating away and back) within the same session.
@@ -130,7 +131,7 @@ export function renderGymMap(container, gymId) {
           <button class="heatmap-toggle-btn heatmap-toggle-completed" id="heatmap-completed-btn"
                   aria-label="Toggle completed-climbs heatmap" aria-pressed="false">${PIXEL_CHECK_ICON}</button>
           <button class="heatmap-toggle-btn heatmap-toggle-difficulty" id="heatmap-difficulty-btn"
-                  aria-label="Toggle difficulty heatmap" aria-pressed="false">${PIXEL_V_ICON}</button>
+                  aria-label="Toggle difficulty heatmap" aria-pressed="false">V</button>
         </div>
         <button class="btn btn-primary" id="add-route-btn" style="position:absolute; left:12px; top:12px; z-index:25;">+ Add Route</button>
         <button class="btn btn-outline btn-sm hidden" id="back-to-map-btn" style="position:absolute; left:12px; top:56px; z-index:25; background:#fff;">&larr; All Areas</button>
@@ -222,8 +223,8 @@ export function renderGymMap(container, gymId) {
   difficultyHeatBtn.addEventListener("click", () => setActiveHeatmap("difficulty"));
 
   function defaultHintText() {
-    if (activeHeatmap === "completed") return "Color shows total completions · dark = fewest, pale = most";
-    if (activeHeatmap === "difficulty") return "Color shows difficulty · dark = easiest, pale = hardest";
+    if (activeHeatmap === "completed") return "Color shows total completions · pale = fewest, dark = most";
+    if (activeHeatmap === "difficulty") return "Color shows difficulty · pale = easiest, dark = hardest";
     return "Pinch or scroll to zoom · drag to pan · tap a wall to zoom in · tap a marker for details";
   }
 
@@ -348,10 +349,9 @@ export function renderGymMap(container, gymId) {
         let holdAttr = ` data-hold="${r.holdColor}"`;
         if (activeHeatmap === "completed") {
           const finishes = r.finishes || 0;
-          const bucketIndex = finishes / 3; // 0-30 by 3 -> indices 0-10
-          markerBg = magmaBucket(bucketIndex);
+          const { bg, isDark } = magmaStyle(finishes / 3); // 0-30 by 3 -> indices 0-10
+          markerBg = bg;
           markerLabel = String(finishes);
-          const isDark = bucketIndex < 9; // only the palest 2 magma stops need dark text
           textStyle = ` color:${isDark ? "#fff" : "#1b1d21"}; text-shadow:${isDark ? "0 1px 1px rgba(0,0,0,.4)" : "none"};`;
           holdAttr = "";
         } else if (activeHeatmap === "difficulty") {
@@ -360,9 +360,8 @@ export function renderGymMap(container, gymId) {
             markerBg = HEAT_NO_DATA;
             textStyle = " color:#fff; text-shadow:0 1px 1px rgba(0,0,0,.4);";
           } else {
-            const bucketIndex = clamp(value, 0, MAX_GRADE); // 0-10 by 1 -> indices 0-10
-            markerBg = magmaBucket(bucketIndex);
-            const isDark = bucketIndex < 9;
+            const { bg, isDark } = magmaStyle(clamp(value, 0, MAX_GRADE)); // 0-10 by 1 -> indices 0-10
+            markerBg = bg;
             textStyle = ` color:${isDark ? "#fff" : "#1b1d21"}; text-shadow:${isDark ? "0 1px 1px rgba(0,0,0,.4)" : "none"};`;
           }
           holdAttr = "";

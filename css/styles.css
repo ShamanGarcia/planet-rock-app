@@ -232,7 +232,8 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
 }
 .heatmap-toggle-btn{
   width:40px; height:40px; border-radius:50%; border:3px solid #fff;
-  box-shadow:var(--pr-shadow); color:#fff;
+  box-shadow:var(--pr-shadow); color:#fff; font-size:18px; font-weight:800;
+  text-shadow:0 1px 1px rgba(0,0,0,.4);
   display:flex; align-items:center; justify-content:center;
 }
 .heatmap-toggle-completed{ background:var(--pr-success); }
