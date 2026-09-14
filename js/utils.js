@@ -154,6 +154,10 @@ export function dataUrlByteSize(dataUrl) {
   return Math.round(base64.length * 0.75);
 }
 
+export function initials(name) {
+  return name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+}
+
 export function escapeHtml(str) {
   if (str === null || str === undefined) return "";
   return String(str)

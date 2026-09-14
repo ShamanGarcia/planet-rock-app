@@ -11,7 +11,7 @@ async function boot() {
   if (!user) {
     renderAuth(root, boot);
   } else {
-    renderShell(root, boot);
+    renderShell(root);
     maybeShowOnboarding();
   }
 }

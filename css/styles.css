@@ -65,7 +65,6 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
 
 /* ===== Layout shell ===== */
 .app-shell{ display:flex; flex-direction:column; min-height:100vh; }
-.app-main{ flex:1; padding-bottom: calc(var(--nav-h) + 8px); width:100%; }
 
 .topbar{
   height:var(--topbar-h);
@@ -110,10 +109,10 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
    flex:1 it shrinks to fit its content instead of filling the screen,
    leaving a bare, unstyled strip of the shell's background showing
    beside it (this was the "half the screen is gray" bug on the map page). */
-.content-area{ flex:1; min-width:0; width:100%; }
+.content-area{ flex:1; min-width:0; width:100%; padding-bottom: calc(var(--nav-h) + 8px); }
 @media (min-width: 900px){
   .bottom-nav{ display:none; }
-  .app-main{ padding-bottom:0; }
+  .content-area{ padding-bottom:0; }
   .desktop-shell{ min-height: calc(100vh - var(--topbar-h)); }
   .sidebar{
     display:flex; flex-direction:column; width:220px; flex-shrink:0;

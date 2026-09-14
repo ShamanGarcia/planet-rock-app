@@ -1,8 +1,9 @@
-import { getCurrentUser, getGyms, getCurrentGymId, setCurrentGym, logOut } from "./data/api.js";
+import { getCurrentUser, getGyms, getCurrentGymId, setCurrentGym } from "./data/api.js";
 import { renderGymMap } from "./views/gymMap.js";
 import { renderClimbingLog } from "./views/climbingLog.js";
 import { renderProfile } from "./views/profile.js";
 import { renderFriends } from "./views/friends.js";
+import { initials } from "./utils.js";
 
 const NAV_ITEMS = [
   { hash: "#/map", label: "Gym Map" },
@@ -26,7 +27,7 @@ function navLinksHTML(active) {
   ).join("");
 }
 
-export async function renderShell(root, onLoggedOut) {
+export async function renderShell(root) {
   const user = getCurrentUser();
   const gyms = await getGyms();
   const gymId = getCurrentGymId() || gyms[0]?.id;
@@ -39,7 +40,7 @@ export async function renderShell(root, onLoggedOut) {
           ${gyms.map((g) => `<option value="${g.id}" ${g.id === gymId ? "selected" : ""}>${g.name}</option>`).join("")}
         </select>
         <div class="topbar-actions">
-          <button class="btn btn-sm" id="logout-btn" style="background:rgba(255,255,255,.15);color:#fff;" aria-label="Log out">Log Out</button>
+          <a href="#/profile" class="avatar sm" style="text-decoration:none;" aria-label="Profile">${user.profilePicture ? `<img src="${user.profilePicture}" alt=""/>` : initials(user.name)}</a>
         </div>
       </div>
       <div class="desktop-shell">
@@ -53,10 +54,6 @@ export async function renderShell(root, onLoggedOut) {
   root.querySelector("#gym-select").addEventListener("change", async (e) => {
     await setCurrentGym(e.target.value);
     renderRoute();
-  });
-  root.querySelector("#logout-btn").addEventListener("click", async () => {
-    await logOut();
-    onLoggedOut();
   });
 
   const contentArea = root.querySelector("#content-area");

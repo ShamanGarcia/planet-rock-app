@@ -1,11 +1,7 @@
-import { getCurrentUser, updateUser, computeUserStats } from "../data/api.js";
+import { getCurrentUser, updateUser, computeUserStats, logOut } from "../data/api.js";
 import { formatGrade, HOLD_TYPES, MAX_GRADE } from "../data/constants.js";
-import { escapeHtml, compressImageFile } from "../utils.js";
+import { escapeHtml, compressImageFile, initials } from "../utils.js";
 import { showToast } from "../components/toast.js";
-
-function initials(name) {
-  return name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
-}
 
 function climbingExperience(startDate) {
   if (!startDate) return null;
@@ -75,9 +71,15 @@ export function renderProfile(container) {
             <div class="page-sub">When off, friends will see your profile but not your climbing log.</div>
           </div>
         </div>
+
+        <button class="btn btn-outline btn-block" id="logout-btn" style="margin-top:14px;">Log Out</button>
       </div>
     `;
 
+    container.querySelector("#logout-btn").addEventListener("click", async () => {
+      await logOut();
+      location.reload();
+    });
     container.querySelector("#edit-btn")?.addEventListener("click", () => { editing = true; render(); });
     container.querySelector("#cancel-btn")?.addEventListener("click", () => { editing = false; photoDataUrl = null; render(); });
     container.querySelector("#profile-form")?.addEventListener("submit", async (e) => {
@@ -114,13 +116,14 @@ export function renderProfile(container) {
   }
 
   function viewInfo(user) {
+    const rows = [
+      user.age !== null && user.age !== undefined ? `<div class="info-row"><span class="k">Age</span><span class="v">${user.age}</span></div>` : "",
+      user.hometown ? `<div class="info-row"><span class="k">Hometown</span><span class="v">${escapeHtml(user.hometown)}</span></div>` : "",
+      `<div class="info-row"><span class="k">Favorite Hold Type</span><span class="v">${escapeHtml(user.favoriteHoldType) || "—"}</span></div>`,
+      `<div class="info-row"><span class="k">Self-Reported Highest Grade</span><span class="v">${user.selfReportedHighestGrade !== null && user.selfReportedHighestGrade !== undefined ? formatGrade(user.selfReportedHighestGrade) : "—"}</span></div>`,
+    ].join("");
     return `
-      <div class="info-list">
-        <div class="info-row"><span class="k">Age</span><span class="v">${user.age ?? "—"}</span></div>
-        <div class="info-row"><span class="k">Hometown</span><span class="v">${escapeHtml(user.hometown) || "—"}</span></div>
-        <div class="info-row"><span class="k">Favorite Hold Type</span><span class="v">${escapeHtml(user.favoriteHoldType) || "—"}</span></div>
-        <div class="info-row"><span class="k">Self-Reported Highest Grade</span><span class="v">${user.selfReportedHighestGrade !== null && user.selfReportedHighestGrade !== undefined ? formatGrade(user.selfReportedHighestGrade) : "—"}</span></div>
-      </div>
+      <div class="info-list">${rows}</div>
       <button class="btn btn-outline btn-block" id="edit-btn" style="margin-top:12px;">Edit Profile</button>
     `;
   }
