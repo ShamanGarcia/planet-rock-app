@@ -9,19 +9,22 @@ function wallSectionName(id) {
   return WALL_SECTIONS.find((s) => s.id === id)?.name || null;
 }
 
+// The live route (holdColor/holdType/officialGrade/wallSection) if it still
+// exists, so an edit made after a send — a grade change, most commonly —
+// shows up here too; only a deleted route falls back to the frozen snapshot.
+function routeData(entry) {
+  return entry.route || entry.snapshot;
+}
+
 function snapshotLabel(entry) {
-  const snapshot = entry.snapshot;
-  const base = `${snapshot.holdColor} ${formatGrade(snapshot.officialGrade)}`;
-  const place = wallSectionName(snapshot.wallSection);
+  const data = routeData(entry);
+  const base = `${data.holdColor} ${formatGrade(data.officialGrade)}`;
+  const place = wallSectionName(data.wallSection);
   return place ? `${base} - ${place}` : base;
 }
 
 function areaLabel(entry) {
-  return wallSectionName(entry.snapshot.wallSection) || "—";
-}
-
-function gradeAreaLabel(entry) {
-  return `${formatGrade(entry.snapshot.officialGrade)} - ${areaLabel(entry)}`;
+  return wallSectionName(routeData(entry).wallSection) || "—";
 }
 
 export function renderClimbingLog(container, userId, { title = "Climbing Log", canGoBack = false, backHash = "#/friends" } = {}) {
@@ -32,25 +35,26 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
   let allEntries = [];
   let loaded = false;
   let loadError = null;
-  const filterState = { dateFrom: "", dateTo: "", officialGrade: "", holdType: "", holdColor: "", tag: "" };
+  const filterState = { dateFrom: "", dateTo: "", officialGrade: "", holdType: "", holdColor: "", tag: "", area: "" };
 
   function getFiltered() {
     let entries = allEntries;
     if (filterState.dateFrom) entries = entries.filter((e) => e.completedAt >= filterState.dateFrom);
     if (filterState.dateTo) entries = entries.filter((e) => e.completedAt <= filterState.dateTo + "T23:59:59");
-    if (filterState.officialGrade !== "") entries = entries.filter((e) => String(e.snapshot.officialGrade) === filterState.officialGrade);
-    if (filterState.holdType) entries = entries.filter((e) => e.snapshot.holdType === filterState.holdType);
-    if (filterState.holdColor) entries = entries.filter((e) => e.snapshot.holdColor === filterState.holdColor);
+    if (filterState.officialGrade !== "") entries = entries.filter((e) => String(routeData(e).officialGrade) === filterState.officialGrade);
+    if (filterState.holdType) entries = entries.filter((e) => routeData(e).holdType === filterState.holdType);
+    if (filterState.holdColor) entries = entries.filter((e) => routeData(e).holdColor === filterState.holdColor);
     if (filterState.tag) entries = entries.filter((e) => e.topTags.some((t) => t.name === filterState.tag));
+    if (filterState.area) entries = entries.filter((e) => routeData(e).wallSection === filterState.area);
 
     entries = [...entries].sort((a, b) => {
       let av, bv;
       switch (sortField) {
         case "area": av = areaLabel(a); bv = areaLabel(b); break;
-        case "holdColor": av = a.snapshot.holdColor; bv = b.snapshot.holdColor; break;
-        case "officialGrade": av = a.snapshot.officialGrade ?? -1; bv = b.snapshot.officialGrade ?? -1; break;
+        case "holdColor": av = routeData(a).holdColor; bv = routeData(b).holdColor; break;
+        case "officialGrade": av = routeData(a).officialGrade ?? -1; bv = routeData(b).officialGrade ?? -1; break;
         case "estimatedGrade": av = a.estimatedGrade ?? -1; bv = b.estimatedGrade ?? -1; break;
-        case "holdType": av = a.snapshot.holdType; bv = b.snapshot.holdType; break;
+        case "holdType": av = routeData(a).holdType; bv = routeData(b).holdType; break;
         default: av = a.completedAt; bv = b.completedAt;
       }
       if (av < bv) return sortDir === "asc" ? -1 : 1;
@@ -135,6 +139,7 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
         <select id="f-holdtype"><option value="">Any Hold Type</option>${HOLD_TYPES.map((h) => `<option ${filterState.holdType === h ? "selected" : ""}>${h}</option>`).join("")}</select>
         <select id="f-holdcolor"><option value="">Any Hold Color</option>${HOLD_COLORS.map((c) => `<option ${filterState.holdColor === c ? "selected" : ""}>${c}</option>`).join("")}</select>
         <select id="f-tag"><option value="">Any Style</option>${tags.map((t) => `<option ${filterState.tag === t ? "selected" : ""}>${escapeHtml(t)}</option>`).join("")}</select>
+        <select id="f-area"><option value="">Any Area</option>${WALL_SECTIONS.map((s) => `<option value="${s.id}" ${filterState.area === s.id ? "selected" : ""}>${escapeHtml(s.name)}</option>`).join("")}</select>
         <button class="btn btn-ghost btn-sm" id="f-clear">Clear</button>
       </div>
       ${entries.length === 0 ? emptyState() : `
@@ -153,10 +158,10 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
             ${entries.map((e) => `
               <tr data-route-id="${e.routeId}" data-label="${escapeHtml(snapshotLabel(e))}" tabindex="0">
                 <td>${formatDate(e.completedAt)}</td>
-                <td><span class="hold-dot" style="background:var(--hold-${e.snapshot.holdColor.toLowerCase()})"></span> ${escapeHtml(gradeAreaLabel(e))}${!e.route ? ' <span class="badge-soft">retired</span>' : ""}</td>
-                <td>${formatGrade(e.snapshot.officialGrade)}</td>
+                <td><span class="hold-dot" style="background:var(--hold-${routeData(e).holdColor.toLowerCase()})"></span> ${escapeHtml(areaLabel(e))}${!e.route ? ' <span class="badge-soft">retired</span>' : ""}</td>
+                <td>${formatGrade(routeData(e).officialGrade)}</td>
                 <td>${e.estimatedGrade === null ? "—" : formatEstimate(e.estimatedGrade)}</td>
-                <td>${e.snapshot.holdType || "—"}</td>
+                <td>${routeData(e).holdType || "—"}</td>
                 <td>${[
                   e.flash ? `<span class="chip flash-chip" style="margin:2px;">FLASH</span>` : "",
                   ...e.topTags.map((t) => `<span class="chip" style="margin:2px;">${escapeHtml(t.name)}</span>`),
@@ -173,12 +178,12 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
             ${isOwn ? `<button class="swipe-delete-btn" aria-label="Delete this send">Delete</button>` : ""}
             <button class="log-card" data-route-id="${e.routeId}" data-label="${escapeHtml(snapshotLabel(e))}">
               <div class="log-card-top">
-                <span class="hold-dot" style="background:var(--hold-${e.snapshot.holdColor.toLowerCase()})"></span>
-                <strong>${escapeHtml(gradeAreaLabel(e))}</strong>
+                <span class="hold-dot" style="background:var(--hold-${routeData(e).holdColor.toLowerCase()})"></span>
+                <strong>${escapeHtml(areaLabel(e))}</strong>
                 ${!e.route ? '<span class="badge-soft">retired</span>' : ""}
                 <span class="log-card-date">${formatDate(e.completedAt)}</span>
               </div>
-              <div class="log-card-meta">${e.snapshot.holdType || "—"} · Community Est. ${e.estimatedGrade === null ? "—" : formatEstimate(e.estimatedGrade)}</div>
+              <div class="log-card-meta">${formatGrade(routeData(e).officialGrade)} · ${routeData(e).holdType || "—"} · Community Est. ${e.estimatedGrade === null ? "—" : formatEstimate(e.estimatedGrade)}</div>
               ${e.flash || e.topTags.length ? `<div class="log-card-tags">${e.flash ? `<span class="chip flash-chip">FLASH</span>` : ""}${e.topTags.map((t) => `<span class="chip">${escapeHtml(t.name)}</span>`).join("")}</div>` : ""}
             </button>
           </div>
@@ -219,6 +224,7 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
     body.querySelector("#f-holdtype").addEventListener("change", (e) => { filterState.holdType = e.target.value; render(); });
     body.querySelector("#f-holdcolor").addEventListener("change", (e) => { filterState.holdColor = e.target.value; render(); });
     body.querySelector("#f-tag").addEventListener("change", (e) => { filterState.tag = e.target.value; render(); });
+    body.querySelector("#f-area").addEventListener("change", (e) => { filterState.area = e.target.value; render(); });
     body.querySelector("#f-clear")?.addEventListener("click", () => {
       Object.keys(filterState).forEach((k) => (filterState[k] = ""));
       render();

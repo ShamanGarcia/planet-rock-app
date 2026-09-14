@@ -237,19 +237,26 @@ def get_log_entries(user_id):
     return result
 
 
+def entry_data(e):
+    # Prefer the live route (so an edit — grade, hold type, ...) is
+    # reflected everywhere it's already been logged; the snapshot is only
+    # the fallback once a route is deleted and there's nothing live to read.
+    return e["route"] or e["snapshot"]
+
+
 def compute_user_stats(user_id):
     entries = get_log_entries(user_id)
     total = len(entries)
-    graded = [e for e in entries if e["snapshot"].get("officialGrade") is not None]
-    highest = max((e["snapshot"]["officialGrade"] for e in graded), default=None)
+    graded = [e for e in entries if entry_data(e).get("officialGrade") is not None]
+    highest = max((entry_data(e)["officialGrade"] for e in graded), default=None)
 
     grade_dist = [0] * (MAX_GRADE + 1)
     for e in graded:
-        grade_dist[e["snapshot"]["officialGrade"]] += 1
+        grade_dist[entry_data(e)["officialGrade"]] += 1
 
     hold_dist = {}
     for e in entries:
-        ht = e["snapshot"].get("holdType")
+        ht = entry_data(e).get("holdType")
         if ht:
             hold_dist[ht] = hold_dist.get(ht, 0) + 1
 
@@ -271,7 +278,7 @@ def compute_user_stats(user_id):
         time_map[key] = time_map.get(key, 0) + 1
     climbs_over_time = sorted(time_map.items())
 
-    favorite_hold_calc = mode_of([e["snapshot"].get("holdType") for e in entries if e["snapshot"].get("holdType")])
+    favorite_hold_calc = mode_of([entry_data(e).get("holdType") for e in entries if entry_data(e).get("holdType")])
 
     return {
         "totalClimbs": total, "highestGrade": highest, "gradeDistribution": grade_dist,
