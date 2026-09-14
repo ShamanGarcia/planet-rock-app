@@ -18,6 +18,25 @@ function toSvgPoints(points) {
   return points.map(([x, y]) => `${x},${y}`).join(" ");
 }
 
+// Heat scale for the two heatmap views: pale yellow -> orange -> red. Stays
+// clear of green (reserved for the "I completed this" ring elsewhere on the
+// same marker) and reuses --hold-orange/--pr-danger's own values so only the
+// pale-yellow low stop is a genuinely new color.
+const HEAT_LOW = [255, 243, 176]; // #FFF3B0
+const HEAT_MID = [251, 140, 0]; // #FB8C00, same as --hold-orange
+const HEAT_HIGH = [217, 54, 47]; // #D9362F, same as --pr-danger
+const HEAT_NO_DATA = "#6b6f76"; // same as --pr-text-soft
+
+function lerpChannel(a, b, t) {
+  return Math.round(a + (b - a) * t);
+}
+
+function heatColor(fraction) {
+  const t = clamp(fraction, 0, 1);
+  const [c1, c2, localT] = t <= 0.5 ? [HEAT_LOW, HEAT_MID, t * 2] : [HEAT_MID, HEAT_HIGH, (t - 0.5) * 2];
+  return `rgb(${lerpChannel(c1[0], c2[0], localT)},${lerpChannel(c1[1], c2[1], localT)},${lerpChannel(c1[2], c2[2], localT)})`;
+}
+
 // Persisted at module scope so pan/zoom feels stable across re-renders
 // (filter changes, navigating away and back) within the same session.
 // The actual starting scale/position is computed per-device on first show
@@ -81,6 +100,7 @@ export function renderGymMap(container, gymId) {
   let pendingPoint = null; // {mapX, mapY, wallSection} while the add-route form is open
   let zoomedSectionId = null; // set after tapping a zone; null shows the full map
   let newlyAddedRouteId = null; // yellow-ringed until any route marker is clicked (this view instance resets it on navigation)
+  let activeHeatmap = null; // null | "completed" | "difficulty"
 
   container.innerHTML = `
     <div class="page map-page">
@@ -95,6 +115,12 @@ export function renderGymMap(container, gymId) {
           <button id="zoom-in" aria-label="Zoom in">+</button>
           <button id="zoom-out" aria-label="Zoom out">−</button>
           <button id="zoom-reset" aria-label="Reset view" style="font-size:13px;">⤢</button>
+        </div>
+        <div class="map-heatmap-toggles">
+          <button class="heatmap-toggle-btn heatmap-toggle-completed" id="heatmap-completed-btn"
+                  aria-label="Toggle completed-climbs heatmap" aria-pressed="false">✓</button>
+          <button class="heatmap-toggle-btn heatmap-toggle-difficulty" id="heatmap-difficulty-btn"
+                  aria-label="Toggle difficulty heatmap" aria-pressed="false">V</button>
         </div>
         <button class="btn btn-primary" id="add-route-btn" style="position:absolute; left:12px; top:12px; z-index:25;">+ Add Route</button>
         <button class="btn btn-outline btn-sm hidden" id="back-to-map-btn" style="position:absolute; left:12px; top:56px; z-index:25; background:#fff;">&larr; All Areas</button>
@@ -170,13 +196,38 @@ export function renderGymMap(container, gymId) {
     enterPlacementMode();
   });
 
+  const completedHeatBtn = container.querySelector("#heatmap-completed-btn");
+  const difficultyHeatBtn = container.querySelector("#heatmap-difficulty-btn");
+
+  function setActiveHeatmap(mode) {
+    activeHeatmap = activeHeatmap === mode ? null : mode;
+    completedHeatBtn.classList.toggle("active", activeHeatmap === "completed");
+    completedHeatBtn.setAttribute("aria-pressed", String(activeHeatmap === "completed"));
+    difficultyHeatBtn.classList.toggle("active", activeHeatmap === "difficulty");
+    difficultyHeatBtn.setAttribute("aria-pressed", String(activeHeatmap === "difficulty"));
+    updateHint();
+    renderCanvasContents();
+  }
+  completedHeatBtn.addEventListener("click", () => setActiveHeatmap("completed"));
+  difficultyHeatBtn.addEventListener("click", () => setActiveHeatmap("difficulty"));
+
+  function defaultHintText() {
+    if (activeHeatmap === "completed") return "Color shows total completions · pale = fewest, red = most";
+    if (activeHeatmap === "difficulty") return "Color shows difficulty · pale = easiest, red = hardest";
+    return "Pinch or scroll to zoom · drag to pan · tap a wall to zoom in · tap a marker for details";
+  }
+
+  function updateHint() {
+    hint.textContent = placementMode ? "Tap the wall where the route starts to place it" : defaultHintText();
+  }
+
   function enterPlacementMode() {
     placementMode = true;
     selectedRouteId = null;
     addBtn.textContent = "Cancel";
     addBtn.classList.remove("btn-primary");
     addBtn.classList.add("btn-danger");
-    hint.textContent = "Tap the wall where the route starts to place it";
+    updateHint();
     viewport.classList.add("placement-active");
     renderCanvasContents();
   }
@@ -187,7 +238,7 @@ export function renderGymMap(container, gymId) {
     addBtn.textContent = "+ Add Route";
     addBtn.classList.remove("btn-danger");
     addBtn.classList.add("btn-primary");
-    hint.textContent = "Pinch or scroll to zoom · drag to pan · tap a wall to zoom in · tap a marker for details";
+    updateHint();
     viewport.classList.remove("placement-active");
     renderCanvasContents();
   }
@@ -273,6 +324,10 @@ export function renderGymMap(container, gymId) {
       return sectionId && (!zoomedSectionId || sectionId === zoomedSectionId);
     });
 
+    const maxFinishes = activeHeatmap === "completed"
+      ? Math.max(0, ...visibleRoutes.map((r) => r.finishes || 0))
+      : 0;
+
     const markersHTML = visibleRoutes
       .map((r) => {
         const label = r.officialGrade !== null ? `V${r.officialGrade}`
@@ -280,12 +335,39 @@ export function renderGymMap(container, gymId) {
           : "?";
         const completed = completedRouteIds.has(r.id);
         const isNew = r.id === newlyAddedRouteId;
+
+        let markerBg = HOLD_COLOR_HEX[r.holdColor];
+        let markerLabel = label;
+        let textStyle = "";
+        let holdAttr = ` data-hold="${r.holdColor}"`;
+        if (activeHeatmap === "completed") {
+          const finishes = r.finishes || 0;
+          const fraction = maxFinishes > 0 ? finishes / maxFinishes : 0;
+          markerBg = heatColor(fraction);
+          markerLabel = String(finishes);
+          const isDark = fraction < 0.35;
+          textStyle = ` color:${isDark ? "#1b1d21" : "#fff"}; text-shadow:${isDark ? "none" : "0 1px 1px rgba(0,0,0,.4)"};`;
+          holdAttr = "";
+        } else if (activeHeatmap === "difficulty") {
+          const value = r.officialGrade !== null ? r.officialGrade : r.communityGrade;
+          if (value === null || value === undefined) {
+            markerBg = HEAT_NO_DATA;
+            textStyle = " color:#fff; text-shadow:0 1px 1px rgba(0,0,0,.4);";
+          } else {
+            const fraction = clamp(value, 0, MAX_GRADE) / MAX_GRADE;
+            markerBg = heatColor(fraction);
+            const isDark = fraction < 0.35;
+            textStyle = ` color:${isDark ? "#1b1d21" : "#fff"}; text-shadow:${isDark ? "none" : "0 1px 1px rgba(0,0,0,.4)"};`;
+          }
+          holdAttr = "";
+        }
+
         return `
           <div class="route-marker ${completed ? "completed" : "uncompleted"} ${isNew ? "just-added" : ""} ${r.id === selectedRouteId ? "selected" : ""} ${!r.active ? "retired" : ""} ${zoomedSectionId ? "zoomed" : ""}"
-               style="left:${r.mapX}%; top:${r.mapY}%; background:${HOLD_COLOR_HEX[r.holdColor]};"
-               data-route-id="${r.id}" data-hold="${r.holdColor}"
+               style="left:${r.mapX}%; top:${r.mapY}%; background:${markerBg};${textStyle}"
+               data-route-id="${r.id}"${holdAttr}
                role="button" tabindex="0" aria-label="${escapeHtml(routeLabel(r))}, ${r.holdType}, ${completed ? "completed" : "not yet completed"}${r.mediaCount ? `, ${r.mediaCount} photo${r.mediaCount === 1 ? "" : "s"}/videos` : ""}">
-            <span class="marker-grade">${label}</span>
+            <span class="marker-grade">${markerLabel}</span>
           </div>
         `;
       })
