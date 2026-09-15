@@ -1,7 +1,9 @@
 import { getLogEntries, computeUserStats, deleteLogEntry, getCurrentUser } from "../data/api.js";
 import { formatGrade, formatEstimate, HOLD_COLORS, HOLD_TYPES, MAX_GRADE, WALL_SECTIONS } from "../data/constants.js";
 import { formatDate, escapeHtml, monthLabel, clamp } from "../utils.js";
-import { renderBarChart, renderMultiBarChart, renderLineChart, PALETTE } from "../components/charts.js";
+import { renderBarChart, renderPieChart, renderLineChart, shadesOf } from "../components/charts.js";
+
+const BRAND_RED = "#bf2c37";
 import { openGalleryPrompt } from "../components/gallery.js";
 import { showToast } from "../components/toast.js";
 
@@ -298,12 +300,17 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
       body.innerHTML = `<div class="empty-state card"><div>Log a send to start seeing your stats.</div></div>`;
       return;
     }
-    const gradeLabels = stats.gradeDistribution.map((_, g) => `V${g}`);
-    const holdTypeLabels = HOLD_TYPES;
-    const holdTypeData = HOLD_TYPES.map((h) => stats.holdTypeDistribution[h] || 0);
+
+    // Each of the first four charts toggles bar<->pie independently.
+    const chartMode = { grade: "bar", est: "bar", area: "bar", style: "bar" };
+
+    const allGradeLabels = stats.gradeDistribution.map((_, g) => `V${g}`);
+    const allEstLabels = stats.estGradeDistribution.map((_, g) => `V${g}`);
+    const areaEntries = Object.entries(stats.areaDistribution);
+    const areaLabels = areaEntries.map(([id]) => wallSectionName(id) || id);
+    const areaData = areaEntries.map(([, count]) => count);
     const styleLabels = stats.styleDistribution.slice(0, 8).map((s) => s.name);
     const styleData = stats.styleDistribution.slice(0, 8).map((s) => s.count);
-    const estLabels = stats.estGradeDistribution.map((_, g) => `V${g}`);
     const timeLabels = stats.climbsOverTime.map(([k]) => monthLabel(k));
     const timeData = stats.climbsOverTime.map(([, v]) => v);
 
@@ -316,20 +323,24 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
       </div>
       <div class="charts-grid">
         <div class="card card-pad chart-card">
+          <button class="btn btn-outline btn-sm chart-toggle-btn" data-chart="grade">Pie</button>
           <h3>Grade Distribution</h3><p>Completed climbs by official grade</p>
           <div class="chart-box"><canvas id="c-grade"></canvas></div>
         </div>
         <div class="card card-pad chart-card">
-          <h3>Hold Type Distribution</h3><p>Climbs by hold type</p>
-          <div class="chart-box"><canvas id="c-hold"></canvas></div>
-        </div>
-        <div class="card card-pad chart-card">
-          <h3>Climbing Style Distribution</h3><p>Most common highly-rated tags on your sends</p>
-          <div class="chart-box">${styleLabels.length ? '<canvas id="c-style"></canvas>' : '<div class="empty-state">No tag data yet</div>'}</div>
-        </div>
-        <div class="card card-pad chart-card">
+          <button class="btn btn-outline btn-sm chart-toggle-btn" data-chart="est">Pie</button>
           <h3>Estimated Grade Distribution</h3><p>Community estimate of routes you've climbed</p>
           <div class="chart-box"><canvas id="c-est"></canvas></div>
+        </div>
+        <div class="card card-pad chart-card">
+          <button class="btn btn-outline btn-sm chart-toggle-btn" data-chart="area">Pie</button>
+          <h3>Climbing Area</h3><p>Climbs by wall section</p>
+          <div class="chart-box">${areaLabels.length ? '<canvas id="c-area"></canvas>' : '<div class="empty-state">No area data yet</div>'}</div>
+        </div>
+        <div class="card card-pad chart-card">
+          <button class="btn btn-outline btn-sm chart-toggle-btn" data-chart="style">Pie</button>
+          <h3>Climbing Style Distribution</h3><p>Most common highly-rated tags on your sends</p>
+          <div class="chart-box">${styleLabels.length ? '<canvas id="c-style"></canvas>' : '<div class="empty-state">No tag data yet</div>'}</div>
         </div>
         <div class="card card-pad chart-card" style="grid-column:1/-1;">
           <h3>Climbs Over Time</h3><p>Sends logged per month</p>
@@ -338,11 +349,54 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
       </div>
     `;
 
-    renderBarChart(body.querySelector("#c-grade"), gradeLabels, stats.gradeDistribution, "#ff5a1f");
-    renderMultiBarChart(body.querySelector("#c-hold"), holdTypeLabels, holdTypeData, PALETTE);
-    if (styleLabels.length) renderMultiBarChart(body.querySelector("#c-style"), styleLabels, styleData, PALETTE);
-    renderBarChart(body.querySelector("#c-est"), estLabels, stats.estGradeDistribution, "#1e88e5");
+    function drawGrade() {
+      const canvas = body.querySelector("#c-grade");
+      if (chartMode.grade === "pie") {
+        const idx = stats.gradeDistribution.map((v, g) => [g, v]).filter(([, v]) => v > 0);
+        renderPieChart(canvas, idx.map(([g]) => `V${g}`), idx.map(([, v]) => v), shadesOf(BRAND_RED, Math.max(idx.length, 1)));
+      } else {
+        renderBarChart(canvas, allGradeLabels, stats.gradeDistribution, BRAND_RED);
+      }
+    }
+    function drawEst() {
+      const canvas = body.querySelector("#c-est");
+      if (chartMode.est === "pie") {
+        const idx = stats.estGradeDistribution.map((v, g) => [g, v]).filter(([, v]) => v > 0);
+        renderPieChart(canvas, idx.map(([g]) => `V${g}`), idx.map(([, v]) => v), shadesOf(BRAND_RED, Math.max(idx.length, 1)));
+      } else {
+        renderBarChart(canvas, allEstLabels, stats.estGradeDistribution, BRAND_RED);
+      }
+    }
+    function drawArea() {
+      if (!areaLabels.length) return;
+      const canvas = body.querySelector("#c-area");
+      const colors = shadesOf(BRAND_RED, areaLabels.length);
+      if (chartMode.area === "pie") renderPieChart(canvas, areaLabels, areaData, colors);
+      else renderBarChart(canvas, areaLabels, areaData, colors);
+    }
+    function drawStyle() {
+      if (!styleLabels.length) return;
+      const canvas = body.querySelector("#c-style");
+      const colors = shadesOf(BRAND_RED, styleLabels.length);
+      if (chartMode.style === "pie") renderPieChart(canvas, styleLabels, styleData, colors);
+      else renderBarChart(canvas, styleLabels, styleData, colors);
+    }
+    const drawers = { grade: drawGrade, est: drawEst, area: drawArea, style: drawStyle };
+
+    drawGrade();
+    drawEst();
+    drawArea();
+    drawStyle();
     renderLineChart(body.querySelector("#c-time"), timeLabels, timeData, "#43a047");
+
+    body.querySelectorAll(".chart-toggle-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const key = btn.getAttribute("data-chart");
+        chartMode[key] = chartMode[key] === "bar" ? "pie" : "bar";
+        btn.textContent = chartMode[key] === "bar" ? "Pie" : "Bar";
+        drawers[key]();
+      });
+    });
   }
 
   render();

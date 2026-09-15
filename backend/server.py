@@ -260,6 +260,12 @@ def compute_user_stats(user_id):
         if ht:
             hold_dist[ht] = hold_dist.get(ht, 0) + 1
 
+    area_dist = {}
+    for e in entries:
+        ws = entry_data(e).get("wallSection")
+        if ws:
+            area_dist[ws] = area_dist.get(ws, 0) + 1
+
     style_counts = {}
     for e in entries:
         for t in e["topTags"]:
@@ -282,7 +288,7 @@ def compute_user_stats(user_id):
 
     return {
         "totalClimbs": total, "highestGrade": highest, "gradeDistribution": grade_dist,
-        "holdTypeDistribution": hold_dist, "styleDistribution": style_dist,
+        "holdTypeDistribution": hold_dist, "areaDistribution": area_dist, "styleDistribution": style_dist,
         "favoriteStyleCalculated": favorite_style, "estGradeDistribution": est_buckets,
         "climbsOverTime": climbs_over_time, "favoriteHoldTypeCalculated": favorite_hold_calc,
     }
