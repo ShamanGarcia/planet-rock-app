@@ -1,7 +1,7 @@
 import { renderDemoCarousel } from "../components/demoCarousel.js";
 
 const DEMO_SLIDES = [
-  { src: "assets/demo/map.png", alt: "Gym map view", caption: "See every route in the gym, color-coded by hold and updated in real time." },
+  { src: "assets/demo/map.png", alt: "Gym map view", caption: "See every route in the gym organized by color, grade, and more." },
   { src: "assets/demo/route.png", alt: "Viewing a route", caption: "Tap any route to see its grade, community estimate, and tags." },
   { src: "assets/demo/add-route.png", alt: "Adding a route", caption: "Spot a new problem? Add it to the map in seconds." },
   { src: "assets/demo/log.png", alt: "Climbing log", caption: "Every send is logged automatically to build your climbing history." },
