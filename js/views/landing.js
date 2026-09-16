@@ -4,8 +4,7 @@ const DEMO_SLIDES = [
   { src: "assets/demo/map.png", alt: "Gym map view", caption: "See every route in the gym organized by color, grade, and more." },
   { src: "assets/demo/route.png", alt: "Viewing a route", caption: "Tap any route to see its grade, community estimate, and tags." },
   { src: "assets/demo/add-route.png", alt: "Adding a route", caption: "Spot a new problem? Add it to the map in seconds." },
-  { src: "assets/demo/log.png", alt: "Climbing log", caption: "Every send is logged automatically to build your climbing history." },
-  { src: "assets/demo/stats.png", alt: "Stats page", caption: "Track your progress with grade, area, and style breakdowns." },
+  { src: "assets/demo/stats.png", alt: "Climbing log stats", caption: "Track your progress with grade, area, and style breakdowns." },
   { src: "assets/demo/profile.png", alt: "Updating profile", caption: "Personalize your profile with your favorite holds and grades." },
   { src: "assets/demo/friends.png", alt: "Adding friends", caption: "Find climbing partners and follow their progress." },
 ];
