@@ -185,6 +185,21 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
 .auth-error{ background:#fdeceb; color:var(--pr-danger); padding:9px 12px; border-radius:8px; font-size:13px; margin-bottom:12px; }
 .auth-note{ background:#fff6ec; color:#8a4b12; padding:9px 12px; border-radius:8px; font-size:12px; margin-top:14px; }
 
+/* ===== Landing ===== */
+.landing-wrap{
+  min-height:100vh; display:flex; align-items:center; justify-content:center; padding:40px 24px;
+  background: radial-gradient(circle at 20% 15%, #3a3d44 0%, var(--pr-ink) 55%);
+}
+.landing-content{ width:100%; max-width:420px; display:flex; flex-direction:column; align-items:center; text-align:center; }
+.landing-wordmark{ margin:0; color:#fff; font-size:44px; letter-spacing:1px; }
+.landing-subtext{ margin:6px 0 24px; color:rgba(255,255,255,.7); font-size:14px; }
+.landing-demo{ width:100%; max-width:340px; height:auto; border-radius:var(--pr-radius-lg); box-shadow:var(--pr-shadow-lg); margin-bottom:28px; }
+.landing-cta{ font-size:16px; padding:14px 18px; }
+.landing-login{
+  margin-top:14px; background:none; border:none; color:rgba(255,255,255,.7); font-size:13.5px; font-weight:600; padding:4px;
+}
+.landing-login:hover{ color:#fff; }
+
 /* ===== Gym select screen ===== */
 .gym-pick-list{ display:flex; flex-direction:column; gap:10px; margin-top:14px; }
 .gym-pick-item{ display:flex; align-items:center; gap:12px; padding:14px; text-align:left; }

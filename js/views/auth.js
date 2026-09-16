@@ -1,8 +1,8 @@
 import { logIn, signUp, requestPasswordReset, confirmPasswordReset } from "../data/api.js";
 import { escapeHtml } from "../utils.js";
 
-export function renderAuth(root, onAuthed) {
-  let mode = "login"; // login | signup | reset-request | reset-confirm
+export function renderAuth(root, onAuthed, initialMode = "login") {
+  let mode = initialMode; // login | signup | reset-request | reset-confirm
   let error = "";
   let resetEmail = "";
 

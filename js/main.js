@@ -1,5 +1,6 @@
 import { bootSession, getCurrentUser } from "./data/api.js";
 import { renderAuth } from "./views/auth.js";
+import { renderLanding } from "./views/landing.js";
 import { renderShell } from "./shell.js";
 import { maybeShowOnboarding } from "./components/onboarding.js";
 
@@ -9,7 +10,7 @@ async function boot() {
   await bootSession();
   const user = getCurrentUser();
   if (!user) {
-    renderAuth(root, boot);
+    renderLanding(root, (mode) => renderAuth(root, boot, mode));
   } else {
     renderShell(root);
     maybeShowOnboarding();
