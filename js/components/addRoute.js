@@ -85,7 +85,7 @@ export function openAddRouteForm({ gymId, mapX, mapY, wallSection, allTags, onCr
 
           <div class="field">
             <label>Tags</label>
-            <div class="chip-row">
+            <div class="chip-row" id="ar-tags-row">
               ${allTags.map((t) => `<button type="button" class="chip ${selectedTags.has(t.name) ? "active" : ""}" data-tagname="${escapeHtml(t.name)}">${escapeHtml(t.name)}</button>`).join("")}
             </div>
             <div class="add-tag-row">
@@ -106,29 +106,53 @@ export function openAddRouteForm({ gymId, mapX, mapY, wallSection, allTags, onCr
     backdrop.querySelector("#ar-close").addEventListener("click", () => { close(); onCancel?.(); });
     backdrop.querySelector("#ar-cancel").addEventListener("click", () => { close(); onCancel?.(); });
 
-    backdrop.querySelector("#ar-grade").addEventListener("change", (e) => { officialGrade = e.target.value; render(); });
+    // Selecting a color/type/grade/tag is just picking an option — it
+    // shouldn't rebuild the whole drawer (that would blur the tag-draft
+    // input, replay the photo processing state, etc.). Only the header's
+    // live preview label needs to reflect these, updated directly.
+    function updateHeader() {
+      const h2 = backdrop.querySelector(".drawer-header h2");
+      if (h2) h2.textContent = previewLabel();
+    }
+
+    backdrop.querySelector("#ar-grade").addEventListener("change", (e) => {
+      officialGrade = e.target.value;
+      updateHeader();
+    });
     backdrop.querySelector("#ar-new-tag").addEventListener("input", (e) => { newTagDraft = e.target.value; });
 
     backdrop.querySelectorAll("[data-color]").forEach((btn) => btn.addEventListener("click", () => {
       selectedColor = btn.getAttribute("data-color");
-      render();
+      backdrop.querySelectorAll("[data-color]").forEach((b) => b.classList.toggle("active", b === btn));
+      updateHeader();
     }));
     backdrop.querySelectorAll("[data-holdtype]").forEach((btn) => btn.addEventListener("click", () => {
       selectedHoldType = btn.getAttribute("data-holdtype");
-      render();
+      backdrop.querySelectorAll("[data-holdtype]").forEach((b) => b.classList.toggle("active", b === btn));
     }));
-    backdrop.querySelectorAll("[data-tagname]").forEach((btn) => btn.addEventListener("click", () => {
-      const name = btn.getAttribute("data-tagname");
-      selectedTags.has(name) ? selectedTags.delete(name) : selectedTags.add(name);
-      render();
-    }));
+    function wireTagChip(btn) {
+      btn.addEventListener("click", () => {
+        const name = btn.getAttribute("data-tagname");
+        if (selectedTags.has(name)) { selectedTags.delete(name); btn.classList.remove("active"); }
+        else { selectedTags.add(name); btn.classList.add("active"); }
+      });
+    }
+    backdrop.querySelectorAll("[data-tagname]").forEach(wireTagChip);
     backdrop.querySelector("#ar-new-tag-btn").addEventListener("click", () => {
       const name = newTagDraft.trim();
       if (!name) return;
       selectedTags.add(name);
       if (!allTags.some((t) => t.name.toLowerCase() === name.toLowerCase())) allTags.push({ id: `local_${name}`, name });
       newTagDraft = "";
-      render();
+      const input = backdrop.querySelector("#ar-new-tag");
+      input.value = "";
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "chip active";
+      chip.setAttribute("data-tagname", name);
+      chip.textContent = name;
+      wireTagChip(chip);
+      backdrop.querySelector("#ar-tags-row").appendChild(chip);
     });
 
     const photoInput = backdrop.querySelector("#ar-photo-input");

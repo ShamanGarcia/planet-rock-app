@@ -160,18 +160,7 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
         <div class="section-title">Grade Distribution</div>
         ${hasEstimates ? `<div class="chart-box small"><canvas id="rd-donut"></canvas></div>` : `<div class="empty-state" style="padding:16px;"><div>No community estimate yet</div></div>`}
 
-        <button class="btn btn-outline btn-sm btn-block" id="rd-grade-toggle" style="margin-top:10px;">
-          ${route.officialGrade === null || route.officialGrade === undefined ? "+ Add Official Grade" : "Change Official Grade"}
-        </button>
-        ${editingGrade ? `
-          <form class="estimate-form" id="rd-grade-form" style="margin-top:8px;">
-            <select name="grade" aria-label="Official grade">
-              <option value="">Ungraded</option>
-              ${Array.from({ length: MAX_GRADE + 1 }, (_, g) => `<option value="${g}" ${route.officialGrade === g ? "selected" : ""}>V${g}</option>`).join("")}
-            </select>
-            <button class="btn btn-primary btn-sm" type="submit">Save</button>
-          </form>
-        ` : ""}
+        <div id="rd-grade-section">${gradeSectionHTML(route)}</div>
 
         <div class="section-title">Submit Your Estimate</div>
         <form class="estimate-form" id="rd-estimate-form">
@@ -243,19 +232,7 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
       render();
     });
 
-    backdrop.querySelector("#rd-grade-toggle").addEventListener("click", () => {
-      editingGrade = !editingGrade;
-      render();
-    });
-
-    backdrop.querySelector("#rd-grade-form")?.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const val = new FormData(e.target).get("grade");
-      await updateRoute(routeId, { officialGrade: val === "" ? null : Number(val) });
-      editingGrade = false;
-      onChanged?.();
-      render();
-    });
+    wireGradeSection(route);
 
     backdrop.querySelector("#rd-delete-route").addEventListener("click", () => {
       openDeleteRouteModal(routeId, label, {
@@ -293,6 +270,43 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
       openLogSendSheet(routeId, label, {
         onLogged: async () => { await flushPendingVotes(); justSent = true; onChanged?.(); render(); },
       });
+    });
+  }
+
+  function gradeSectionHTML(route) {
+    return `
+      <button class="btn btn-outline btn-sm btn-block" id="rd-grade-toggle" style="margin-top:10px;">
+        ${route.officialGrade === null || route.officialGrade === undefined ? "+ Add Official Grade" : "Change Official Grade"}
+      </button>
+      ${editingGrade ? `
+        <form class="estimate-form" id="rd-grade-form" style="margin-top:8px;">
+          <select name="grade" aria-label="Official grade">
+            <option value="">Ungraded</option>
+            ${Array.from({ length: MAX_GRADE + 1 }, (_, g) => `<option value="${g}" ${route.officialGrade === g ? "selected" : ""}>V${g}</option>`).join("")}
+          </select>
+          <button class="btn btn-primary btn-sm" type="submit">Save</button>
+        </form>
+      ` : ""}
+    `;
+  }
+
+  // Toggling the edit form is a local UI change, not a real update — it
+  // shouldn't re-fetch/re-render the whole drawer. Only the actual grade
+  // submit (below) does that, since the route data really changed then.
+  function wireGradeSection(route) {
+    const section = backdrop.querySelector("#rd-grade-section");
+    section.querySelector("#rd-grade-toggle").addEventListener("click", () => {
+      editingGrade = !editingGrade;
+      section.innerHTML = gradeSectionHTML(route);
+      wireGradeSection(route);
+    });
+    section.querySelector("#rd-grade-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const val = new FormData(e.target).get("grade");
+      await updateRoute(routeId, { officialGrade: val === "" ? null : Number(val) });
+      editingGrade = false;
+      onChanged?.();
+      render();
     });
   }
 
