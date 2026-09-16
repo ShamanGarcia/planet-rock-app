@@ -233,3 +233,25 @@ export async function relationshipWith(otherUserId) {
   if (inReq) return { status: "incoming", friendship: inReq.friendship };
   return "none";
 }
+
+// ===================== Admin =====================
+
+export function adminListUsers(password) {
+  return request("GET", `/api/admin/users?password=${encodeURIComponent(password)}`);
+}
+
+export function adminDeleteUser(userId, password) {
+  return request("DELETE", `/api/admin/users/${userId}`, { password });
+}
+
+export function adminDeleteTag(tagId, password) {
+  return request("DELETE", `/api/admin/tags/${tagId}`, { password });
+}
+
+// getRoutes(gymId) always stuffs gymId into the querystring, and
+// URLSearchParams serializes `undefined` as the literal string "undefined"
+// (which the backend would then treat as a real, wrong, gym filter) — so
+// admin's cross-gym listing needs its own call instead of getRoutes(undefined).
+export function getAllRoutesForAdmin() {
+  return request("GET", "/api/routes?includeInactive=1");
+}

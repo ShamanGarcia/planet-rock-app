@@ -2,6 +2,12 @@ import { getCurrentUser, updateUser, computeUserStats, logOut } from "../data/ap
 import { formatGrade, HOLD_TYPES, MAX_GRADE } from "../data/constants.js";
 import { escapeHtml, compressImageFile, initials } from "../utils.js";
 import { showToast } from "../components/toast.js";
+import { openPasswordPromptModal } from "../components/passwordPromptModal.js";
+import { unlockAdmin } from "../adminAuth.js";
+
+// Mirrors backend/server.py's ADMIN_PASSWORD — same instant-enable-button
+// UX as the existing delete/reset password modals.
+const ADMIN_PASSWORD = "IAMANADMIN!";
 
 function climbingExperience(startDate) {
   if (!startDate) return null;
@@ -72,10 +78,20 @@ export function renderProfile(container) {
           </div>
         </div>
 
-        <button class="btn btn-outline btn-block" id="logout-btn" style="margin-top:14px;">Log Out</button>
+        <button class="btn btn-outline btn-block" id="admin-controls-btn" style="margin-top:14px;">Admin Controls</button>
+        <button class="btn btn-outline btn-block" id="logout-btn" style="margin-top:8px;">Log Out</button>
       </div>
     `;
 
+    container.querySelector("#admin-controls-btn").addEventListener("click", () => {
+      openPasswordPromptModal({
+        title: "Admin Controls",
+        message: "Enter the admin password to continue.",
+        expectedPassword: ADMIN_PASSWORD,
+        confirmLabel: "ENTER",
+        onConfirm: () => { unlockAdmin(); location.hash = "#/admin"; },
+      });
+    });
     container.querySelector("#logout-btn").addEventListener("click", async () => {
       await logOut();
       location.reload();

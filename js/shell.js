@@ -3,6 +3,8 @@ import { renderGymMap } from "./views/gymMap.js";
 import { renderClimbingLog } from "./views/climbingLog.js";
 import { renderProfile } from "./views/profile.js";
 import { renderFriends } from "./views/friends.js";
+import { renderAdmin } from "./views/admin.js";
+import { isAdminUnlocked } from "./adminAuth.js";
 import { initials } from "./utils.js";
 
 const NAV_ITEMS = [
@@ -13,6 +15,7 @@ const NAV_ITEMS = [
 ];
 
 function currentBase(hash) {
+  if (hash.startsWith("#/admin")) return "#/admin";
   if (hash.startsWith("#/friends")) return "#/friends";
   if (hash.startsWith("#/log")) return "#/log";
   if (hash.startsWith("#/profile")) return "#/profile";
@@ -20,7 +23,8 @@ function currentBase(hash) {
 }
 
 function navLinksHTML(active) {
-  return NAV_ITEMS.map(
+  const items = isAdminUnlocked() ? [...NAV_ITEMS, { hash: "#/admin", label: "Admin" }] : NAV_ITEMS;
+  return items.map(
     (item) => `<a href="${item.hash}" class="${active === item.hash ? "active" : ""}">
       <span>${item.label}</span>
     </a>`
@@ -79,6 +83,9 @@ export async function renderShell(root) {
       result = renderClimbingLog(contentArea, getCurrentUser().id, { title: "Climbing Log", canGoBack: false });
     } else if (hash.startsWith("#/profile")) {
       result = renderProfile(contentArea);
+    } else if (hash.startsWith("#/admin")) {
+      if (!isAdminUnlocked()) { location.hash = "#/map"; return; }
+      result = renderAdmin(contentArea);
     } else {
       result = renderGymMap(contentArea, activeGymId);
     }

@@ -46,6 +46,11 @@ MAX_GRADE = 10
 ROUTESETTER_KEY = "TEARDOWN"
 # Same shared-key style, scoped to deleting a single route from the map.
 DELETE_ROUTE_PASSWORD = "TAKEAWAY"
+# Gates entering the Admin Controls section. Checked server-side (not just
+# client-side) because /api/admin/users exposes real emails.
+ADMIN_PASSWORD = "IAMANADMIN!"
+# Shared delete-confirmation key for every destructive admin action.
+ADMIN_DELETE_PASSWORD = "GETOUT!"
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
@@ -643,6 +648,15 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/friends/remove" and method == "POST":
             return self._friends_remove()
 
+        if path == "/api/admin/users" and method == "GET":
+            return self._admin_list_users(qs.get("password", ""))
+        m = re.match(r"^/api/admin/users/([^/]+)$", path)
+        if method == "DELETE" and m:
+            return self._admin_delete_user(m.group(1))
+        m = re.match(r"^/api/admin/tags/([^/]+)$", path)
+        if method == "DELETE" and m:
+            return self._admin_delete_tag(m.group(1))
+
         raise ApiError(404, f"No such endpoint: {method} {path}")
 
     # ---------- Auth ----------
@@ -821,7 +835,7 @@ class Handler(BaseHTTPRequestHandler):
     def _delete_route(self, route_id):
         self._auth()
         body = self._body()
-        if body.get("password") != DELETE_ROUTE_PASSWORD:
+        if body.get("password") not in (DELETE_ROUTE_PASSWORD, ADMIN_DELETE_PASSWORD):
             raise ApiError(403, "Incorrect delete password.")
         route = find(DB["routes"], id=route_id)
         if not route:
@@ -1091,6 +1105,46 @@ class Handler(BaseHTTPRequestHandler):
             f for f in DB["friendships"]
             if not ({f["userId"], f["friendUserId"]} == {user["id"], target_id})
         ]
+        save_db(DB)
+        self._json(200, {"ok": True})
+
+    # ---------- Admin ----------
+    def _admin_list_users(self, password):
+        self._auth()
+        if password != ADMIN_PASSWORD:
+            raise ApiError(403, "Incorrect admin password.")
+        self._json(200, [public_user(u) for u in DB["users"]])
+
+    def _admin_delete_user(self, user_id):
+        self._auth()
+        body = self._body()
+        if body.get("password") != ADMIN_DELETE_PASSWORD:
+            raise ApiError(403, "Incorrect admin password.")
+        if not find(DB["users"], id=user_id):
+            raise ApiError(404, "User not found.")
+        DB["climbingLog"] = [l for l in DB["climbingLog"] if l["userId"] != user_id]
+        DB["friendships"] = [f for f in DB["friendships"] if user_id not in (f["userId"], f["friendUserId"])]
+        DB["gradeEstimates"] = [e for e in DB["gradeEstimates"] if e["userId"] != user_id]
+        DB["tagVotes"] = [v for v in DB["tagVotes"] if v["userId"] != user_id]
+        for token in [t for t, s in DB["sessions"].items() if s["userId"] == user_id]:
+            del DB["sessions"][token]
+        DB["users"] = [u for u in DB["users"] if u["id"] != user_id]
+        save_db(DB)
+        self._json(200, {"ok": True})
+
+    def _admin_delete_tag(self, tag_id):
+        self._auth()
+        body = self._body()
+        if body.get("password") != ADMIN_DELETE_PASSWORD:
+            raise ApiError(403, "Incorrect admin password.")
+        if not find(DB["tags"], id=tag_id):
+            raise ApiError(404, "Tag not found.")
+        DB["tags"] = [t for t in DB["tags"] if t["id"] != tag_id]
+        DB["routeTags"] = [rt for rt in DB["routeTags"] if rt["tagId"] != tag_id]
+        DB["tagVotes"] = [v for v in DB["tagVotes"] if v["tagId"] != tag_id]
+        for route in DB["routes"]:
+            if tag_id in route.get("tags", []):
+                route["tags"] = [t for t in route["tags"] if t != tag_id]
         save_db(DB)
         self._json(200, {"ok": True})
 
