@@ -193,12 +193,34 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
 .landing-content{ width:100%; max-width:420px; display:flex; flex-direction:column; align-items:center; text-align:center; }
 .landing-wordmark{ margin:0; color:#fff; font-size:44px; letter-spacing:1px; }
 .landing-subtext{ margin:6px 0 24px; color:rgba(255,255,255,.7); font-size:14px; }
-.landing-demo{ width:100%; max-width:340px; height:auto; border-radius:var(--pr-radius-lg); box-shadow:var(--pr-shadow-lg); margin-bottom:28px; }
+.landing-demo{ width:100%; max-width:340px; margin-bottom:28px; }
 .landing-cta{ font-size:16px; padding:14px 18px; }
 .landing-login{
   margin-top:14px; background:none; border:none; color:rgba(255,255,255,.7); font-size:13.5px; font-weight:600; padding:4px;
 }
 .landing-login:hover{ color:#fff; }
+
+.demo-carousel{ position:relative; }
+.demo-track{
+  display:flex; align-items:flex-start; overflow-x:auto; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+}
+.demo-track::-webkit-scrollbar{ display:none; }
+.demo-slide{
+  flex:0 0 100%; scroll-snap-align:center; display:flex; flex-direction:column; align-items:center; padding:14px 16px 18px;
+  border-radius:var(--pr-radius-lg); background:#fff; box-shadow:var(--pr-shadow-lg);
+}
+.demo-slide img{ width:100%; border-radius:var(--pr-radius); display:block; }
+.demo-slide p{ margin:10px 0 0; color:var(--pr-text-soft); font-size:13px; text-align:center; line-height:1.4; }
+.demo-arrow{
+  position:absolute; top:calc(50% - 22px); transform:translateY(-50%); width:34px; height:34px; border-radius:50%;
+  border:none; background:rgba(255,255,255,.95); color:var(--pr-ink); font-size:16px; box-shadow:var(--pr-shadow);
+}
+.demo-prev{ left:-8px; }
+.demo-next{ right:-8px; }
+.demo-dots{ display:flex; justify-content:center; gap:7px; margin-top:14px; }
+.demo-dot{ width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,.3); transition:background .15s, transform .15s; }
+.demo-dot.active{ background:var(--pr-orange); transform:scale(1.3); }
 
 /* ===== Gym select screen ===== */
 .gym-pick-list{ display:flex; flex-direction:column; gap:10px; margin-top:14px; }
