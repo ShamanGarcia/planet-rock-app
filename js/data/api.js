@@ -149,10 +149,6 @@ export function deleteRoute(routeId, password) {
   return request("DELETE", `/api/routes/${routeId}`, { password });
 }
 
-export function voteTag(routeId, tagId, vote) {
-  return request("POST", `/api/routes/${routeId}/tags/${tagId}/vote`, { vote });
-}
-
 export function addTagToRoute(routeId, tagName) {
   return request("POST", `/api/routes/${routeId}/tags`, { name: tagName });
 }

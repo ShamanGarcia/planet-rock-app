@@ -231,7 +231,7 @@ def get_log_entries(user_id):
     for l in entries:
         route = get_route(l["routeId"])
         estimate = get_community_grade(l["routeId"]) if route else None
-        top_tags = [t for t in get_route_tag_details(l["routeId"], None) if t["score"] > 0][:3] if route else []
+        top_tags = get_route_tag_details(l["routeId"], None)[:3] if route else []
         result.append({**l, "route": route, "estimatedGrade": estimate, "topTags": top_tags})
     result.sort(key=lambda e: e["completedAt"], reverse=True)
     return result

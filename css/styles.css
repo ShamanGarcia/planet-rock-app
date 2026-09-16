@@ -175,7 +175,7 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
 /* ===== Auth ===== */
 .auth-wrap{
   min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
-  background: radial-gradient(circle at 20% 15%, #3a3d44 0%, var(--pr-ink) 55%);
+  background: var(--pr-ink);
 }
 .auth-card{ width:100%; max-width:380px; background:#fff; border-radius:var(--pr-radius-lg); padding:28px 24px; box-shadow:var(--pr-shadow-lg); }
 .auth-logo{ margin-bottom:18px; }
@@ -188,7 +188,7 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
 /* ===== Landing ===== */
 .landing-wrap{
   min-height:100vh; display:flex; align-items:center; justify-content:center; padding:40px 24px;
-  background: radial-gradient(circle at 20% 15%, #3a3d44 0%, var(--pr-ink) 55%);
+  background: var(--pr-ink);
 }
 .landing-content{ width:100%; max-width:420px; display:flex; flex-direction:column; align-items:center; text-align:center; }
 .landing-wordmark{ margin:0; color:#fff; font-size:44px; letter-spacing:1px; }
@@ -351,14 +351,6 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
 .grade-badge .g-label{ font-size:11px; color:var(--pr-text-soft); text-transform:uppercase; font-weight:700; letter-spacing:.3px; }
 .grade-badge .g-value{ font-size:20px; font-weight:800; margin-top:2px; }
 .section-title{ font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; color:var(--pr-text-soft); margin:18px 0 8px; }
-.tag-row{ display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--pr-border); gap:10px; }
-.tag-row:last-child{ border-bottom:none; }
-.tag-name{ font-weight:700; font-size:13.5px; }
-.tag-score{ font-size:11.5px; color:var(--pr-text-soft); }
-.vote-btns{ display:flex; gap:6px; }
-.vote-btn{ width:32px; height:32px; border-radius:9px; border:1.5px solid var(--pr-border); background:#fff; font-size:14px; display:flex; align-items:center; justify-content:center; }
-.vote-btn.active-up{ background:#e7f7ec; border-color:var(--pr-success); color:var(--pr-success); }
-.vote-btn.active-down{ background:#fdecea; border-color:var(--pr-danger); color:var(--pr-danger); }
 .add-tag-row{ display:flex; gap:8px; margin-top:10px; }
 .add-tag-row select{ flex:1; }
 

@@ -32,6 +32,14 @@ export function openAddRouteForm({ gymId, mapX, mapY, wallSection, allTags, onCr
     return `${selectedColor} ${officialGrade === "" ? "(Ungraded)" : formatGrade(Number(officialGrade))}`;
   }
 
+  function sortedTags() {
+    return [...allTags].sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  function tagsRowHTML() {
+    return sortedTags().map((t) => `<button type="button" class="chip ${selectedTags.has(t.name) ? "active" : ""}" data-tagname="${escapeHtml(t.name)}">${escapeHtml(t.name)}</button>`).join("");
+  }
+
   function render() {
     backdrop.innerHTML = `
       <div class="drawer" role="dialog" aria-modal="true" aria-label="Add a new route">
@@ -86,7 +94,7 @@ export function openAddRouteForm({ gymId, mapX, mapY, wallSection, allTags, onCr
           <div class="field">
             <label>Tags</label>
             <div class="chip-row" id="ar-tags-row">
-              ${allTags.map((t) => `<button type="button" class="chip ${selectedTags.has(t.name) ? "active" : ""}" data-tagname="${escapeHtml(t.name)}">${escapeHtml(t.name)}</button>`).join("")}
+              ${tagsRowHTML()}
             </div>
             <div class="add-tag-row">
               <input type="text" id="ar-new-tag" placeholder="Propose a new tag…" value="${escapeHtml(newTagDraft)}" />
@@ -141,18 +149,17 @@ export function openAddRouteForm({ gymId, mapX, mapY, wallSection, allTags, onCr
     backdrop.querySelector("#ar-new-tag-btn").addEventListener("click", () => {
       const name = newTagDraft.trim();
       if (!name) return;
+      if (allTags.some((t) => t.name.toLowerCase() === name.toLowerCase())) {
+        showToast("Already a tag!");
+        return;
+      }
       selectedTags.add(name);
-      if (!allTags.some((t) => t.name.toLowerCase() === name.toLowerCase())) allTags.push({ id: `local_${name}`, name });
+      allTags.push({ id: `local_${name}`, name });
       newTagDraft = "";
-      const input = backdrop.querySelector("#ar-new-tag");
-      input.value = "";
-      const chip = document.createElement("button");
-      chip.type = "button";
-      chip.className = "chip active";
-      chip.setAttribute("data-tagname", name);
-      chip.textContent = name;
-      wireTagChip(chip);
-      backdrop.querySelector("#ar-tags-row").appendChild(chip);
+      backdrop.querySelector("#ar-new-tag").value = "";
+      const row = backdrop.querySelector("#ar-tags-row");
+      row.innerHTML = tagsRowHTML();
+      row.querySelectorAll("[data-tagname]").forEach(wireTagChip);
     });
 
     const photoInput = backdrop.querySelector("#ar-photo-input");
