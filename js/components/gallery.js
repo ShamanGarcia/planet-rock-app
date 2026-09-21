@@ -1,6 +1,6 @@
 import { getRouteMedia, addRouteMedia } from "../data/api.js";
 import { getLocalMediaForRoute } from "../data/localMedia.js";
-import { escapeHtml, formatDateTime, dismissOverlay, compressImageFile, fileToDataUrl } from "../utils.js";
+import { escapeHtml, formatDateTime, dismissOverlay, pickMedia } from "../utils.js";
 import { showToast } from "./toast.js";
 
 // Merges the shared (server) gallery with anything this device kept private
@@ -159,9 +159,7 @@ function openAddMediaForm(routeId, label, { onAdded } = {}) {
       error = "";
       render();
       try {
-        const isVideo = file.type.startsWith("video");
-        dataUrl = isVideo ? await fileToDataUrl(file) : await compressImageFile(file);
-        kind = isVideo ? "video" : "photo";
+        ({ dataUrl, kind } = await pickMedia(file));
       } catch {
         error = "Couldn't read that file — try another one.";
         dataUrl = null;

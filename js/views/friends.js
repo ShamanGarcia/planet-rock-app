@@ -3,13 +3,9 @@ import {
   sendFriendRequest, respondToRequest, removeFriend, searchUsers, computeUserStats, relationshipWith,
 } from "../data/api.js";
 import { formatGrade } from "../data/constants.js";
-import { escapeHtml } from "../utils.js";
+import { escapeHtml, initials } from "../utils.js";
 import { renderClimbingLog } from "./climbingLog.js";
 import { showToast } from "../components/toast.js";
-
-function initials(name) {
-  return name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
-}
 
 export function renderFriends(container, { friendId, showLog } = {}) {
   if (friendId && showLog) return renderFriendLog(container, friendId);

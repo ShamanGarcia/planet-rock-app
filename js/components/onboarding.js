@@ -1,4 +1,4 @@
-import { dismissOverlay } from "../utils.js";
+import { dismissOverlay, wireScrollTrack } from "../utils.js";
 
 // Shown once per browser (localStorage, not per-account — a fresh device or
 // a cleared site data means seeing it again, which is fine for a tour).
@@ -52,12 +52,6 @@ function showOnboarding() {
     dismissOverlay(overlay);
   }
 
-  function goTo(i) {
-    index = Math.max(0, Math.min(SLIDES.length - 1, i));
-    track.scrollTo({ left: index * track.clientWidth, behavior: "smooth" });
-    updateUI();
-  }
-
   function updateUI() {
     dots.forEach((d, i) => d.classList.toggle("active", i === index));
     prevBtn.classList.toggle("hidden", index === 0);
@@ -66,14 +60,13 @@ function showOnboarding() {
     nextBtn.classList.toggle("onboarding-arrow-done", last);
   }
 
-  let scrollTimer = null;
-  track.addEventListener("scroll", () => {
-    clearTimeout(scrollTimer);
-    scrollTimer = setTimeout(() => {
-      index = Math.round(track.scrollLeft / track.clientWidth);
-      updateUI();
-    }, 80);
-  });
+  const scrollToIndex = wireScrollTrack(track, (i) => { index = i; updateUI(); });
+
+  function goTo(i) {
+    index = Math.max(0, Math.min(SLIDES.length - 1, i));
+    scrollToIndex(index);
+    updateUI();
+  }
 
   function onKey(e) {
     if (e.key === "ArrowLeft") goTo(index - 1);

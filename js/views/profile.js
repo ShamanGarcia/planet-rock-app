@@ -3,11 +3,7 @@ import { formatGrade, HOLD_TYPES, MAX_GRADE } from "../data/constants.js";
 import { escapeHtml, compressImageFile, initials } from "../utils.js";
 import { showToast } from "../components/toast.js";
 import { openPasswordPromptModal } from "../components/passwordPromptModal.js";
-import { unlockAdmin } from "../adminAuth.js";
-
-// Mirrors backend/server.py's ADMIN_PASSWORD — same instant-enable-button
-// UX as the existing delete/reset password modals.
-const ADMIN_PASSWORD = "IAMANADMIN!";
+import { unlockAdmin, ADMIN_PASSWORD } from "../adminAuth.js";
 
 function climbingExperience(startDate) {
   if (!startDate) return null;

@@ -66,21 +66,6 @@ export function renderBarChart(canvas, labels, data, color = "#ff5a1f") {
   });
 }
 
-export function renderMultiBarChart(canvas, labels, data, colors) {
-  return mount(canvas, {
-    type: "bar",
-    data: { labels, datasets: [{ data, backgroundColor: colors, borderRadius: 5, maxBarThickness: 34 }] },
-    options: {
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
-        y: { beginAtZero: true, ticks: { precision: 0, font: { size: 11 } }, grid: { color: "#eee" } },
-      },
-    },
-  });
-}
-
 export function renderLineChart(canvas, labels, data, color = "#ff5a1f") {
   return mount(canvas, {
     type: "line",
@@ -119,5 +104,3 @@ export function renderPieChart(canvas, labels, data, colors) {
     },
   });
 }
-
-export { PALETTE };

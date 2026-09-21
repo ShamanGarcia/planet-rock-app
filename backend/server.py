@@ -24,6 +24,7 @@ import signal
 import threading
 import time
 import uuid
+from collections import Counter
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -102,7 +103,7 @@ _dirty = threading.Event()
 _flush_lock = threading.Lock()  # the background loop and shutdown can both call _flush_now
 
 
-def save_db(db):
+def save_db():
     _dirty.set()
 
 
@@ -137,7 +138,7 @@ def now_iso():
     return datetime.now(timezone.utc).isoformat()
 
 
-def uid(prefix="id"):
+def uid(prefix):
     return f"{prefix}_{uuid.uuid4().hex[:12]}"
 
 
@@ -155,19 +156,6 @@ def find_user_by_email(email):
 
 def public_user(user):
     return {k: v for k, v in user.items() if k != "password"}
-
-
-def average(nums):
-    return sum(nums) / len(nums) if nums else None
-
-
-def mode_of(items):
-    if not items:
-        return None
-    counts = {}
-    for it in items:
-        counts[it] = counts.get(it, 0) + 1
-    return max(counts.items(), key=lambda kv: kv[1])[0]
 
 
 # ===================== Domain helpers (all assume LOCK is held) =====================
@@ -194,7 +182,7 @@ def get_route_tag_details(route_id, current_user_id):
 
 def get_community_grade(route_id):
     grades = [e["grade"] for e in DB["gradeEstimates"] if e["routeId"] == route_id]
-    return average(grades)
+    return sum(grades) / len(grades) if grades else None
 
 
 def get_grade_distribution(route_id):
@@ -221,7 +209,7 @@ def get_route_media_count(route_id):
     return len([m for m in DB["routeMedia"] if m["routeId"] == route_id])
 
 
-def route_summary(route, current_user_id=None):
+def route_summary(route):
     return {
         **route,
         "communityGrade": get_community_grade(route["id"]),
@@ -259,23 +247,11 @@ def compute_user_stats(user_id):
     for e in graded:
         grade_dist[entry_data(e)["officialGrade"]] += 1
 
-    hold_dist = {}
-    for e in entries:
-        ht = entry_data(e).get("holdType")
-        if ht:
-            hold_dist[ht] = hold_dist.get(ht, 0) + 1
+    hold_dist = Counter(entry_data(e).get("holdType") for e in entries if entry_data(e).get("holdType"))
+    area_dist = Counter(entry_data(e).get("wallSection") for e in entries if entry_data(e).get("wallSection"))
 
-    area_dist = {}
-    for e in entries:
-        ws = entry_data(e).get("wallSection")
-        if ws:
-            area_dist[ws] = area_dist.get(ws, 0) + 1
-
-    style_counts = {}
-    for e in entries:
-        for t in e["topTags"]:
-            style_counts[t["name"]] = style_counts.get(t["name"], 0) + 1
-    style_dist = sorted([{"name": k, "count": v} for k, v in style_counts.items()], key=lambda x: -x["count"])
+    style_counts = Counter(t["name"] for e in entries for t in e["topTags"])
+    style_dist = [{"name": k, "count": v} for k, v in style_counts.most_common()]
     favorite_style = style_dist[0]["name"] if style_dist else None
 
     est_buckets = [0] * (MAX_GRADE + 1)
@@ -283,13 +259,10 @@ def compute_user_stats(user_id):
         if e["estimatedGrade"] is not None:
             est_buckets[round(e["estimatedGrade"])] += 1
 
-    time_map = {}
-    for e in entries:
-        key = e["completedAt"][:7]
-        time_map[key] = time_map.get(key, 0) + 1
+    time_map = Counter(e["completedAt"][:7] for e in entries)
     climbs_over_time = sorted(time_map.items())
 
-    favorite_hold_calc = mode_of([entry_data(e).get("holdType") for e in entries if entry_data(e).get("holdType")])
+    favorite_hold_calc = hold_dist.most_common(1)[0][0] if hold_dist else None
 
     return {
         "totalClimbs": total, "highestGrade": highest, "gradeDistribution": grade_dist,
@@ -299,13 +272,9 @@ def compute_user_stats(user_id):
     }
 
 
-def other_user_id(f, user_id):
-    return f["friendUserId"] if f["userId"] == user_id else f["userId"]
-
-
 def get_accepted_friend_ids(user_id):
     return {
-        other_user_id(f, user_id) for f in DB["friendships"]
+        (f["friendUserId"] if f["userId"] == user_id else f["userId"]) for f in DB["friendships"]
         if f["status"] == "accepted" and user_id in (f["userId"], f["friendUserId"])
     }
 
@@ -325,8 +294,7 @@ VIDEO_EXT = {"video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov",
 # The browser already compresses photos and keeps anything over
 # SHARED_MEDIA_LIMIT_BYTES (see constants.js) on-device instead of uploading
 # it, so these are just a defensive backstop against a direct API call.
-MAX_PHOTO_BYTES = 6 * 1024 * 1024
-MAX_VIDEO_BYTES = 6 * 1024 * 1024
+MAX_MEDIA_BYTES = 6 * 1024 * 1024
 
 
 def route_dir(route_id):
@@ -343,14 +311,14 @@ def save_route_media_file(route_id, data_url):
         raise ValueError("Unrecognized file data.")
     mime, b64 = m.group(1), m.group(2)
     if mime in IMAGE_EXT:
-        kind, ext, cap = "photo", IMAGE_EXT[mime], MAX_PHOTO_BYTES
+        kind, ext = "photo", IMAGE_EXT[mime]
     elif mime in VIDEO_EXT:
-        kind, ext, cap = "video", VIDEO_EXT[mime], MAX_VIDEO_BYTES
+        kind, ext = "video", VIDEO_EXT[mime]
     else:
         raise ValueError(f"Unsupported file type: {mime}")
     raw = base64.b64decode(b64)
-    if len(raw) > cap:
-        raise ValueError(f"{'Photo' if kind == 'photo' else 'Video'} too large (max {cap // (1024 * 1024)}MB).")
+    if len(raw) > MAX_MEDIA_BYTES:
+        raise ValueError(f"{'Photo' if kind == 'photo' else 'Video'} too large (max {MAX_MEDIA_BYTES // (1024 * 1024)}MB).")
     filename = f"{uuid.uuid4().hex}.{ext}"
     with open(route_dir(route_id) / filename, "wb") as f:
         f.write(raw)
@@ -386,6 +354,23 @@ def get_route_media(route_id, viewer_id=None):
     return out
 
 
+def purge_routes(route_ids):
+    """Removes routes (and everything that directly references them — media
+    files/dir, tag joins, tag votes, grade estimates). climbingLog entries
+    are deliberately left alone; entry_data() falls back to their snapshot
+    once get_route() can no longer find the route."""
+    for route_id in route_ids:
+        for m in [m for m in DB["routeMedia"] if m["routeId"] == route_id]:
+            if m["url"].startswith("/uploads/"):
+                (UPLOADS_DIR / m["url"][len("/uploads/"):]).unlink(missing_ok=True)
+        shutil.rmtree(UPLOADS_DIR / "routes" / route_id, ignore_errors=True)
+    DB["routeMedia"] = [m for m in DB["routeMedia"] if m["routeId"] not in route_ids]
+    DB["routeTags"] = [rt for rt in DB["routeTags"] if rt["routeId"] not in route_ids]
+    DB["tagVotes"] = [v for v in DB["tagVotes"] if v["routeId"] not in route_ids]
+    DB["gradeEstimates"] = [e for e in DB["gradeEstimates"] if e["routeId"] not in route_ids]
+    DB["routes"] = [r for r in DB["routes"] if r["id"] not in route_ids]
+
+
 class ApiError(Exception):
     def __init__(self, status, message):
         super().__init__(message)
@@ -411,8 +396,8 @@ class Handler(BaseHTTPRequestHandler):
     # Compresses text-ish bodies when the client supports it and it's worth
     # the CPU cost — small bodies barely shrink once gzip's own header/footer
     # overhead is counted, so skip those.
-    def _maybe_gzip(self, body, min_size=512):
-        if len(body) < min_size or not self._accepts_gzip():
+    def _maybe_gzip(self, body):
+        if len(body) < 512 or not self._accepts_gzip():
             return body, False
         return gzip.compress(body, compresslevel=6), True
 
@@ -427,7 +412,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
-        except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
+        except ConnectionError:
             pass
 
     def _body(self):
@@ -480,7 +465,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._cors()
                 self.send_header("ETag", etag)
                 self.end_headers()
-            except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
+            except ConnectionError:
                 pass
             return
         ctype, _ = mimetypes.guess_type(str(file_path))
@@ -502,7 +487,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-cache")
             self.end_headers()
             self.wfile.write(data)
-        except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
+        except ConnectionError:
             pass  # client navigated away / cancelled the request mid-response
 
     # ---------- HTTP verbs ----------
@@ -538,14 +523,14 @@ class Handler(BaseHTTPRequestHandler):
         except ApiError as e:
             try:
                 self._json(e.status, {"error": e.message})
-            except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
+            except ConnectionError:
                 pass
-        except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
+        except ConnectionError:
             pass  # client disconnected mid-request; nothing to report
         except Exception as e:  # pragma: no cover - defensive
             try:
                 self._json(500, {"error": str(e)})
-            except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
+            except ConnectionError:
                 pass
 
     # ---------- API routing ----------
@@ -604,7 +589,7 @@ class Handler(BaseHTTPRequestHandler):
             session, user = self._auth()
             body = self._body()
             session["gymId"] = body.get("gymId", session.get("gymId"))
-            save_db(DB)
+            save_db()
             return self._json(200, {"gymId": session["gymId"]})
 
         if path == "/api/auth/signup" and method == "POST":
@@ -676,7 +661,7 @@ class Handler(BaseHTTPRequestHandler):
         DB["users"].append(user)
         token = secrets.token_hex(20)
         DB["sessions"][token] = {"userId": user["id"], "gymId": DB["gyms"][0]["id"] if DB["gyms"] else None}
-        save_db(DB)
+        save_db()
         self._json(201, {"token": token, "user": public_user(user), "gymId": DB["sessions"][token]["gymId"]})
 
     def _login(self):
@@ -687,7 +672,7 @@ class Handler(BaseHTTPRequestHandler):
             raise ApiError(401, "Invalid email or password.")
         token = secrets.token_hex(20)
         DB["sessions"][token] = {"userId": user["id"], "gymId": DB["gyms"][0]["id"] if DB["gyms"] else None}
-        save_db(DB)
+        save_db()
         self._json(200, {"token": token, "user": public_user(user), "gymId": DB["sessions"][token]["gymId"]})
 
     def _logout(self):
@@ -695,7 +680,7 @@ class Handler(BaseHTTPRequestHandler):
         token = header[7:] if header.startswith("Bearer ") else None
         if token in DB["sessions"]:
             del DB["sessions"][token]
-            save_db(DB)
+            save_db()
         self._json(200, {"ok": True})
 
     def _reset_request(self):
@@ -713,7 +698,7 @@ class Handler(BaseHTTPRequestHandler):
         if not user:
             raise ApiError(404, "No account found with that email.")
         user["password"] = hash_password(body.get("password", ""))
-        save_db(DB)
+        save_db()
         self._json(200, {"ok": True})
 
     # ---------- Routes ----------
@@ -766,7 +751,7 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError as e:
             raise ApiError(400, str(e))
         media = add_route_media(route_id, user["id"], kind, url, visibility=visibility)
-        save_db(DB)
+        save_db()
         self._json(201, media)
 
     def _create_route(self):
@@ -816,7 +801,7 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError as e:
                 raise ApiError(400, str(e))
 
-        save_db(DB)
+        save_db()
         self._json(201, route_summary(route))
 
     def _update_route(self, route_id):
@@ -829,7 +814,7 @@ class Handler(BaseHTTPRequestHandler):
                       "holdColor", "officialGrade", "active", "photoUrl"]:
             if field in body:
                 route[field] = body[field]
-        save_db(DB)
+        save_db()
         self._json(200, route_summary(route))
 
     def _delete_route(self, route_id):
@@ -840,18 +825,8 @@ class Handler(BaseHTTPRequestHandler):
         route = find(DB["routes"], id=route_id)
         if not route:
             raise ApiError(404, "Route not found.")
-        for m in [m for m in DB["routeMedia"] if m["routeId"] == route_id]:
-            if m["url"].startswith("/uploads/"):
-                (UPLOADS_DIR / m["url"][len("/uploads/"):]).unlink(missing_ok=True)
-        shutil.rmtree(UPLOADS_DIR / "routes" / route_id, ignore_errors=True)
-        DB["routeMedia"] = [m for m in DB["routeMedia"] if m["routeId"] != route_id]
-        DB["routeTags"] = [rt for rt in DB["routeTags"] if rt["routeId"] != route_id]
-        DB["tagVotes"] = [v for v in DB["tagVotes"] if v["routeId"] != route_id]
-        DB["gradeEstimates"] = [e for e in DB["gradeEstimates"] if e["routeId"] != route_id]
-        # climbingLog entries are left alone, same as the wall-section reset —
-        # they already show as "retired" once get_route() can't find it.
-        DB["routes"] = [r for r in DB["routes"] if r["id"] != route_id]
-        save_db(DB)
+        purge_routes({route_id})
+        save_db()
         self._json(200, {"ok": True})
 
     def _get_route_tags(self, route_id):
@@ -874,7 +849,7 @@ class Handler(BaseHTTPRequestHandler):
         if not find(DB["routeTags"], routeId=route_id, tagId=tag["id"]):
             DB["routeTags"].append({"id": uid("rtag"), "routeId": route_id, "tagId": tag["id"]})
             route["tags"].append(tag["id"])
-            save_db(DB)
+            save_db()
         self._json(201, tag)
 
     def _vote_tag(self, route_id, tag_id):
@@ -889,7 +864,7 @@ class Handler(BaseHTTPRequestHandler):
                 existing["vote"] = vote
         else:
             DB["tagVotes"].append({"id": uid("vote"), "routeId": route_id, "tagId": tag_id, "userId": user["id"], "vote": vote})
-        save_db(DB)
+        save_db()
         self._json(200, {"ok": True})
 
     def _submit_estimate(self, route_id):
@@ -911,7 +886,7 @@ class Handler(BaseHTTPRequestHandler):
                 "id": uid("est"), "routeId": route_id, "userId": user["id"], "grade": grade,
                 "createdAt": now_iso(), "updatedAt": now_iso(),
             })
-        save_db(DB)
+        save_db()
         self._json(200, {"ok": True})
 
     def _log_send(self, route_id):
@@ -947,7 +922,7 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError as e:
                 raise ApiError(400, str(e))
 
-        save_db(DB)
+        save_db()
         self._json(201, {"ok": True, "entry": entry, "media": media})
 
     # ---------- Users ----------
@@ -974,7 +949,7 @@ class Handler(BaseHTTPRequestHandler):
                       "selfReportedHighestGrade", "profilePicture", "privacy"]:
             if field in body:
                 user[field] = body[field]
-        save_db(DB)
+        save_db()
         self._json(200, public_user(user))
 
     def _can_view_log(self, target, viewer):
@@ -1006,7 +981,7 @@ class Handler(BaseHTTPRequestHandler):
                 (UPLOADS_DIR / m["url"][len("/uploads/"):]).unlink(missing_ok=True)
         DB["routeMedia"] = [m for m in DB["routeMedia"] if m.get("logEntryId") != log_id]
         DB["climbingLog"].remove(entry)
-        save_db(DB)
+        save_db()
         self._json(200, {"ok": True})
 
     def _reset_wall_section(self, gym_id, wall_section):
@@ -1014,21 +989,9 @@ class Handler(BaseHTTPRequestHandler):
         body = self._body()
         if body.get("routesetterKey") != ROUTESETTER_KEY:
             raise ApiError(403, "Incorrect routesetter key.")
-        targets = [r for r in DB["routes"] if r["gymId"] == gym_id and r.get("wallSection") == wall_section]
-        target_ids = {r["id"] for r in targets}
-        for route_id in target_ids:
-            for m in [m for m in DB["routeMedia"] if m["routeId"] == route_id]:
-                if m["url"].startswith("/uploads/"):
-                    (UPLOADS_DIR / m["url"][len("/uploads/"):]).unlink(missing_ok=True)
-            shutil.rmtree(UPLOADS_DIR / "routes" / route_id, ignore_errors=True)
-        DB["routeMedia"] = [m for m in DB["routeMedia"] if m["routeId"] not in target_ids]
-        DB["routeTags"] = [rt for rt in DB["routeTags"] if rt["routeId"] not in target_ids]
-        DB["tagVotes"] = [v for v in DB["tagVotes"] if v["routeId"] not in target_ids]
-        DB["gradeEstimates"] = [e for e in DB["gradeEstimates"] if e["routeId"] not in target_ids]
-        # climbingLog entries are left alone — they already show as
-        # "retired" once get_route() can no longer find the route.
-        DB["routes"] = [r for r in DB["routes"] if r["id"] not in target_ids]
-        save_db(DB)
+        target_ids = {r["id"] for r in DB["routes"] if r["gymId"] == gym_id and r.get("wallSection") == wall_section}
+        purge_routes(target_ids)
+        save_db()
         self._json(200, {"ok": True, "removed": len(target_ids)})
 
     def _user_stats(self, user_id):
@@ -1081,7 +1044,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, existing)
         f = {"id": uid("fr"), "userId": user["id"], "friendUserId": target_id, "status": "pending"}
         DB["friendships"].append(f)
-        save_db(DB)
+        save_db()
         self._json(201, f)
 
     def _friends_respond(self):
@@ -1094,7 +1057,7 @@ class Handler(BaseHTTPRequestHandler):
             f["status"] = "accepted"
         else:
             DB["friendships"].remove(f)
-        save_db(DB)
+        save_db()
         self._json(200, {"ok": True})
 
     def _friends_remove(self):
@@ -1105,7 +1068,7 @@ class Handler(BaseHTTPRequestHandler):
             f for f in DB["friendships"]
             if not ({f["userId"], f["friendUserId"]} == {user["id"], target_id})
         ]
-        save_db(DB)
+        save_db()
         self._json(200, {"ok": True})
 
     # ---------- Admin ----------
@@ -1129,7 +1092,7 @@ class Handler(BaseHTTPRequestHandler):
         for token in [t for t, s in DB["sessions"].items() if s["userId"] == user_id]:
             del DB["sessions"][token]
         DB["users"] = [u for u in DB["users"] if u["id"] != user_id]
-        save_db(DB)
+        save_db()
         self._json(200, {"ok": True})
 
     def _admin_delete_tag(self, tag_id):
@@ -1145,7 +1108,7 @@ class Handler(BaseHTTPRequestHandler):
         for route in DB["routes"]:
             if tag_id in route.get("tags", []):
                 route["tags"] = [t for t in route["tags"] if t != tag_id]
-        save_db(DB)
+        save_db()
         self._json(200, {"ok": True})
 
 

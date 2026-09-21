@@ -104,10 +104,6 @@ export function getGyms() {
   return request("GET", "/api/gyms");
 }
 
-export function getGym(id) {
-  return request("GET", `/api/gyms/${id}`);
-}
-
 export function resetWallSection(gymId, wallSection, routesetterKey) {
   return request("POST", `/api/gyms/${gymId}/wall-sections/${wallSection}/reset`, { routesetterKey });
 }
@@ -125,10 +121,6 @@ export function getRoutes(gymId, { includeInactive = false } = {}) {
   return request("GET", `/api/routes?${qs.toString()}`);
 }
 
-export function getRoute(id) {
-  return request("GET", `/api/routes/${id}`);
-}
-
 export function getRouteDetail(routeId) {
   return request("GET", `/api/routes/${routeId}/detail`);
 }
@@ -139,10 +131,6 @@ export function createRoute(payload) {
 
 export function updateRoute(routeId, patch) {
   return request("PATCH", `/api/routes/${routeId}`, patch);
-}
-
-export function retireRoute(routeId) {
-  return request("PATCH", `/api/routes/${routeId}`, { active: false });
 }
 
 export function deleteRoute(routeId, password) {

@@ -1,11 +1,5 @@
 // Small shared helpers used across the app.
 
-let idCounter = 1;
-export function uid(prefix = "id") {
-  idCounter += 1;
-  return `${prefix}_${Date.now().toString(36)}_${idCounter.toString(36)}`;
-}
-
 // Deterministic seeded RNG (mulberry32) so mock data / generated route
 // "photos" look the same across reloads instead of re-randomizing.
 export function mulberry32(seed) {
@@ -36,31 +30,24 @@ export function formatDateTime(iso) {
   return `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })} · ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
 }
 
-export function monthKey(iso) {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
 export function monthLabel(key) {
   const [y, m] = key.split("-");
   const d = new Date(Number(y), Number(m) - 1, 1);
   return d.toLocaleDateString(undefined, { month: "short", year: "2-digit" });
 }
 
-export function average(nums) {
-  if (!nums.length) return null;
-  return nums.reduce((a, b) => a + b, 0) / nums.length;
-}
-
-export function mode(arr) {
-  if (!arr.length) return null;
-  const counts = new Map();
-  for (const item of arr) counts.set(item, (counts.get(item) || 0) + 1);
-  let best = null, bestCount = -1;
-  for (const [k, v] of counts) {
-    if (v > bestCount) { best = k; bestCount = v; }
-  }
-  return best;
+// Shared "scroll-snap track with index tracking" wiring for onboarding.js's
+// tour and demoCarousel.js's app-demo strip — both scroll-snap horizontally
+// and need their index kept in sync whether navigation is a button click
+// (the returned scrollToIndex) or a manual swipe (the debounced listener
+// here calling onIndexChange).
+export function wireScrollTrack(track, onIndexChange) {
+  let scrollTimer = null;
+  track.addEventListener("scroll", () => {
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(() => onIndexChange(Math.round(track.scrollLeft / track.clientWidth)), 80);
+  });
+  return (index) => track.scrollTo({ left: index * track.clientWidth, behavior: "smooth" });
 }
 
 export function clamp(n, min, max) {
@@ -149,6 +136,15 @@ export function compressImageFile(file, { maxDim = 1280, quality = 0.82 } = {}) 
 
 // Approximate decoded byte size of a base64 data URL (base64 is ~4/3 the
 // size of the raw bytes it encodes).
+// Reads a photo (compressed) or video (untouched — browsers have no native
+// way to re-encode video) file into a data URL. Shared by the log-send
+// sheet and the route gallery's "add your climb" form.
+export async function pickMedia(file) {
+  const isVideo = file.type.startsWith("video");
+  const dataUrl = isVideo ? await fileToDataUrl(file) : await compressImageFile(file);
+  return { dataUrl, kind: isVideo ? "video" : "photo" };
+}
+
 export function dataUrlByteSize(dataUrl) {
   const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
   return Math.round(base64.length * 0.75);

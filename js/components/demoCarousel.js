@@ -1,3 +1,5 @@
+import { wireScrollTrack } from "../utils.js";
+
 // Same scroll-snap-track + dots + arrows pattern as components/onboarding.js,
 // just embedded inline (position:relative) instead of a fullscreen overlay.
 export function renderDemoCarousel(container, slides) {
@@ -32,20 +34,13 @@ export function renderDemoCarousel(container, slides) {
     nextBtn.classList.toggle("hidden", index === slides.length - 1);
   }
 
+  const scrollToIndex = wireScrollTrack(track, (i) => { index = i; updateUI(); });
+
   function goTo(i) {
     index = Math.max(0, Math.min(slides.length - 1, i));
-    track.scrollTo({ left: index * track.clientWidth, behavior: "smooth" });
+    scrollToIndex(index);
     updateUI();
   }
-
-  let scrollTimer = null;
-  track.addEventListener("scroll", () => {
-    clearTimeout(scrollTimer);
-    scrollTimer = setTimeout(() => {
-      index = Math.round(track.scrollLeft / track.clientWidth);
-      updateUI();
-    }, 80);
-  });
 
   prevBtn.addEventListener("click", () => goTo(index - 1));
   nextBtn.addEventListener("click", () => goTo(index + 1));

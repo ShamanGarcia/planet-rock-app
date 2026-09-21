@@ -17,15 +17,6 @@ export const HOLD_COLOR_HEX = {
 
 export const HOLD_TYPES = ["Jug", "Crimp", "Sloper", "Pocket", "Volume", "Pinch"];
 
-// Tags are an open-ended, admin-extensible list. New tags can be appended
-// here (or, in a real backend, inserted as new Tag rows) without any other
-// code change.
-export const DEFAULT_TAGS = [
-  "Juggy", "Crimpy", "Slopers", "Pinches", "Static", "Dynamic", "Technical",
-  "Powerful", "Burly", "Balance", "Coordination", "Reachy", "Compression",
-  "Endurance", "Slab", "Overhang",
-];
-
 export const MAX_GRADE = 10; // V0..V10
 
 // Photos/videos at or under this size (after client-side photo compression)

@@ -1,7 +1,7 @@
 import { logSend } from "../data/api.js";
 import { saveLocalMedia } from "../data/localMedia.js";
 import { SHARED_MEDIA_LIMIT_BYTES } from "../data/constants.js";
-import { escapeHtml, fileToDataUrl, compressImageFile, dataUrlByteSize, dismissOverlay } from "../utils.js";
+import { escapeHtml, pickMedia, dataUrlByteSize, dismissOverlay } from "../utils.js";
 import { showToast } from "./toast.js";
 
 // Small confirm step before logging a send, with an optional photo/video
@@ -65,9 +65,7 @@ export function openLogSendSheet(routeId, label, { onLogged } = {}) {
       processingFile = true;
       render();
       try {
-        const isVideo = file.type.startsWith("video");
-        mediaDataUrl = isVideo ? await fileToDataUrl(file) : await compressImageFile(file);
-        mediaKind = isVideo ? "video" : "photo";
+        ({ dataUrl: mediaDataUrl, kind: mediaKind } = await pickMedia(file));
         tooBigForSharing = dataUrlByteSize(mediaDataUrl) > SHARED_MEDIA_LIMIT_BYTES;
       } catch {
         error = "Couldn't read that file — try another one.";

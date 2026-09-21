@@ -1,14 +1,18 @@
 import {
   getRouteDetail, addTagToRoute, getAllTags, submitGradeEstimate,
-  getAcceptedFriends, getLogEntries, updateRoute,
+  getAcceptedFriends, getLogEntries, updateRoute, deleteRoute,
 } from "../data/api.js";
 import { formatGrade, formatEstimate, MAX_GRADE, HOLD_COLOR_HEX, routeLabel } from "../data/constants.js";
 import { renderDonutChart } from "../components/charts.js";
 import { openLogSendSheet } from "../components/logSendSheet.js";
 import { openFullGallery, getCombinedMedia } from "../components/gallery.js";
-import { openDeleteRouteModal } from "../components/deleteRouteModal.js";
+import { openPasswordPromptModal } from "../components/passwordPromptModal.js";
 import { showToast } from "../components/toast.js";
 import { escapeHtml, dismissOverlay } from "../utils.js";
+
+// Same shared-password pattern as resetWallModal's ROUTESETTER_KEY, scoped
+// to pulling a single climb off the map entirely.
+const DELETE_PASSWORD = "TAKEAWAY";
 
 export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
   const backdrop = document.createElement("div");
@@ -21,9 +25,6 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
   let justSent = false;
   let sentClickCount = 0;
   let editingGrade = false;
-
-  // Tags are just attached-or-not (routeTags join) — no more voting/score.
-  let currentTagDetails = [];
 
   function close() {
     dismissOverlay(backdrop);
@@ -58,7 +59,6 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
       return;
     }
     const { route, tagDetails, communityGrade, gradeDistribution, finishes, mySends, myEstimate } = detail;
-    currentTagDetails = tagDetails;
     const media = await getCombinedMedia(routeId);
     const label = routeLabel(route);
     const hasEstimates = gradeDistribution.some((c) => c > 0);
@@ -112,7 +112,7 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
 
         <div class="section-title">Route Tags</div>
         <div id="rd-tags" class="chip-row">
-          ${currentTagDetails.length ? currentTagDetails.map((t) => tagRow(t)).join("") : `<div class="page-sub">No tags yet — be the first to add one.</div>`}
+          ${tagDetails.length ? tagDetails.map((t) => tagRow(t)).join("") : `<div class="page-sub">No tags yet — be the first to add one.</div>`}
         </div>
         <div class="add-tag-row">
           <select id="rd-tag-select">
@@ -175,8 +175,18 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
     wireGradeSection(route);
 
     backdrop.querySelector("#rd-delete-route").addEventListener("click", () => {
-      openDeleteRouteModal(routeId, label, {
-        onDeleted: () => { onChanged?.(); close(); },
+      openPasswordPromptModal({
+        title: "Delete this climb?",
+        message: `${label} — this removes it from the map for everyone. This can't be undone.`,
+        expectedPassword: DELETE_PASSWORD,
+        confirmLabel: "DELETE",
+        danger: true,
+        onConfirm: async (pw) => {
+          await deleteRoute(routeId, pw);
+          showToast(`Removed ${label} from the map`);
+          onChanged?.();
+          close();
+        },
       });
     });
 

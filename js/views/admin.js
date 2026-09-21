@@ -5,11 +5,9 @@ import { HOLD_COLORS, HOLD_COLOR_HEX, WALL_SECTIONS, MAX_GRADE, formatGrade } fr
 import { formatDate, escapeHtml, dismissOverlay } from "../utils.js";
 import { openPasswordPromptModal } from "../components/passwordPromptModal.js";
 import { showToast } from "../components/toast.js";
+import { ADMIN_PASSWORD } from "../adminAuth.js";
 
-// Mirror the server-side constants (backend/server.py). The user already
-// proved they know ADMIN_PASSWORD via the prompt in profile.js — it's only
-// needed again here to authenticate the actual list-users request.
-const ADMIN_PASSWORD = "IAMANADMIN!";
+// Mirrors backend/server.py's ADMIN_DELETE_PASSWORD.
 const ADMIN_DELETE_PASSWORD = "GETOUT!";
 
 export function renderAdmin(container) {
