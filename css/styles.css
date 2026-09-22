@@ -359,14 +359,16 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
 .grade-badges{ display:flex; gap:10px; margin:12px 0; }
 .grade-badge{ flex:1; background:var(--pr-bg); border-radius:12px; padding:10px 12px; text-align:center; }
 button.grade-badge{ border:none; }
-.grade-badge .g-label{ font-size:11px; color:var(--pr-text-soft); text-transform:uppercase; font-weight:700; letter-spacing:.3px; }
+.g-label{ font-size:11px; color:var(--pr-text-soft); text-transform:uppercase; font-weight:700; letter-spacing:.3px; }
 .grade-badge .g-value{ font-size:20px; font-weight:800; margin-top:2px; }
+.grade-badge .g-hint{ font-size:10px; color:var(--pr-text-soft); font-style:italic; margin-top:2px; }
 .section-title{ font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; color:var(--pr-text-soft); margin:18px 0 8px; }
 .add-tag-row{ display:flex; gap:8px; margin-top:10px; }
 .add-tag-row select, .add-tag-row input{ flex:1; }
 
-.estimate-form{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+.estimate-form{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; align-items:flex-end; }
 .estimate-form select{ flex:1; min-width:110px; }
+.grade-control-col{ display:flex; flex-direction:column; gap:4px; flex:1; min-width:110px; text-align:left; }
 
 .chart-box{ position:relative; height:200px; margin-top:8px; }
 .chart-box.small{ height:150px; }

@@ -89,19 +89,26 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
           <button type="button" class="grade-badge" id="rd-community-badge" aria-label="View grade distribution">
             <div class="g-label">Community Estimate</div>
             <div class="g-value">${communityGrade === null ? "—" : formatEstimate(communityGrade)}</div>
+            <div class="g-hint">*click for details</div>
           </button>
         </div>
 
         <div class="section-title">Grade</div>
         <div class="estimate-form">
-          <select id="rd-official-grade-select" aria-label="Official grade">
-            <option value="">Ungraded</option>
-            ${Array.from({ length: MAX_GRADE + 1 }, (_, g) => `<option value="${g}" ${route.officialGrade === g ? "selected" : ""}>V${g}</option>`).join("")}
-          </select>
-          <form id="rd-estimate-form" style="display:contents;">
-            <select name="grade" aria-label="Your grade estimate">
-              ${Array.from({ length: MAX_GRADE + 1 }, (_, g) => `<option value="${g}" ${myEstimate === g ? "selected" : ""}>V${g}</option>`).join("")}
+          <div class="grade-control-col">
+            <label class="g-label" for="rd-official-grade-select">Official Grade</label>
+            <select id="rd-official-grade-select" aria-label="Official grade">
+              <option value="">Ungraded</option>
+              ${Array.from({ length: MAX_GRADE + 1 }, (_, g) => `<option value="${g}" ${route.officialGrade === g ? "selected" : ""}>V${g}</option>`).join("")}
             </select>
+          </div>
+          <form id="rd-estimate-form" style="display:contents;">
+            <div class="grade-control-col">
+              <label class="g-label" for="rd-estimate-select">Estimated Grade</label>
+              <select id="rd-estimate-select" name="grade" aria-label="Your grade estimate">
+                ${Array.from({ length: MAX_GRADE + 1 }, (_, g) => `<option value="${g}" ${myEstimate === g ? "selected" : ""}>V${g}</option>`).join("")}
+              </select>
+            </div>
             <button class="btn btn-outline btn-sm" type="submit">${myEstimate !== null && myEstimate !== undefined ? "Update Estimate" : "Submit Estimate"}</button>
           </form>
         </div>

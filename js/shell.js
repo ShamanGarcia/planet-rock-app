@@ -16,8 +16,8 @@ const ICON_EYE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 const NAV_ITEMS = [
   { hash: "#/map", label: "Gym Map", icon: ICON_MOUNTAIN },
   { hash: "#/log", label: "Climbing Log", icon: ICON_BOOK },
-  { hash: "#/profile", label: "Profile", icon: ICON_SMILEY },
   { hash: "#/friends", label: "Friends", icon: ICON_FRIENDS },
+  { hash: "#/profile", label: "Profile", icon: ICON_SMILEY },
 ];
 
 function currentBase(hash) {
