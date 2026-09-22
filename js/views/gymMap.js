@@ -1,4 +1,4 @@
-import { getRoutes, getAllTags, getCurrentUser, getLogEntries } from "../data/api.js";
+import { getRoutes, getAllTags, getCurrentUser, getLogEntries, updateRoute } from "../data/api.js";
 import {
   HOLD_COLORS, HOLD_COLOR_HEX, HOLD_TYPES, WALL_SECTIONS, MAP_ASPECT_RATIO, MAX_GRADE, formatGrade, routeLabel,
 } from "../data/constants.js";
@@ -6,6 +6,7 @@ import { openRouteDetail } from "./routeDetail.js";
 import { openAddRouteForm } from "../components/addRoute.js";
 import { openResetWallModal } from "../components/resetWallModal.js";
 import { showToast } from "../components/toast.js";
+import { isAdminUnlocked } from "../adminAuth.js";
 import { escapeHtml, clamp, pointInPolygon, polygonCentroid, polygonBounds, dismissOverlay } from "../utils.js";
 
 // The canvas is sized in CSS pixels at this fixed base (before pan/zoom
@@ -112,6 +113,12 @@ export function renderGymMap(container, gymId) {
   let zoomedSectionId = null; // set after tapping a zone; null shows the full map
   let newlyAddedRouteId = null; // yellow-ringed until any route marker is clicked (this view instance resets it on navigation)
   let activeHeatmap = null; // null | "completed" | "difficulty"
+  let moveMode = false;
+  let movingRouteId = null;
+  // Admin-unlock state can't change while this view stays mounted (it's only
+  // ever set via the Profile page, which navigates away first), so this is
+  // safe to compute once instead of re-checking on every render.
+  const showMoveBtn = isAdminUnlocked();
 
   container.innerHTML = `
     <div class="page map-page">
@@ -135,7 +142,8 @@ export function renderGymMap(container, gymId) {
         </div>
         <button class="btn btn-primary" id="add-route-btn" style="position:absolute; left:12px; top:12px; z-index:25;">+ Add Route</button>
         <button class="btn btn-outline btn-sm hidden" id="back-to-map-btn" style="position:absolute; left:12px; top:56px; z-index:25; background:#fff;">&larr; All Areas</button>
-        <button class="btn btn-danger btn-sm hidden" id="reset-wall-btn" style="position:absolute; left:12px; top:100px; z-index:25;">RESET</button>
+        <button class="btn btn-success btn-sm ${showMoveBtn ? "" : "hidden"}" id="move-route-btn" style="position:absolute; left:12px; top:100px; z-index:25;">MOVE</button>
+        <button class="btn btn-danger btn-sm hidden" id="reset-wall-btn" style="position:absolute; left:12px; top:${showMoveBtn ? 144 : 100}px; z-index:25;">RESET</button>
         <div class="map-hint" id="map-hint">Pinch or scroll to zoom · drag to pan · tap a wall to zoom in · tap a marker for details</div>
       </div>
     </div>
@@ -147,6 +155,7 @@ export function renderGymMap(container, gymId) {
   const addBtn = container.querySelector("#add-route-btn");
   const backBtn = container.querySelector("#back-to-map-btn");
   const resetBtn = container.querySelector("#reset-wall-btn");
+  const moveBtn = container.querySelector("#move-route-btn");
   canvas.style.width = `${CANVAS_W}px`;
   canvas.style.height = `${CANVAS_H}px`;
 
@@ -199,12 +208,17 @@ export function renderGymMap(container, gymId) {
   }
 
   const pollTimer = setInterval(() => {
-    if (!placementMode) renderCanvasContents({ quiet: true });
+    if (!placementMode && !moveMode) renderCanvasContents({ quiet: true });
   }, REFRESH_MS);
 
   addBtn.addEventListener("click", () => {
     if (placementMode) { exitPlacementMode(); return; }
     enterPlacementMode();
+  });
+
+  moveBtn?.addEventListener("click", () => {
+    if (moveMode) { exitMoveMode(); return; }
+    enterMoveMode();
   });
 
   const completedHeatBtn = container.querySelector("#heatmap-completed-btn");
@@ -229,10 +243,13 @@ export function renderGymMap(container, gymId) {
   }
 
   function updateHint() {
-    hint.textContent = placementMode ? "Tap the wall where the route starts to place it" : defaultHintText();
+    if (placementMode) { hint.textContent = "Tap the wall where the route starts to place it"; return; }
+    if (moveMode) { hint.textContent = "Press and drag a route to reposition it — long-press on mobile"; return; }
+    hint.textContent = defaultHintText();
   }
 
   function enterPlacementMode() {
+    if (moveMode) exitMoveMode();
     placementMode = true;
     selectedRouteId = null;
     addBtn.textContent = "Cancel";
@@ -240,6 +257,27 @@ export function renderGymMap(container, gymId) {
     addBtn.classList.add("btn-danger");
     updateHint();
     viewport.classList.add("placement-active");
+    renderCanvasContents();
+  }
+
+  function enterMoveMode() {
+    if (placementMode) exitPlacementMode();
+    moveMode = true;
+    movingRouteId = null;
+    moveBtn.textContent = "Cancel";
+    moveBtn.classList.remove("btn-success");
+    moveBtn.classList.add("btn-danger");
+    updateHint();
+    renderCanvasContents();
+  }
+
+  function exitMoveMode() {
+    moveMode = false;
+    movingRouteId = null;
+    moveBtn.textContent = "MOVE";
+    moveBtn.classList.remove("btn-danger");
+    moveBtn.classList.add("btn-success");
+    updateHint();
     renderCanvasContents();
   }
 
@@ -391,7 +429,7 @@ export function renderGymMap(container, gymId) {
     });
     canvas.querySelectorAll(".route-marker[data-route-id]").forEach((el) => {
       el.addEventListener("click", () => {
-        if (panMoved || placementMode) return;
+        if (panMoved || placementMode || moveMode) return;
         selectedRouteId = el.getAttribute("data-route-id");
         newlyAddedRouteId = null;
         canvas.querySelectorAll(".route-marker").forEach((m) => m.classList.remove("selected", "just-added"));
@@ -402,6 +440,7 @@ export function renderGymMap(container, gymId) {
         });
       });
       el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); el.click(); } });
+      if (moveMode) wireMarkerDrag(el, el.getAttribute("data-route-id"));
     });
 
     if (!quiet) {
@@ -409,6 +448,77 @@ export function renderGymMap(container, gymId) {
     }
     container.querySelector("#clear-filters").classList.toggle("hidden", !isFilterActive());
     applyTransform();
+  }
+
+  // Move-mode marker drag: press-drag-release repositions a route on the
+  // canvas (percentage coordinates, same convention as mapX/mapY). On a
+  // mouse the drag arms immediately on press; on touch it requires a
+  // long-press first so an ordinary swipe still pans the map everywhere
+  // else. stopPropagation on every step keeps the viewport's own pan/zoom
+  // handlers (wirePanZoom) from also reacting to the same pointer.
+  function wireMarkerDrag(el, routeId) {
+    let longPressTimer = null;
+    let armed = false;
+    let moved = false;
+    let startClientX = 0, startClientY = 0;
+    let startLeftPct = 0, startTopPct = 0;
+
+    function beginDrag() {
+      armed = true;
+      moved = false;
+      movingRouteId = routeId;
+      el.classList.add("selected");
+    }
+
+    el.addEventListener("pointerdown", (e) => {
+      e.stopPropagation();
+      startClientX = e.clientX; startClientY = e.clientY;
+      startLeftPct = parseFloat(el.style.left);
+      startTopPct = parseFloat(el.style.top);
+      try { el.setPointerCapture(e.pointerId); } catch { /* no active pointer with this id — safe to ignore */ }
+      if (e.pointerType === "mouse") beginDrag();
+      else longPressTimer = setTimeout(beginDrag, 500);
+    });
+
+    el.addEventListener("pointermove", (e) => {
+      e.stopPropagation();
+      if (!armed) {
+        if (Math.abs(e.clientX - startClientX) > 8 || Math.abs(e.clientY - startClientY) > 8) {
+          clearTimeout(longPressTimer);
+        }
+        return;
+      }
+      const rect = canvas.getBoundingClientRect();
+      const dxPct = ((e.clientX - startClientX) / rect.width) * 100;
+      const dyPct = ((e.clientY - startClientY) / rect.height) * 100;
+      if (Math.abs(dxPct) > 0.3 || Math.abs(dyPct) > 0.3) moved = true;
+      el.style.left = `${clamp(startLeftPct + dxPct, 0, 100)}%`;
+      el.style.top = `${clamp(startTopPct + dyPct, 0, 100)}%`;
+    });
+
+    el.addEventListener("pointerup", async (e) => {
+      e.stopPropagation();
+      clearTimeout(longPressTimer);
+      if (!armed) return;
+      armed = false;
+      movingRouteId = null;
+      if (!moved) { el.classList.remove("selected"); return; }
+      const newMapX = clamp(parseFloat(el.style.left), 0, 100);
+      const newMapY = clamp(parseFloat(el.style.top), 0, 100);
+      try {
+        await updateRoute(routeId, { mapX: newMapX, mapY: newMapY });
+        showToast("Route moved");
+        renderCanvasContents();
+      } catch {
+        showToast("Couldn't move that route");
+        renderCanvasContents();
+      }
+    });
+
+    el.addEventListener("pointercancel", () => {
+      clearTimeout(longPressTimer);
+      if (armed) { armed = false; movingRouteId = null; el.classList.remove("selected"); }
+    });
   }
 
   container.querySelector("#open-filters").addEventListener("click", () => {

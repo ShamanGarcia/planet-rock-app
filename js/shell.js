@@ -46,7 +46,7 @@ export async function renderShell(root) {
   root.innerHTML = `
     <div class="app-shell">
       <div class="topbar">
-        <a href="#/map" class="brand" style="text-decoration:none;">MATCHBOOK</a>
+        <a href="#/map" class="brand" id="brand-text" style="text-decoration:none;">MATCHBOOK</a>
         <select class="gym-select" id="gym-select" aria-label="Select gym">
           ${gyms.map((g) => `<option value="${g.id}" ${g.id === gymId ? "selected" : ""}>${g.name}</option>`).join("")}
         </select>
@@ -77,6 +77,7 @@ export async function renderShell(root) {
     const hash = location.hash || "#/map";
     root.querySelector("#sidebar").innerHTML = navLinksHTML(currentBase(hash));
     root.querySelector("#bottom-nav").innerHTML = navLinksHTML(currentBase(hash));
+    root.querySelector("#brand-text").textContent = isAdminUnlocked() ? "MATCHBOOK - ADMIN" : "MATCHBOOK";
     const activeGymId = getCurrentGymId();
 
     let result;
