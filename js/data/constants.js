@@ -17,6 +17,13 @@ export const HOLD_COLOR_HEX = {
 
 export const HOLD_TYPES = ["Jug", "Crimp", "Sloper", "Pocket", "Volume", "Pinch"];
 
+// Readable text color for each hold color background (route-detail's
+// official-grade badge is colored by hold color; yellow/white need dark text).
+export const HOLD_COLOR_TEXT = {
+  Red: "#fff", Orange: "#fff", Yellow: "#1b1d21", Green: "#fff",
+  Blue: "#fff", Purple: "#fff", Pink: "#fff", Black: "#fff", White: "#1b1d21",
+};
+
 export const MAX_GRADE = 10; // V0..V10
 
 // Photos/videos at or under this size (after client-side photo compression)

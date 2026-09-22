@@ -197,6 +197,14 @@ def get_route_finishes(route_id):
     return len([l for l in DB["climbingLog"] if l["routeId"] == route_id])
 
 
+# Anyone with logPublic shows up here (not friends-only — this route-level
+# list only reveals a name against a route that's already visible to everyone).
+def get_route_senders(route_id):
+    sender_ids = {l["userId"] for l in DB["climbingLog"] if l["routeId"] == route_id}
+    return [{"id": u["id"], "name": u["name"]} for u in DB["users"]
+            if u["id"] in sender_ids and u["privacy"]["logPublic"]]
+
+
 def get_user_send_count(user_id, route_id):
     return len([l for l in DB["climbingLog"] if l["userId"] == user_id and l["routeId"] == route_id])
 
@@ -726,6 +734,7 @@ class Handler(BaseHTTPRequestHandler):
             "communityGrade": get_community_grade(route_id),
             "gradeDistribution": get_grade_distribution(route_id),
             "finishes": get_route_finishes(route_id),
+            "senders": get_route_senders(route_id),
             "mySends": get_user_send_count(uid_, route_id) if uid_ else 0,
             "myEstimate": (get_user_estimate(route_id, uid_) or {}).get("grade") if uid_ else None,
             "media": get_route_media(route_id, uid_),
