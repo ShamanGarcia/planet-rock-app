@@ -360,6 +360,7 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
 .grade-badge{ flex:1; background:var(--pr-bg); border-radius:12px; padding:10px 12px; text-align:center; }
 button.grade-badge{ border:none; }
 .g-label{ font-size:11px; color:var(--pr-text-soft); text-transform:uppercase; font-weight:700; letter-spacing:.3px; }
+.grade-badge .g-label{ color:inherit; }
 .grade-badge .g-value{ font-size:20px; font-weight:800; margin-top:2px; }
 .grade-badge .g-hint{ font-size:10px; color:var(--pr-text-soft); font-style:italic; margin-top:2px; }
 .section-title{ font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; color:var(--pr-text-soft); margin:18px 0 8px; }
