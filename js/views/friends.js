@@ -71,6 +71,11 @@ function renderFriendsList(container) {
     content.innerHTML = `
       ${results.length ? `<div class="section-block"><div class="section-title" style="margin-top:0;">Search Results</div>${resultsHTML}</div>` : ""}
 
+      <div class="section-block">
+        <div class="section-title" style="margin-top:0;">Your Friends</div>
+        ${friendsHTML}
+      </div>
+
       ${incoming.length ? `
         <div class="section-block">
           <div class="section-title" style="margin-top:0;">Friend Requests</div>
@@ -93,11 +98,6 @@ function renderFriendsList(container) {
           ${outgoing.map(({ user }) => `<div class="card friend-card"><div class="avatar sm">${initials(user.name)}</div><div class="fc-body"><div class="fc-name">${escapeHtml(user.name)}</div><div class="fc-meta">Request pending</div></div></div>`).join("")}
         </div>
       ` : ""}
-
-      <div class="section-block">
-        <div class="section-title" style="margin-top:0;">Your Friends</div>
-        ${friendsHTML}
-      </div>
     `;
 
     content.querySelectorAll("[data-view]").forEach((btn) => btn.addEventListener("click", () => { location.hash = `#/friends/${btn.getAttribute("data-view")}`; }));

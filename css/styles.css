@@ -165,6 +165,8 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
   white-space:nowrap;
 }
 .chip.active{ background:var(--pr-ink); color:#fff; }
+.chip.color-chip{ border-color:#00000026; }
+.chip.color-chip.active{ outline:2.5px solid var(--pr-ink); outline-offset:2px; }
 .chip button{ background:none; border:none; color:inherit; padding:0; margin-left:2px; font-size:13px; }
 
 .card{ background:var(--pr-card); border-radius:var(--pr-radius); box-shadow:var(--pr-shadow); border:1px solid var(--pr-border); }
@@ -318,6 +320,14 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
   color:#5c5847; pointer-events:none; transform:translate(-50%, -50%); white-space:nowrap;
   text-shadow:0 1px 2px rgba(255,255,255,.7);
 }
+.wall-label .new-set{
+  position:absolute; bottom:100%; left:50%; transform:translateX(-50%); font-size:12px;
+  background:linear-gradient(90deg,#e53935,#fb8c00,#fdd835,#43a047,#1e88e5,#8e24aa,#e53935) 0 0/200% 100%;
+  -webkit-background-clip:text; background-clip:text; color:transparent; text-shadow:none;
+  animation:rainbow-slide 3s linear infinite;
+}
+@keyframes rainbow-slide{ to{ background-position:200% 0; } }
+@media (prefers-reduced-motion: reduce){ .wall-label .new-set{ animation:none; } }
 
 /* Filter drawer */
 .drawer-backdrop{
@@ -463,7 +473,7 @@ table.log-table tbody tr.row-removing{ transition:opacity var(--t-fast) var(--ea
 .friend-card .fc-name{ font-weight:800; font-size:14.5px; }
 .friend-card .fc-meta{ font-size:12px; color:var(--pr-text-soft); }
 .friend-search-row{ display:flex; gap:8px; margin-bottom:14px; }
-.friend-search-row input{ flex:1; }
+.friend-search-row input{ flex:1; min-height:48px; font-size:16px; padding:12px 16px; }
 
 .toast{
   position:fixed; left:50%; bottom:calc(var(--nav-h) + 16px); transform:translateX(-50%);

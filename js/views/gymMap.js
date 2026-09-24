@@ -1,6 +1,6 @@
-import { getRoutes, getAllTags, getCurrentUser, getLogEntries, updateRoute } from "../data/api.js";
+import { getRoutes, getAllTags, getCurrentUser, getLogEntries, updateRoute, getGyms } from "../data/api.js";
 import {
-  HOLD_COLORS, HOLD_COLOR_HEX, HOLD_TYPES, WALL_SECTIONS, MAP_ASPECT_RATIO, MAX_GRADE, formatGrade, routeLabel,
+  HOLD_COLORS, HOLD_COLOR_HEX, HOLD_COLOR_TEXT, HOLD_TYPES, WALL_SECTIONS, MAP_ASPECT_RATIO, MAX_GRADE, formatGrade, routeLabel,
 } from "../data/constants.js";
 import { openRouteDetail } from "./routeDetail.js";
 import { openAddRouteForm } from "../components/addRoute.js";
@@ -102,6 +102,7 @@ function findWallSectionAt(x, y) {
   return hit ? hit.id : null;
 }
 
+const NEW_SET_MS = 7 * 24 * 60 * 60 * 1000;
 const REFRESH_MS = 12000; // keeps the map in sync with routes/votes added from other devices
 
 export function renderGymMap(container, gymId) {
@@ -330,14 +331,17 @@ export function renderGymMap(container, gymId) {
   async function renderCanvasContents({ quiet = false } = {}) {
     let visibleRoutes;
     let completedRouteIds = new Set();
+    let resets = {};
     try {
       const currentUser = getCurrentUser();
-      const [allRoutes, myLog] = await Promise.all([
+      const [allRoutes, myLog, gyms] = await Promise.all([
         getRoutes(gymId),
         currentUser ? getLogEntries(currentUser.id).catch(() => []) : [],
+        getGyms().catch(() => []),
       ]);
       if (destroyed) return;
       completedRouteIds = new Set(myLog.map((e) => e.routeId));
+      resets = gyms.find((g) => g.id === gymId)?.resets || {};
       visibleRoutes = allRoutes.filter(routeMatches);
     } catch (err) {
       if (!quiet) container.querySelector("#result-count").textContent = "Couldn't load routes";
@@ -363,7 +367,8 @@ export function renderGymMap(container, gymId) {
         // right edge and bottom corner, instead of centering on a point.
         left = bounds.maxX - margin; top = bounds.maxY - margin; anchor = "transform:translate(-100%,-100%);";
       }
-      return `<div class="wall-label" style="left:${left}%; top:${top}%; ${anchor}">${escapeHtml(s.name)}</div>`;
+      const isNewSet = resets[s.id] && Date.now() - new Date(resets[s.id]) < NEW_SET_MS;
+      return `<div class="wall-label" style="left:${left}%; top:${top}%; ${anchor}">${isNewSet ? '<span class="new-set">New Set</span>' : ""}${escapeHtml(s.name)}</div>`;
     }).join("");
 
     // Only routes placed inside a wall section ever render as markers; when
@@ -694,7 +699,7 @@ export function renderGymMap(container, gymId) {
           <div class="filter-group">
             <h3>Hold Color</h3>
             <div class="chip-row">
-              ${HOLD_COLORS.map((c) => `<button class="chip ${filters.holdColors.has(c) ? "active" : ""}" data-hold-color="${c}">${c}</button>`).join("")}
+              ${HOLD_COLORS.map((c) => `<button class="chip color-chip ${filters.holdColors.has(c) ? "active" : ""}" data-hold-color="${c}" style="background:${HOLD_COLOR_HEX[c]};color:${HOLD_COLOR_TEXT[c]};">${c}</button>`).join("")}
             </div>
           </div>
 

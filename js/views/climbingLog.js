@@ -1,7 +1,7 @@
 import { getLogEntries, computeUserStats, deleteLogEntry, getCurrentUser } from "../data/api.js";
 import { formatGrade, formatEstimate, HOLD_COLORS, HOLD_TYPES, MAX_GRADE, WALL_SECTIONS } from "../data/constants.js";
 import { formatDate, escapeHtml, monthLabel, clamp } from "../utils.js";
-import { renderBarChart, renderPieChart, renderLineChart, shadesOf } from "../components/charts.js";
+import { renderBarChart, renderRadarChart, renderLineChart, shadesOf } from "../components/charts.js";
 
 const BRAND_RED = "#bf2c37";
 import { openGalleryPrompt } from "../components/gallery.js";
@@ -301,7 +301,7 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
       return;
     }
 
-    // Each of the first four charts toggles bar<->pie independently.
+    // Each of the first four charts toggles bar<->radar independently.
     const chartMode = { grade: "bar", est: "bar", area: "bar", style: "bar" };
 
     const allGradeLabels = stats.gradeDistribution.map((_, g) => `V${g}`);
@@ -323,22 +323,22 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
       </div>
       <div class="charts-grid">
         <div class="card card-pad chart-card">
-          <button class="btn btn-outline btn-sm chart-toggle-btn" data-chart="grade">Pie</button>
+          <button class="btn btn-outline btn-sm chart-toggle-btn" data-chart="grade">Radar</button>
           <h3>Grade Distribution</h3><p>Completed climbs by official grade</p>
           <div class="chart-box"><canvas id="c-grade"></canvas></div>
         </div>
         <div class="card card-pad chart-card">
-          <button class="btn btn-outline btn-sm chart-toggle-btn" data-chart="est">Pie</button>
+          <button class="btn btn-outline btn-sm chart-toggle-btn" data-chart="est">Radar</button>
           <h3>Estimated Grade Distribution</h3><p>Community estimate of routes you've climbed</p>
           <div class="chart-box"><canvas id="c-est"></canvas></div>
         </div>
         <div class="card card-pad chart-card">
-          <button class="btn btn-outline btn-sm chart-toggle-btn" data-chart="area">Pie</button>
+          <button class="btn btn-outline btn-sm chart-toggle-btn" data-chart="area">Radar</button>
           <h3>Climbing Area</h3><p>Climbs by wall section</p>
           <div class="chart-box">${areaLabels.length ? '<canvas id="c-area"></canvas>' : '<div class="empty-state">No area data yet</div>'}</div>
         </div>
         <div class="card card-pad chart-card">
-          <button class="btn btn-outline btn-sm chart-toggle-btn" data-chart="style">Pie</button>
+          <button class="btn btn-outline btn-sm chart-toggle-btn" data-chart="style">Radar</button>
           <h3>Climbing Style Distribution</h3><p>Most common highly-rated tags on your sends</p>
           <div class="chart-box">${styleLabels.length ? '<canvas id="c-style"></canvas>' : '<div class="empty-state">No tag data yet</div>'}</div>
         </div>
@@ -351,35 +351,25 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
 
     function drawGrade() {
       const canvas = body.querySelector("#c-grade");
-      if (chartMode.grade === "pie") {
-        const idx = stats.gradeDistribution.map((v, g) => [g, v]).filter(([, v]) => v > 0);
-        renderPieChart(canvas, idx.map(([g]) => `V${g}`), idx.map(([, v]) => v), shadesOf(BRAND_RED, Math.max(idx.length, 1)));
-      } else {
-        renderBarChart(canvas, allGradeLabels, stats.gradeDistribution, BRAND_RED);
-      }
+      if (chartMode.grade === "radar") renderRadarChart(canvas, allGradeLabels, stats.gradeDistribution, BRAND_RED);
+      else renderBarChart(canvas, allGradeLabels, stats.gradeDistribution, BRAND_RED);
     }
     function drawEst() {
       const canvas = body.querySelector("#c-est");
-      if (chartMode.est === "pie") {
-        const idx = stats.estGradeDistribution.map((v, g) => [g, v]).filter(([, v]) => v > 0);
-        renderPieChart(canvas, idx.map(([g]) => `V${g}`), idx.map(([, v]) => v), shadesOf(BRAND_RED, Math.max(idx.length, 1)));
-      } else {
-        renderBarChart(canvas, allEstLabels, stats.estGradeDistribution, BRAND_RED);
-      }
+      if (chartMode.est === "radar") renderRadarChart(canvas, allEstLabels, stats.estGradeDistribution, BRAND_RED);
+      else renderBarChart(canvas, allEstLabels, stats.estGradeDistribution, BRAND_RED);
     }
     function drawArea() {
       if (!areaLabels.length) return;
       const canvas = body.querySelector("#c-area");
-      const colors = shadesOf(BRAND_RED, areaLabels.length);
-      if (chartMode.area === "pie") renderPieChart(canvas, areaLabels, areaData, colors);
-      else renderBarChart(canvas, areaLabels, areaData, colors);
+      if (chartMode.area === "radar") renderRadarChart(canvas, areaLabels, areaData, BRAND_RED);
+      else renderBarChart(canvas, areaLabels, areaData, shadesOf(BRAND_RED, areaLabels.length));
     }
     function drawStyle() {
       if (!styleLabels.length) return;
       const canvas = body.querySelector("#c-style");
-      const colors = shadesOf(BRAND_RED, styleLabels.length);
-      if (chartMode.style === "pie") renderPieChart(canvas, styleLabels, styleData, colors);
-      else renderBarChart(canvas, styleLabels, styleData, colors);
+      if (chartMode.style === "radar") renderRadarChart(canvas, styleLabels, styleData, BRAND_RED);
+      else renderBarChart(canvas, styleLabels, styleData, shadesOf(BRAND_RED, styleLabels.length));
     }
     const drawers = { grade: drawGrade, est: drawEst, area: drawArea, style: drawStyle };
 
@@ -392,8 +382,8 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
     body.querySelectorAll(".chart-toggle-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         const key = btn.getAttribute("data-chart");
-        chartMode[key] = chartMode[key] === "bar" ? "pie" : "bar";
-        btn.textContent = chartMode[key] === "bar" ? "Pie" : "Bar";
+        chartMode[key] = chartMode[key] === "bar" ? "radar" : "bar";
+        btn.textContent = chartMode[key] === "bar" ? "Radar" : "Bar";
         drawers[key]();
       });
     });

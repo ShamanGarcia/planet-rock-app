@@ -103,7 +103,7 @@ export async function openFullGallery(routeId, label) {
 // an explicit public/private choice — separate from the older "too big to
 // share" auto-private fallback (see localMedia.js), this always goes to the
 // server, just access-controlled by uploader (see get_route_media server-side).
-function openAddMediaForm(routeId, label, { onAdded } = {}) {
+export function openAddMediaForm(routeId, label, { onAdded } = {}) {
   const backdrop = document.createElement("div");
   backdrop.className = "mini-popup-backdrop";
   document.body.appendChild(backdrop);

@@ -3,9 +3,9 @@ import {
   getAcceptedFriends, updateRoute, deleteRoute, getCurrentUser,
 } from "../data/api.js";
 import { formatGrade, formatEstimate, MAX_GRADE, HOLD_COLOR_HEX, HOLD_COLOR_TEXT, routeLabel } from "../data/constants.js";
-import { renderDonutChart } from "../components/charts.js";
+import { renderRadarChart } from "../components/charts.js";
 import { openLogSendSheet } from "../components/logSendSheet.js";
-import { openFullGallery, getCombinedMedia } from "../components/gallery.js";
+import { openFullGallery, getCombinedMedia, openAddMediaForm } from "../components/gallery.js";
 import { openPasswordPromptModal } from "../components/passwordPromptModal.js";
 import { showToast } from "../components/toast.js";
 import { escapeHtml, dismissOverlay } from "../utils.js";
@@ -85,6 +85,7 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
           <div class="grade-badge" style="background:${HOLD_COLOR_HEX[route.holdColor]};color:${HOLD_COLOR_TEXT[route.holdColor]};">
             <div class="g-label">Official Grade</div>
             <div class="g-value">${formatGrade(route.officialGrade)}</div>
+            ${route.holdType ? `<div class="g-label" style="margin-top:2px;">${escapeHtml(route.holdType)}</div>` : ""}
           </div>
           <button type="button" class="grade-badge" id="rd-community-badge" aria-label="View grade distribution">
             <div class="g-label">Community Estimate</div>
@@ -126,7 +127,10 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
           <button class="btn btn-outline btn-sm" id="rd-add-tag-btn">Add</button>
         </div>
 
-        <div class="section-title">Gallery</div>
+        <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
+          Gallery
+          <button class="btn btn-outline btn-sm" id="rd-add-media">Add</button>
+        </div>
         ${media.length ? `
           <div class="gallery-preview-row">
             ${media.slice(0, 4).map((m) => `
@@ -137,7 +141,7 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
             `).join("")}
           </div>
           <button class="btn btn-outline btn-sm btn-block" id="rd-view-gallery" style="margin-top:8px;">View Gallery (${media.length})</button>
-        ` : `<div class="page-sub">No photos or videos yet — attach one next time you log a send.</div>`}
+        ` : `<div class="page-sub">No photos or videos yet.</div>`}
 
         <div class="log-send-bar">
           <button class="btn ${alreadySent ? "btn-success" : "btn-primary"} btn-block" id="rd-log-send" ${!route.active ? "disabled" : ""} style="${alreadySent ? "cursor:default;" : ""}">
@@ -157,6 +161,7 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
     backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
     backdrop.querySelector("#rd-close").addEventListener("click", close);
     backdrop.querySelector("#rd-view-gallery")?.addEventListener("click", () => openFullGallery(routeId, label));
+    backdrop.querySelector("#rd-add-media").addEventListener("click", () => openAddMediaForm(routeId, label, { onAdded: render }));
     backdrop.querySelector("#rd-community-badge").addEventListener("click", () => openGradeDistributionPopup(hasEstimates, gradeDistribution));
 
     backdrop.querySelector("#rd-estimate-form").addEventListener("submit", async (e) => {
@@ -229,7 +234,7 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
     popup.innerHTML = `
       <div class="mini-popup" role="dialog" aria-modal="true" aria-label="Grade distribution">
         <div class="mini-popup-title">Grade Distribution</div>
-        ${hasEstimates ? `<div class="chart-box small"><canvas id="rd-donut-popup"></canvas></div>` : `<div class="empty-state" style="padding:16px;"><div>No community estimate yet</div></div>`}
+        ${hasEstimates ? `<div class="chart-box"><canvas id="rd-radar-popup"></canvas></div>` : `<div class="empty-state" style="padding:16px;"><div>No community estimate yet</div></div>`}
         <button class="btn btn-ghost btn-block" id="rd-dist-close">Close</button>
       </div>
     `;
@@ -237,9 +242,7 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
     popup.querySelector("#rd-dist-close").addEventListener("click", closePopup);
 
     if (hasEstimates) {
-      const labels = gradeDistribution.map((c, g) => `V${g}`).filter((_, g) => gradeDistribution[g] > 0);
-      const data = gradeDistribution.filter((c) => c > 0);
-      renderDonutChart(popup.querySelector("#rd-donut-popup"), labels, data);
+      renderRadarChart(popup.querySelector("#rd-radar-popup"), gradeDistribution.map((_, g) => `V${g}`), gradeDistribution);
     }
   }
 

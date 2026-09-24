@@ -2,15 +2,8 @@
 // index.html). Each render function destroys any prior instance attached to
 // the canvas so re-renders (e.g. after a new vote) don't leak chart objects.
 
-const PALETTE = ["#ff5a1f", "#1e88e5", "#43a047", "#8e24aa", "#fdd835", "#e53935", "#212121", "#6b6f76", "#00897b", "#f4511e", "#5c6bc0"];
-
 // Canvas text doesn't inherit page CSS fonts, so Chart.js needs this set once.
 Chart.defaults.font.family = "W95FA, sans-serif";
-
-// Registered globally (see index.html) but off by default — only the pie
-// chart below turns it on, so existing bar/line/donut charts are unaffected.
-Chart.register(ChartDataLabels);
-Chart.defaults.plugins.datalabels.display = false;
 
 // Generates `n` distinguishable shades of a base hex color by lerping from a
 // light tint toward white down to a dark shade toward black. Used instead of
@@ -37,16 +30,24 @@ function mount(canvas, config) {
   return canvas._chartInstance;
 }
 
-export function renderDonutChart(canvas, labels, data) {
+// `color` must be a 6-digit hex — the fill appends an alpha byte to it.
+export function renderRadarChart(canvas, labels, data, color = "#bf2c37") {
   return mount(canvas, {
-    type: "doughnut",
+    type: "radar",
     data: {
       labels,
-      datasets: [{ data, backgroundColor: labels.map((_, i) => PALETTE[i % PALETTE.length]), borderWidth: 2, borderColor: "#fff" }],
+      datasets: [{ data, borderColor: color, backgroundColor: color + "33", pointBackgroundColor: color, pointRadius: 3, borderWidth: 2 }],
     },
     options: {
       maintainAspectRatio: false,
-      plugins: { legend: { position: "bottom", labels: { boxWidth: 11, font: { size: 11 } } } },
+      plugins: { legend: { display: false } },
+      scales: {
+        r: {
+          beginAtZero: true,
+          ticks: { precision: 0, font: { size: 10 }, backdropColor: "transparent" },
+          pointLabels: { font: { size: 11 } },
+        },
+      },
     },
   });
 }
@@ -79,27 +80,6 @@ export function renderLineChart(canvas, labels, data, color = "#ff5a1f") {
       scales: {
         x: { grid: { display: false }, ticks: { font: { size: 11 } } },
         y: { beginAtZero: true, ticks: { precision: 0, font: { size: 11 } }, grid: { color: "#eee" } },
-      },
-    },
-  });
-}
-
-export function renderPieChart(canvas, labels, data, colors) {
-  return mount(canvas, {
-    type: "pie",
-    data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: "#fff" }] },
-    options: {
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { position: "right", labels: { boxWidth: 11, font: { size: 11 } } },
-        datalabels: {
-          display: true,
-          color: "#fff",
-          font: { size: 11, weight: "700" },
-          textStrokeColor: "rgba(0,0,0,.45)",
-          textStrokeWidth: 3,
-          formatter: (value) => (value > 0 ? value : ""),
-        },
       },
     },
   });

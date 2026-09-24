@@ -1,6 +1,6 @@
 import { createRoute } from "../data/api.js";
 import { saveLocalMedia } from "../data/localMedia.js";
-import { HOLD_COLORS, HOLD_COLOR_HEX, HOLD_TYPES, MAX_GRADE, formatGrade, SHARED_MEDIA_LIMIT_BYTES } from "../data/constants.js";
+import { HOLD_COLORS, HOLD_COLOR_HEX, HOLD_COLOR_TEXT, HOLD_TYPES, MAX_GRADE, formatGrade, SHARED_MEDIA_LIMIT_BYTES } from "../data/constants.js";
 import { escapeHtml, compressImageFile, dataUrlByteSize, dismissOverlay } from "../utils.js";
 import { showToast } from "./toast.js";
 
@@ -68,9 +68,7 @@ export function openAddRouteForm({ gymId, mapX, mapY, wallSection, allTags, onCr
             <label>Hold Color</label>
             <div class="chip-row">
               ${HOLD_COLORS.map((c) => `
-                <button type="button" class="chip ${selectedColor === c ? "active" : ""}" data-color="${c}">
-                  <span class="hold-dot" style="background:${HOLD_COLOR_HEX[c]}"></span>${c}
-                </button>
+                <button type="button" class="chip color-chip ${selectedColor === c ? "active" : ""}" data-color="${c}" style="background:${HOLD_COLOR_HEX[c]};color:${HOLD_COLOR_TEXT[c]};">${c}</button>
               `).join("")}
             </div>
           </div>

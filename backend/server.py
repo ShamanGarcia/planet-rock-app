@@ -1000,6 +1000,9 @@ class Handler(BaseHTTPRequestHandler):
             raise ApiError(403, "Incorrect routesetter key.")
         target_ids = {r["id"] for r in DB["routes"] if r["gymId"] == gym_id and r.get("wallSection") == wall_section}
         purge_routes(target_ids)
+        gym = find(DB["gyms"], id=gym_id)
+        if gym:
+            gym.setdefault("resets", {})[wall_section] = now_iso()
         save_db()
         self._json(200, {"ok": True, "removed": len(target_ids)})
 
