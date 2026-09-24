@@ -68,6 +68,11 @@ def load_db():
             route.pop("name", None)
         for entry in db.get("climbingLog", []):
             entry.get("snapshot", {}).pop("routeName", None)
+        # ponytail: one-off — Arch was reset 2026-09-23, before reset times were
+        # recorded. setdefault never overwrites a real reset; delete after 2026-09-30.
+        for gym in db.get("gyms", []):
+            if gym["id"] == "gym_annarbor":
+                gym.setdefault("resets", {}).setdefault("arch", "2026-09-23T16:00:00+00:00")
         return db
     db = build_seed_data()
     _write_db_to_disk(db)
@@ -267,16 +272,13 @@ def compute_user_stats(user_id):
         if e["estimatedGrade"] is not None:
             est_buckets[round(e["estimatedGrade"])] += 1
 
-    time_map = Counter(e["completedAt"][:7] for e in entries)
-    climbs_over_time = sorted(time_map.items())
-
     favorite_hold_calc = hold_dist.most_common(1)[0][0] if hold_dist else None
 
     return {
         "totalClimbs": total, "highestGrade": highest, "gradeDistribution": grade_dist,
         "holdTypeDistribution": hold_dist, "areaDistribution": area_dist, "styleDistribution": style_dist,
         "favoriteStyleCalculated": favorite_style, "estGradeDistribution": est_buckets,
-        "climbsOverTime": climbs_over_time, "favoriteHoldTypeCalculated": favorite_hold_calc,
+        "favoriteHoldTypeCalculated": favorite_hold_calc,
     }
 
 

@@ -30,12 +30,6 @@ export function formatDateTime(iso) {
   return `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })} · ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
 }
 
-export function monthLabel(key) {
-  const [y, m] = key.split("-");
-  const d = new Date(Number(y), Number(m) - 1, 1);
-  return d.toLocaleDateString(undefined, { month: "short", year: "2-digit" });
-}
-
 // Shared "scroll-snap track with index tracking" wiring for onboarding.js's
 // tour and demoCarousel.js's app-demo strip — both scroll-snap horizontally
 // and need their index kept in sync whether navigation is a button click

@@ -1,9 +1,21 @@
 import { getLogEntries, computeUserStats, deleteLogEntry, getCurrentUser } from "../data/api.js";
 import { formatGrade, formatEstimate, HOLD_COLORS, HOLD_TYPES, MAX_GRADE, WALL_SECTIONS } from "../data/constants.js";
-import { formatDate, escapeHtml, monthLabel, clamp } from "../utils.js";
-import { renderBarChart, renderRadarChart, renderLineChart, shadesOf } from "../components/charts.js";
+import { formatDate, escapeHtml, clamp } from "../utils.js";
+import { renderBarChart, renderRadarChart, renderPieChart, renderLineChart, shadesOf } from "../components/charts.js";
 
 const BRAND_RED = "#bf2c37";
+const NEXT_CHART_MODE = { bar: "radar", radar: "pie", pie: "bar" };
+const CHART_MODE_LABEL = { bar: "Bar", radar: "Radar", pie: "Pie" };
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const WEEKS_PER_WINDOW = 13;
+
+// Local midnight of the Sunday starting the week containing `date`.
+function weekStart(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - d.getDay());
+  return d;
+}
 import { openGalleryPrompt } from "../components/gallery.js";
 import { showToast } from "../components/toast.js";
 
@@ -301,7 +313,7 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
       return;
     }
 
-    // Each of the first four charts toggles bar<->radar independently.
+    // Each of the first four charts cycles bar -> radar -> pie independently.
     const chartMode = { grade: "bar", est: "bar", area: "bar", style: "bar" };
 
     const allGradeLabels = stats.gradeDistribution.map((_, g) => `V${g}`);
@@ -311,8 +323,6 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
     const areaData = areaEntries.map(([, count]) => count);
     const styleLabels = stats.styleDistribution.slice(0, 8).map((s) => s.name);
     const styleData = stats.styleDistribution.slice(0, 8).map((s) => s.count);
-    const timeLabels = stats.climbsOverTime.map(([k]) => monthLabel(k));
-    const timeData = stats.climbsOverTime.map(([, v]) => v);
 
     body.innerHTML = `
       <div class="stats-grid">
@@ -343,50 +353,71 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
           <div class="chart-box">${styleLabels.length ? '<canvas id="c-style"></canvas>' : '<div class="empty-state">No tag data yet</div>'}</div>
         </div>
         <div class="card card-pad chart-card" style="grid-column:1/-1;">
-          <h3>Climbs Over Time</h3><p>Sends logged per month</p>
+          <div style="position:absolute;top:12px;right:12px;display:flex;gap:6px;">
+            <button class="btn btn-outline btn-sm" id="time-prev" aria-label="Previous 3 months">‹</button>
+            <button class="btn btn-outline btn-sm" id="time-next" aria-label="Next 3 months">›</button>
+          </div>
+          <h3>Climbs Over Time</h3><p>Sends per week · <span id="time-range"></span></p>
           <div class="chart-box"><canvas id="c-time"></canvas></div>
         </div>
       </div>
     `;
 
-    function drawGrade() {
-      const canvas = body.querySelector("#c-grade");
-      if (chartMode.grade === "radar") renderRadarChart(canvas, allGradeLabels, stats.gradeDistribution, BRAND_RED);
-      else renderBarChart(canvas, allGradeLabels, stats.gradeDistribution, BRAND_RED);
+    const series = {
+      grade: [allGradeLabels, stats.gradeDistribution],
+      est: [allEstLabels, stats.estGradeDistribution],
+      area: [areaLabels, areaData],
+      style: [styleLabels, styleData],
+    };
+    function draw(key) {
+      const canvas = body.querySelector(`#c-${key}`);
+      if (!canvas) return; // area/style show an empty state instead of a canvas
+      const [labels, data] = series[key];
+      if (chartMode[key] === "radar") return renderRadarChart(canvas, labels, data, BRAND_RED);
+      if (chartMode[key] === "pie") {
+        const keep = data.map((_, i) => i).filter((i) => data[i] > 0);
+        return renderPieChart(canvas, keep.map((i) => labels[i]), keep.map((i) => data[i]), shadesOf(BRAND_RED, Math.max(keep.length, 1)));
+      }
+      const isGrade = key === "grade" || key === "est";
+      renderBarChart(canvas, labels, data, isGrade ? BRAND_RED : shadesOf(BRAND_RED, labels.length));
     }
-    function drawEst() {
-      const canvas = body.querySelector("#c-est");
-      if (chartMode.est === "radar") renderRadarChart(canvas, allEstLabels, stats.estGradeDistribution, BRAND_RED);
-      else renderBarChart(canvas, allEstLabels, stats.estGradeDistribution, BRAND_RED);
-    }
-    function drawArea() {
-      if (!areaLabels.length) return;
-      const canvas = body.querySelector("#c-area");
-      if (chartMode.area === "radar") renderRadarChart(canvas, areaLabels, areaData, BRAND_RED);
-      else renderBarChart(canvas, areaLabels, areaData, shadesOf(BRAND_RED, areaLabels.length));
-    }
-    function drawStyle() {
-      if (!styleLabels.length) return;
-      const canvas = body.querySelector("#c-style");
-      if (chartMode.style === "radar") renderRadarChart(canvas, styleLabels, styleData, BRAND_RED);
-      else renderBarChart(canvas, styleLabels, styleData, shadesOf(BRAND_RED, styleLabels.length));
-    }
-    const drawers = { grade: drawGrade, est: drawEst, area: drawArea, style: drawStyle };
-
-    drawGrade();
-    drawEst();
-    drawArea();
-    drawStyle();
-    renderLineChart(body.querySelector("#c-time"), timeLabels, timeData, "#43a047");
+    Object.keys(series).forEach(draw);
 
     body.querySelectorAll(".chart-toggle-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         const key = btn.getAttribute("data-chart");
-        chartMode[key] = chartMode[key] === "bar" ? "radar" : "bar";
-        btn.textContent = chartMode[key] === "bar" ? "Radar" : "Bar";
-        drawers[key]();
+        chartMode[key] = NEXT_CHART_MODE[chartMode[key]];
+        btn.textContent = CHART_MODE_LABEL[NEXT_CHART_MODE[chartMode[key]]];
+        draw(key);
       });
     });
+
+    // Weekly counts in 13-week (~3 month) windows; timeOffset counts whole
+    // windows back from the one ending this week.
+    let timeOffset = 0;
+    const earliest = allEntries.length ? weekStart(allEntries.reduce((m, e) => (e.completedAt < m ? e.completedAt : m), allEntries[0].completedAt)) : null;
+    function drawTime() {
+      const weeks = Array.from({ length: WEEKS_PER_WINDOW }, (_, i) => {
+        const d = weekStart(new Date());
+        d.setDate(d.getDate() - 7 * (timeOffset * WEEKS_PER_WINDOW + WEEKS_PER_WINDOW - 1 - i));
+        return d;
+      });
+      const counts = weeks.map(() => 0);
+      allEntries.forEach((e) => {
+        // Rounding absorbs the ±1h a DST change adds to a week's length.
+        const i = Math.round((weekStart(e.completedAt) - weeks[0]) / WEEK_MS);
+        if (i >= 0 && i < WEEKS_PER_WINDOW) counts[i] += 1;
+      });
+      renderLineChart(body.querySelector("#c-time"), weeks.map((w) => `${w.getMonth() + 1}/${w.getDate()}`), counts, "#43a047");
+      const lastDay = new Date(weeks[WEEKS_PER_WINDOW - 1]);
+      lastDay.setDate(lastDay.getDate() + 6);
+      body.querySelector("#time-range").textContent = `${formatDate(weeks[0])} – ${formatDate(lastDay)}`;
+      body.querySelector("#time-next").disabled = timeOffset === 0;
+      body.querySelector("#time-prev").disabled = !earliest || weeks[0] <= earliest;
+    }
+    drawTime();
+    body.querySelector("#time-prev").addEventListener("click", () => { timeOffset += 1; drawTime(); });
+    body.querySelector("#time-next").addEventListener("click", () => { timeOffset -= 1; drawTime(); });
   }
 
   render();

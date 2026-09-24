@@ -30,6 +30,17 @@ function mount(canvas, config) {
   return canvas._chartInstance;
 }
 
+export function renderPieChart(canvas, labels, data, colors) {
+  return mount(canvas, {
+    type: "pie",
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: "#fff" }] },
+    options: {
+      maintainAspectRatio: false,
+      plugins: { legend: { position: "right", labels: { boxWidth: 11, font: { size: 11 } } } },
+    },
+  });
+}
+
 // `color` must be a 6-digit hex — the fill appends an alpha byte to it.
 export function renderRadarChart(canvas, labels, data, color = "#bf2c37") {
   return mount(canvas, {
