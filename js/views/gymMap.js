@@ -60,9 +60,11 @@ const MIN_SCALE = 0.25;
 const MAX_SCALE = 3.5;
 
 const defaultFilters = () => ({
-  officialGrades: new Set(),
+  gradeMin: 0,
+  gradeMax: MAX_GRADE,
   estMin: 0,
   estMax: MAX_GRADE,
+  completion: new Set(), // "completed" | "uncompleted"
   holdTypes: new Set(),
   holdColors: new Set(),
   tagIds: new Set(),
@@ -71,7 +73,9 @@ let filters = defaultFilters();
 
 function isFilterActive() {
   return (
-    filters.officialGrades.size > 0 ||
+    filters.gradeMin !== 0 ||
+    filters.gradeMax !== MAX_GRADE ||
+    filters.completion.size > 0 ||
     filters.holdTypes.size > 0 ||
     filters.holdColors.size > 0 ||
     filters.tagIds.size > 0 ||
@@ -80,9 +84,13 @@ function isFilterActive() {
   );
 }
 
-function routeMatches(route) {
-  if (filters.officialGrades.size > 0) {
-    if (route.officialGrade === null || !filters.officialGrades.has(route.officialGrade)) return false;
+function routeMatches(route, completedRouteIds) {
+  if (filters.gradeMin !== 0 || filters.gradeMax !== MAX_GRADE) {
+    const g = route.officialGrade;
+    if (g === null || g < filters.gradeMin || g > filters.gradeMax) return false;
+  }
+  if (filters.completion.size > 0) {
+    if (!filters.completion.has(completedRouteIds.has(route.id) ? "completed" : "uncompleted")) return false;
   }
   if (filters.estMin !== 0 || filters.estMax !== MAX_GRADE) {
     const est = route.communityGrade;
@@ -95,6 +103,46 @@ function routeMatches(route) {
   if (filters.holdColors.size > 0 && !filters.holdColors.has(route.holdColor)) return false;
   if (filters.tagIds.size > 0 && !route.tags.some((t) => filters.tagIds.has(t))) return false;
   return true;
+}
+
+// Two-handle V-grade slider: two native range inputs stacked on one track,
+// only their thumbs take pointer events (see .range-slider in styles.css).
+function rangeSliderHTML(key, label, lo, hi) {
+  const marks = Array.from({ length: MAX_GRADE + 1 }, (_, g) =>
+    `<span style="left:${(g / MAX_GRADE) * 100}%">V${g}</span>`).join("");
+  return `
+    <div class="range-slider" data-range="${key}">
+      <div class="range-value"></div>
+      <div class="range-body">
+        <div class="range-track"><div class="range-fill"></div></div>
+        <input type="range" min="0" max="${MAX_GRADE}" step="1" value="${lo}" aria-label="Minimum ${label}">
+        <input type="range" min="0" max="${MAX_GRADE}" step="1" value="${hi}" aria-label="Maximum ${label}">
+      </div>
+      <div class="range-marks">${marks}</div>
+    </div>`;
+}
+
+// Live-updates the fill/label while dragging; onCommit only fires on release
+// so the map doesn't refetch on every step.
+function wireRangeSlider(el, onCommit) {
+  const [loIn, hiIn] = el.querySelectorAll("input");
+  const fill = el.querySelector(".range-fill");
+  const valueEl = el.querySelector(".range-value");
+  function sync(moved) {
+    let lo = Number(loIn.value), hi = Number(hiIn.value);
+    if (lo > hi) {
+      if (moved === loIn) { hi = lo; hiIn.value = hi; } else { lo = hi; loIn.value = lo; }
+    }
+    fill.style.left = `${(lo / MAX_GRADE) * 100}%`;
+    fill.style.right = `${100 - (hi / MAX_GRADE) * 100}%`;
+    valueEl.textContent = lo === hi ? `V${lo}` : `V${lo} – V${hi}`;
+    return [lo, hi];
+  }
+  [loIn, hiIn].forEach((input) => {
+    input.addEventListener("input", () => sync(input));
+    input.addEventListener("change", () => onCommit(...sync(input)));
+  });
+  sync();
 }
 
 function findWallSectionAt(x, y) {
@@ -342,7 +390,7 @@ export function renderGymMap(container, gymId) {
       if (destroyed) return;
       completedRouteIds = new Set(myLog.map((e) => e.routeId));
       resets = gyms.find((g) => g.id === gymId)?.resets || {};
-      visibleRoutes = allRoutes.filter(routeMatches);
+      visibleRoutes = allRoutes.filter((r) => routeMatches(r, completedRouteIds));
     } catch (err) {
       if (!quiet) container.querySelector("#result-count").textContent = "Couldn't load routes";
       return;
@@ -669,24 +717,21 @@ export function renderGymMap(container, gymId) {
           <div class="drawer-header"><h2>Filter Routes</h2><button class="icon-btn" style="background:#efece5;color:#1b1d21" id="fd-close">X</button></div>
 
           <div class="filter-group">
-            <h3>Official Grade</h3>
+            <h3>Status</h3>
             <div class="chip-row">
-              ${Array.from({ length: MAX_GRADE + 1 }, (_, g) => `
-                <button class="chip ${filters.officialGrades.has(g) ? "active" : ""}" data-grade="${g}">V${g}</button>
-              `).join("")}
+              <button class="chip ${filters.completion.has("completed") ? "active" : ""}" data-completion="completed">Completed</button>
+              <button class="chip ${filters.completion.has("uncompleted") ? "active" : ""}" data-completion="uncompleted">Not Completed</button>
             </div>
           </div>
 
           <div class="filter-group">
+            <h3>Official Grade</h3>
+            ${rangeSliderHTML("grade", "official grade", filters.gradeMin, filters.gradeMax)}
+          </div>
+
+          <div class="filter-group">
             <h3>Community Estimate Range</h3>
-            <div class="form-row">
-              <div class="field"><label>From</label>
-                <select id="est-min">${Array.from({ length: MAX_GRADE + 1 }, (_, g) => `<option value="${g}" ${filters.estMin === g ? "selected" : ""}>V${g}</option>`).join("")}</select>
-              </div>
-              <div class="field"><label>To</label>
-                <select id="est-max">${Array.from({ length: MAX_GRADE + 1 }, (_, g) => `<option value="${g}" ${filters.estMax === g ? "selected" : ""}>V${g}</option>`).join("")}</select>
-              </div>
-            </div>
+            ${rangeSliderHTML("est", "community estimate", filters.estMin, filters.estMax)}
           </div>
 
           <div class="filter-group">
@@ -718,11 +763,17 @@ export function renderGymMap(container, gymId) {
       backdrop.querySelector("#fd-done").addEventListener("click", close);
       backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
 
-      backdrop.querySelectorAll("[data-grade]").forEach((btn) => btn.addEventListener("click", () => {
-        const g = Number(btn.getAttribute("data-grade"));
-        filters.officialGrades.has(g) ? filters.officialGrades.delete(g) : filters.officialGrades.add(g);
+      backdrop.querySelectorAll("[data-completion]").forEach((btn) => btn.addEventListener("click", () => {
+        const c = btn.getAttribute("data-completion");
+        filters.completion.has(c) ? filters.completion.delete(c) : filters.completion.add(c);
         onApply(); renderDrawer();
       }));
+      wireRangeSlider(backdrop.querySelector('[data-range="grade"]'), (lo, hi) => {
+        filters.gradeMin = lo; filters.gradeMax = hi; onApply();
+      });
+      wireRangeSlider(backdrop.querySelector('[data-range="est"]'), (lo, hi) => {
+        filters.estMin = lo; filters.estMax = hi; onApply();
+      });
       backdrop.querySelectorAll("[data-hold-type]").forEach((btn) => btn.addEventListener("click", () => {
         const t = btn.getAttribute("data-hold-type");
         filters.holdTypes.has(t) ? filters.holdTypes.delete(t) : filters.holdTypes.add(t);
@@ -738,16 +789,6 @@ export function renderGymMap(container, gymId) {
         filters.tagIds.has(t) ? filters.tagIds.delete(t) : filters.tagIds.add(t);
         onApply(); renderDrawer();
       }));
-      backdrop.querySelector("#est-min").addEventListener("change", (e) => {
-        filters.estMin = Number(e.target.value);
-        if (filters.estMin > filters.estMax) filters.estMax = filters.estMin;
-        onApply(); renderDrawer();
-      });
-      backdrop.querySelector("#est-max").addEventListener("change", (e) => {
-        filters.estMax = Number(e.target.value);
-        if (filters.estMax < filters.estMin) filters.estMin = filters.estMax;
-        onApply(); renderDrawer();
-      });
     }
 
     renderDrawer();
