@@ -3,7 +3,7 @@ import { renderGymMap } from "./views/gymMap.js";
 import { renderClimbingLog } from "./views/climbingLog.js";
 import { renderProfile } from "./views/profile.js";
 import { renderFriends } from "./views/friends.js";
-import { renderAdmin } from "./views/admin.js";
+import { renderAdmin, renderAdminUserLog } from "./views/admin.js";
 import { isAdminUnlocked } from "./adminAuth.js";
 import { initials } from "./utils.js";
 
@@ -93,7 +93,8 @@ export async function renderShell(root) {
       result = renderProfile(contentArea);
     } else if (hash.startsWith("#/admin")) {
       if (!isAdminUnlocked()) { location.hash = "#/map"; return; }
-      result = renderAdmin(contentArea);
+      const logMatch = hash.match(/^#\/admin\/users\/([^/]+)\/log$/);
+      result = logMatch ? renderAdminUserLog(contentArea, logMatch[1]) : renderAdmin(contentArea);
     } else {
       result = renderGymMap(contentArea, activeGymId);
     }

@@ -1,6 +1,6 @@
 import { getLogEntries, computeUserStats, deleteLogEntry, getCurrentUser } from "../data/api.js";
 import { formatGrade, formatEstimate, HOLD_COLORS, HOLD_TYPES, MAX_GRADE, WALL_SECTIONS } from "../data/constants.js";
-import { formatDate, escapeHtml, clamp } from "../utils.js";
+import { formatDate, escapeHtml, clamp, weekStart } from "../utils.js";
 import { renderBarChart, renderRadarChart, renderPieChart, renderLineChart, shadesOf } from "../components/charts.js";
 
 const BRAND_RED = "#bf2c37";
@@ -8,14 +8,6 @@ const NEXT_CHART_MODE = { bar: "radar", radar: "pie", pie: "bar" };
 const CHART_MODE_LABEL = { bar: "Bar", radar: "Radar", pie: "Pie" };
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const WEEKS_PER_WINDOW = 13;
-
-// Local midnight of the Sunday starting the week containing `date`.
-function weekStart(date) {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() - d.getDay());
-  return d;
-}
 import { openGalleryPrompt } from "../components/gallery.js";
 import { showToast } from "../components/toast.js";
 
@@ -41,7 +33,7 @@ function areaLabel(entry) {
   return wallSectionName(routeData(entry).wallSection) || "—";
 }
 
-export function renderClimbingLog(container, userId, { title = "Climbing Log", canGoBack = false, backHash = "#/friends" } = {}) {
+export function renderClimbingLog(container, userId, { title = "Climbing Log", canGoBack = false, backHash = "#/friends", adminPassword } = {}) {
   const isOwn = getCurrentUser()?.id === userId;
   let mode = "table";
   let sortField = "completedAt";
@@ -86,7 +78,7 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
 
   async function load() {
     try {
-      allEntries = await getLogEntries(userId);
+      allEntries = await getLogEntries(userId, adminPassword);
       loadError = null;
     } catch (err) {
       loadError = err.message;
@@ -303,7 +295,7 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
     body.innerHTML = `<div class="empty-state card">Loading stats…</div>`;
     let stats;
     try {
-      stats = await computeUserStats(userId);
+      stats = await computeUserStats(userId, adminPassword);
     } catch (err) {
       body.innerHTML = `<div class="empty-state card">${escapeHtml(err.message)}</div>`;
       return;

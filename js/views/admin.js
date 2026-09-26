@@ -1,17 +1,46 @@
 import {
   getAllTags, deleteRoute, adminListUsers, adminDeleteUser, adminDeleteTag, getAllRoutesForAdmin,
+  adminGetStats, getUser,
 } from "../data/api.js";
 import { HOLD_COLORS, HOLD_COLOR_HEX, WALL_SECTIONS, MAX_GRADE, formatGrade } from "../data/constants.js";
-import { formatDate, escapeHtml, dismissOverlay } from "../utils.js";
+import { formatDate, escapeHtml, dismissOverlay, weekStart } from "../utils.js";
 import { openPasswordPromptModal } from "../components/passwordPromptModal.js";
 import { showToast } from "../components/toast.js";
+import { renderLineChart } from "../components/charts.js";
+import { renderClimbingLog } from "./climbingLog.js";
 import { ADMIN_PASSWORD } from "../adminAuth.js";
 
 // Mirrors backend/server.py's ADMIN_DELETE_PASSWORD.
 const ADMIN_DELETE_PASSWORD = "GETOUT!";
 
+// Cumulative registered-user count at the end of each week, first signup -> now.
+function usersOverTime(signupDates) {
+  const labels = [], data = [];
+  if (!signupDates.length) return { labels, data };
+  const last = weekStart(new Date());
+  for (const w = weekStart(signupDates[0]); w <= last; w.setDate(w.getDate() + 7)) {
+    const end = new Date(w);
+    end.setDate(end.getDate() + 7);
+    labels.push(`${w.getMonth() + 1}/${w.getDate()}`);
+    data.push(signupDates.filter((d) => new Date(d) < end).length);
+  }
+  return { labels, data };
+}
+
+// Read-only view of any user's log, reached from the Users tab's user popup.
+export function renderAdminUserLog(container, userId) {
+  (async () => {
+    let name = "User";
+    try { name = (await getUser(userId)).name; } catch { /* fall back to a generic title */ }
+    renderClimbingLog(container, userId, {
+      title: `${name}'s Climbing Log`, canGoBack: true, backHash: "#/admin", adminPassword: ADMIN_PASSWORD,
+    });
+  })();
+}
+
 export function renderAdmin(container) {
   let tab = "users"; // "users" | "tags" | "climbs"
+  let dashStats = null;
   let users = null;
   let tags = null;
   let routes = null;
@@ -27,6 +56,7 @@ export function renderAdmin(container) {
     container.innerHTML = `
       <div class="page">
         <div class="page-header"><h1>Admin</h1></div>
+        <div id="admin-dash"></div>
         <div class="mode-toggle" style="margin-bottom:14px;">
           <button type="button" class="${tab === "users" ? "active" : ""}" data-tab="users">Users</button>
           <button type="button" class="${tab === "tags" ? "active" : ""}" data-tab="tags">Tags</button>
@@ -39,10 +69,35 @@ export function renderAdmin(container) {
       tab = btn.getAttribute("data-tab");
       render();
     }));
+    renderDashboard(container.querySelector("#admin-dash"));
     const body = container.querySelector("#admin-body");
     if (tab === "users") await renderUsersTab(body);
     else if (tab === "tags") await renderTagsTab(body);
     else await renderClimbsTab(body);
+  }
+
+  // ---------- Dashboard ----------
+  async function renderDashboard(el) {
+    if (!dashStats) {
+      try { dashStats = await adminGetStats(ADMIN_PASSWORD); }
+      catch { showToast("Couldn't load dashboard"); return; }
+    }
+    const s = dashStats;
+    const tile = (value, label) => `<div class="card stat-tile"><div class="stat-value">${value}</div><div class="stat-label">${label}</div></div>`;
+    el.innerHTML = `
+      <div class="stats-grid">
+        ${tile(s.totalUsers, "Total Users")}
+        ${tile(s.usersThisWeek, "New Users (7 days)")}
+        ${tile(s.totalSends, "Total Sends")}
+        ${tile(s.sendsThisWeek, "Sends (7 days)")}
+      </div>
+      <div class="card card-pad chart-card" style="margin-bottom:16px;">
+        <h3>Users Over Time</h3><p>Total registered users, by week</p>
+        <div class="chart-box"><canvas id="dash-users-chart"></canvas></div>
+      </div>
+    `;
+    const { labels, data } = usersOverTime(s.signupDates);
+    renderLineChart(el.querySelector("#dash-users-chart"), labels, data, "#bf2c37");
   }
 
   // ---------- Users ----------
@@ -98,12 +153,17 @@ export function renderAdmin(container) {
           <div class="info-row"><span class="k">Email</span><span class="v">${escapeHtml(user.email)}</span></div>
           <div class="info-row"><span class="k">Registered</span><span class="v">${formatDate(user.createdAt)}</span></div>
         </div>
-        <button class="btn btn-danger btn-block" id="ud-delete-btn" style="margin-top:12px;">Delete Account</button>
+        <button class="btn btn-outline btn-block" id="ud-log-btn" style="margin-top:12px;">View Climbing Log</button>
+        <button class="btn btn-danger btn-block" id="ud-delete-btn">Delete Account</button>
         <button class="btn btn-ghost btn-block" id="ud-close-btn">Close</button>
       </div>
     `;
     backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
     backdrop.querySelector("#ud-close-btn").addEventListener("click", close);
+    backdrop.querySelector("#ud-log-btn").addEventListener("click", () => {
+      close();
+      location.hash = `#/admin/users/${user.id}/log`;
+    });
     backdrop.querySelector("#ud-delete-btn").addEventListener("click", () => {
       openPasswordPromptModal({
         title: "Delete Account",
@@ -114,6 +174,7 @@ export function renderAdmin(container) {
         onConfirm: async (pw) => {
           await adminDeleteUser(user.id, pw);
           users = users.filter((u) => u.id !== user.id);
+          dashStats = null; // user + send counts just changed
           showToast("Account deleted");
           close();
           render();

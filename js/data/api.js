@@ -169,16 +169,18 @@ export async function updateUser(id, patch) {
   return user;
 }
 
-export function getLogEntries(userId) {
-  return request("GET", `/api/users/${userId}/log`);
+const adminQuery = (adminPassword) => (adminPassword ? `?adminPassword=${encodeURIComponent(adminPassword)}` : "");
+
+export function getLogEntries(userId, adminPassword) {
+  return request("GET", `/api/users/${userId}/log${adminQuery(adminPassword)}`);
 }
 
 export function deleteLogEntry(logId) {
   return request("DELETE", `/api/log/${logId}`);
 }
 
-export function computeUserStats(userId) {
-  return request("GET", `/api/users/${userId}/stats`);
+export function computeUserStats(userId, adminPassword) {
+  return request("GET", `/api/users/${userId}/stats${adminQuery(adminPassword)}`);
 }
 
 export function searchUsers(query) {
@@ -226,6 +228,9 @@ export async function relationshipWith(otherUserId) {
 
 export function adminListUsers(password) {
   return request("GET", `/api/admin/users?password=${encodeURIComponent(password)}`);
+}
+export function adminGetStats(password) {
+  return request("GET", `/api/admin/stats?password=${encodeURIComponent(password)}`);
 }
 
 export function adminDeleteUser(userId, password) {

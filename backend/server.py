@@ -25,7 +25,7 @@ import threading
 import time
 import uuid
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -615,13 +615,13 @@ class Handler(BaseHTTPRequestHandler):
 
         m = re.match(r"^/api/users/([^/]+)/log$", path)
         if method == "GET" and m:
-            return self._user_log(m.group(1))
+            return self._user_log(m.group(1), qs.get("adminPassword"))
         m = re.match(r"^/api/log/([^/]+)$", path)
         if method == "DELETE" and m:
             return self._delete_log_entry(m.group(1))
         m = re.match(r"^/api/users/([^/]+)/stats$", path)
         if method == "GET" and m:
-            return self._user_stats(m.group(1))
+            return self._user_stats(m.group(1), qs.get("adminPassword"))
         if path == "/api/users/search" and method == "GET":
             return self._search_users(qs.get("q", ""))
         m = re.match(r"^/api/users/([^/]+)$", path)
@@ -645,6 +645,8 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/admin/users" and method == "GET":
             return self._admin_list_users(qs.get("password", ""))
+        if path == "/api/admin/stats" and method == "GET":
+            return self._admin_stats(qs.get("password", ""))
         m = re.match(r"^/api/admin/users/([^/]+)$", path)
         if method == "DELETE" and m:
             return self._admin_delete_user(m.group(1))
@@ -972,10 +974,11 @@ class Handler(BaseHTTPRequestHandler):
             return True
         return False
 
-    def _user_log(self, user_id):
+    def _user_log(self, user_id, admin_password=None):
         _, viewer = self._auth(required=False)
         target = find(DB["users"], id=user_id)
-        if not self._can_view_log(target, viewer):
+        is_admin = viewer and admin_password == ADMIN_PASSWORD
+        if not target or not (is_admin or self._can_view_log(target, viewer)):
             raise ApiError(403, "This climbing log is not available to view.")
         self._json(200, get_log_entries(user_id))
 
@@ -1008,13 +1011,14 @@ class Handler(BaseHTTPRequestHandler):
         save_db()
         self._json(200, {"ok": True, "removed": len(target_ids)})
 
-    def _user_stats(self, user_id):
+    def _user_stats(self, user_id, admin_password=None):
         _, viewer = self._auth(required=False)
         target = find(DB["users"], id=user_id)
         if not target:
             raise ApiError(404, "User not found.")
         allowed = (viewer and viewer["id"] == user_id) or target["privacy"]["profilePublic"] or \
-                  (viewer and relationship(viewer["id"], user_id) == "accepted")
+                  (viewer and relationship(viewer["id"], user_id) == "accepted") or \
+                  (viewer and admin_password == ADMIN_PASSWORD)
         if not allowed:
             raise ApiError(403, "This profile is private.")
         self._json(200, compute_user_stats(user_id))
@@ -1091,6 +1095,23 @@ class Handler(BaseHTTPRequestHandler):
         if password != ADMIN_PASSWORD:
             raise ApiError(403, "Incorrect admin password.")
         self._json(200, [public_user(u) for u in DB["users"]])
+
+    def _admin_stats(self, password):
+        self._auth()
+        if password != ADMIN_PASSWORD:
+            raise ApiError(403, "Incorrect admin password.")
+        week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+
+        def recent(iso):
+            return datetime.fromisoformat(iso.replace("Z", "+00:00")) >= week_ago
+
+        self._json(200, {
+            "totalUsers": len(DB["users"]),
+            "usersThisWeek": sum(recent(u["createdAt"]) for u in DB["users"]),
+            "totalSends": len(DB["climbingLog"]),
+            "sendsThisWeek": sum(recent(l["completedAt"]) for l in DB["climbingLog"]),
+            "signupDates": sorted(u["createdAt"] for u in DB["users"]),
+        })
 
     def _admin_delete_user(self, user_id):
         self._auth()
