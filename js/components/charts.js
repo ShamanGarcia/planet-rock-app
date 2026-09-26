@@ -83,7 +83,8 @@ export function renderLineChart(canvas, labels, data, color = "#ff5a1f") {
     type: "line",
     data: {
       labels,
-      datasets: [{ data, borderColor: color, backgroundColor: color + "33", fill: true, tension: 0.35, pointRadius: 3 }],
+      // monotone: smoothing never overshoots, so flat stretches don't draw fake dips
+      datasets: [{ data, borderColor: color, backgroundColor: color + "33", fill: true, cubicInterpolationMode: "monotone", pointRadius: 3 }],
     },
     options: {
       maintainAspectRatio: false,

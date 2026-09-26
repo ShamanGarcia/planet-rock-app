@@ -1,13 +1,12 @@
 import { getLogEntries, computeUserStats, deleteLogEntry, getCurrentUser } from "../data/api.js";
 import { formatGrade, formatEstimate, HOLD_COLORS, HOLD_TYPES, MAX_GRADE, WALL_SECTIONS } from "../data/constants.js";
-import { formatDate, escapeHtml, clamp, weekStart } from "../utils.js";
+import { formatDate, escapeHtml, clamp, weekStart, weekWindow, weekWindowLabel, WEEKS_PER_WINDOW } from "../utils.js";
 import { renderBarChart, renderRadarChart, renderPieChart, renderLineChart, shadesOf } from "../components/charts.js";
 
 const BRAND_RED = "#bf2c37";
 const NEXT_CHART_MODE = { bar: "radar", radar: "pie", pie: "bar" };
 const CHART_MODE_LABEL = { bar: "Bar", radar: "Radar", pie: "Pie" };
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-const WEEKS_PER_WINDOW = 13;
 import { openGalleryPrompt } from "../components/gallery.js";
 import { showToast } from "../components/toast.js";
 
@@ -389,11 +388,7 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
     let timeOffset = 0;
     const earliest = allEntries.length ? weekStart(allEntries.reduce((m, e) => (e.completedAt < m ? e.completedAt : m), allEntries[0].completedAt)) : null;
     function drawTime() {
-      const weeks = Array.from({ length: WEEKS_PER_WINDOW }, (_, i) => {
-        const d = weekStart(new Date());
-        d.setDate(d.getDate() - 7 * (timeOffset * WEEKS_PER_WINDOW + WEEKS_PER_WINDOW - 1 - i));
-        return d;
-      });
+      const weeks = weekWindow(timeOffset);
       const counts = weeks.map(() => 0);
       allEntries.forEach((e) => {
         // Rounding absorbs the ±1h a DST change adds to a week's length.
@@ -401,9 +396,7 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
         if (i >= 0 && i < WEEKS_PER_WINDOW) counts[i] += 1;
       });
       renderLineChart(body.querySelector("#c-time"), weeks.map((w) => `${w.getMonth() + 1}/${w.getDate()}`), counts, "#43a047");
-      const lastDay = new Date(weeks[WEEKS_PER_WINDOW - 1]);
-      lastDay.setDate(lastDay.getDate() + 6);
-      body.querySelector("#time-range").textContent = `${formatDate(weeks[0])} – ${formatDate(lastDay)}`;
+      body.querySelector("#time-range").textContent = weekWindowLabel(weeks);
       body.querySelector("#time-next").disabled = timeOffset === 0;
       body.querySelector("#time-prev").disabled = !earliest || weeks[0] <= earliest;
     }

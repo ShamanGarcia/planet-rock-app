@@ -3,7 +3,7 @@ import {
   adminGetStats, getUser,
 } from "../data/api.js";
 import { HOLD_COLORS, HOLD_COLOR_HEX, WALL_SECTIONS, MAX_GRADE, formatGrade } from "../data/constants.js";
-import { formatDate, escapeHtml, dismissOverlay, weekStart } from "../utils.js";
+import { formatDate, escapeHtml, dismissOverlay, weekStart, weekWindow, weekWindowLabel } from "../utils.js";
 import { openPasswordPromptModal } from "../components/passwordPromptModal.js";
 import { showToast } from "../components/toast.js";
 import { renderLineChart } from "../components/charts.js";
@@ -12,20 +12,6 @@ import { ADMIN_PASSWORD } from "../adminAuth.js";
 
 // Mirrors backend/server.py's ADMIN_DELETE_PASSWORD.
 const ADMIN_DELETE_PASSWORD = "GETOUT!";
-
-// Cumulative registered-user count at the end of each week, first signup -> now.
-function usersOverTime(signupDates) {
-  const labels = [], data = [];
-  if (!signupDates.length) return { labels, data };
-  const last = weekStart(new Date());
-  for (const w = weekStart(signupDates[0]); w <= last; w.setDate(w.getDate() + 7)) {
-    const end = new Date(w);
-    end.setDate(end.getDate() + 7);
-    labels.push(`${w.getMonth() + 1}/${w.getDate()}`);
-    data.push(signupDates.filter((d) => new Date(d) < end).length);
-  }
-  return { labels, data };
-}
 
 // Read-only view of any user's log, reached from the Users tab's user popup.
 export function renderAdminUserLog(container, userId) {
@@ -41,6 +27,7 @@ export function renderAdminUserLog(container, userId) {
 export function renderAdmin(container) {
   let tab = "users"; // "users" | "tags" | "climbs"
   let dashStats = null;
+  let usersOffset = 0; // 3-month windows back from now; kept across tab switches
   let users = null;
   let tags = null;
   let routes = null;
@@ -92,12 +79,31 @@ export function renderAdmin(container) {
         ${tile(s.sendsThisWeek, "Sends (7 days)")}
       </div>
       <div class="card card-pad chart-card" style="margin-bottom:16px;">
-        <h3>Users Over Time</h3><p>Total registered users, by week</p>
+        <div style="position:absolute;top:12px;right:12px;display:flex;gap:6px;">
+          <button class="btn btn-outline btn-sm" id="users-prev" aria-label="Previous 3 months">‹</button>
+          <button class="btn btn-outline btn-sm" id="users-next" aria-label="Next 3 months">›</button>
+        </div>
+        <h3>Users Over Time</h3><p>Total registered users, by week · <span id="users-range"></span></p>
         <div class="chart-box"><canvas id="dash-users-chart"></canvas></div>
       </div>
     `;
-    const { labels, data } = usersOverTime(s.signupDates);
-    renderLineChart(el.querySelector("#dash-users-chart"), labels, data, "#bf2c37");
+    const firstWeek = s.signupDates.length ? weekStart(s.signupDates[0]) : null;
+    function drawUsers() {
+      const weeks = weekWindow(usersOffset);
+      // Cumulative: every signup before the end of each week.
+      const totals = weeks.map((w) => {
+        const end = new Date(w);
+        end.setDate(end.getDate() + 7);
+        return s.signupDates.filter((d) => new Date(d) < end).length;
+      });
+      renderLineChart(el.querySelector("#dash-users-chart"), weeks.map((w) => `${w.getMonth() + 1}/${w.getDate()}`), totals, "#bf2c37");
+      el.querySelector("#users-range").textContent = weekWindowLabel(weeks);
+      el.querySelector("#users-next").disabled = usersOffset === 0;
+      el.querySelector("#users-prev").disabled = !firstWeek || weeks[0] <= firstWeek;
+    }
+    drawUsers();
+    el.querySelector("#users-prev").addEventListener("click", () => { usersOffset += 1; drawUsers(); });
+    el.querySelector("#users-next").addEventListener("click", () => { usersOffset -= 1; drawUsers(); });
   }
 
   // ---------- Users ----------

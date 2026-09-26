@@ -33,6 +33,25 @@ export function weekStart(date) {
   return d;
 }
 
+export const WEEKS_PER_WINDOW = 13; // ~3 months
+
+// The week-starts of the 13-week window `offset` windows back from the one
+// ending this week (offset 0 = the most recent 3 months).
+export function weekWindow(offset) {
+  return Array.from({ length: WEEKS_PER_WINDOW }, (_, i) => {
+    const d = weekStart(new Date());
+    d.setDate(d.getDate() - 7 * (offset * WEEKS_PER_WINDOW + WEEKS_PER_WINDOW - 1 - i));
+    return d;
+  });
+}
+
+// "Jun 28, 2026 – Sep 26, 2026" for a weekWindow() result.
+export function weekWindowLabel(weeks) {
+  const lastDay = new Date(weeks[weeks.length - 1]);
+  lastDay.setDate(lastDay.getDate() + 6);
+  return `${formatDate(weeks[0])} – ${formatDate(lastDay)}`;
+}
+
 export function formatDateTime(iso) {
   const d = new Date(iso);
   return `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })} · ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
