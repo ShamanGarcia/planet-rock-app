@@ -194,6 +194,7 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
 .auth-logo strong{ font-size:19px; letter-spacing:.5px; }
 .auth-switch{ text-align:center; font-size:13.5px; color:var(--pr-text-soft); margin-top:14px; }
 .auth-switch button{ background:none; border:none; color:var(--pr-orange); font-weight:700; padding:0; }
+.auth-switch button:disabled{ color:var(--pr-text-soft); opacity:.5; cursor:not-allowed; }
 .auth-error{ background:#fdeceb; color:var(--pr-danger); padding:9px 12px; border-radius:8px; font-size:13px; margin-bottom:12px; }
 .auth-note{ background:#fff6ec; color:#8a4b12; padding:9px 12px; border-radius:8px; font-size:12px; margin-top:14px; }
 

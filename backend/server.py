@@ -52,6 +52,9 @@ DELETE_ROUTE_PASSWORD = "TAKEAWAY"
 ADMIN_PASSWORD = "IAMANADMIN!"
 # Shared delete-confirmation key for every destructive admin action.
 ADMIN_DELETE_PASSWORD = "GETOUT!"
+# Shared with hiring teams — password reset is blocked so one viewer can't
+# lock out the next. Mirrored in js/views/auth.js.
+DEMO_EMAIL = "demomatchbook@gmail.com"
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
@@ -700,6 +703,8 @@ class Handler(BaseHTTPRequestHandler):
         user = find_user_by_email(body.get("email", ""))
         if not user:
             raise ApiError(404, "No account found with that email.")
+        if user["email"].lower() == DEMO_EMAIL:
+            raise ApiError(403, "Password reset is disabled for the demo account.")
         self._json(200, {"ok": True})
 
     def _reset_confirm(self):
@@ -709,6 +714,8 @@ class Handler(BaseHTTPRequestHandler):
         user = find_user_by_email(body.get("email", ""))
         if not user:
             raise ApiError(404, "No account found with that email.")
+        if user["email"].lower() == DEMO_EMAIL:
+            raise ApiError(403, "Password reset is disabled for the demo account.")
         user["password"] = hash_password(body.get("password", ""))
         save_db()
         self._json(200, {"ok": True})

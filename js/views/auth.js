@@ -1,6 +1,9 @@
 import { logIn, signUp, requestPasswordReset, confirmPasswordReset } from "../data/api.js";
 import { escapeHtml } from "../utils.js";
 
+// Shared with hiring teams; the server also refuses resets for it (DEMO_EMAIL).
+const DEMO_EMAIL = "demomatchbook@gmail.com";
+
 export function renderAuth(root, onAuthed, initialMode = "login") {
   let mode = initialMode; // login | signup | reset-request | reset-confirm
   let error = "";
@@ -72,6 +75,9 @@ export function renderAuth(root, onAuthed, initialMode = "login") {
     root.querySelector("#to-signup")?.addEventListener("click", () => { mode = "signup"; error = ""; render(); });
     root.querySelector("#to-login")?.addEventListener("click", () => { mode = "login"; error = ""; render(); });
     root.querySelector("#to-reset")?.addEventListener("click", () => { mode = "reset-request"; error = ""; render(); });
+    root.querySelector('#login-form [name="email"]')?.addEventListener("input", (e) => {
+      root.querySelector("#to-reset").disabled = e.target.value.trim().toLowerCase() === DEMO_EMAIL;
+    });
 
     root.querySelector("#login-form")?.addEventListener("submit", async (e) => {
       e.preventDefault();
