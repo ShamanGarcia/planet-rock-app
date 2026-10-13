@@ -491,8 +491,8 @@ table.log-table tbody tr.row-removing{ transition:opacity var(--t-fast) var(--ea
   padding:6px 17px; background:#f7f6f2; border-top:1px solid var(--pr-border);
   font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.3px; color:var(--pr-text-soft);
 }
-/* 10 rows (52px + 6px gaps) show before the box scrolls */
-.list-box-body{ display:flex; flex-direction:column; gap:6px; padding:8px; max-height:calc(10 * 52px + 9 * 6px + 16px); overflow-y:auto; }
+/* 5 rows (52px + 6px gaps) show before the box scrolls */
+.list-box-body{ display:flex; flex-direction:column; gap:6px; padding:8px; max-height:calc(5 * 52px + 4 * 6px + 16px); overflow-y:auto; }
 /* same reserved scrollbar width on header and body so the columns line up on desktop */
 .list-box-body, .list-cols{ scrollbar-gutter:stable; }
 .list-cols{ overflow-y:hidden; }
