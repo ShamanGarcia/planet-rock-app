@@ -590,6 +590,9 @@ export function renderGymMap(container, gymId) {
       }
     });
 
+    // Android's long-press context menu would otherwise interrupt the hold-to-move.
+    el.addEventListener("contextmenu", (e) => e.preventDefault());
+
     el.addEventListener("pointercancel", () => {
       clearTimeout(longPressTimer);
       if (armed) { armed = false; movingRouteId = null; el.classList.remove("selected"); }
