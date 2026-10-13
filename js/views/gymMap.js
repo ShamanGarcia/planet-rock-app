@@ -5,6 +5,7 @@ import {
 import { openRouteDetail } from "./routeDetail.js";
 import { openAddRouteForm } from "../components/addRoute.js";
 import { openResetWallModal } from "../components/resetWallModal.js";
+import { renderRouteList, isListBusy, closeListPopover } from "./gymList.js";
 import { showToast } from "../components/toast.js";
 import { isAdminUnlocked } from "../adminAuth.js";
 import { escapeHtml, clamp, pointInPolygon, polygonCentroid, polygonBounds, dismissOverlay } from "../utils.js";
@@ -49,7 +50,10 @@ function pixelIconSVG(cells, cols, rows) {
 
 const MENU_ICON = `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>`;
 
-const PIXEL_CHECK_ICON =pixelIconSVG([[1, 2], [2, 3], [3, 4], [4, 3], [5, 2], [6, 1], [7, 0]], 9, 6);
+const MAP_ICON = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 6.5l6-2.5 6 2.5 6-2.5v13.5l-6 2.5-6-2.5-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg>`;
+const LIST_ICON = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r=".8" fill="currentColor"/><circle cx="4.5" cy="12" r=".8" fill="currentColor"/><circle cx="4.5" cy="18" r=".8" fill="currentColor"/></svg>`;
+
+const PIXEL_CHECK_ICON = pixelIconSVG([[1, 2], [2, 3], [3, 4], [4, 3], [5, 2], [6, 1], [7, 0]], 9, 6);
 
 // Persisted at module scope so pan/zoom feels stable across re-renders
 // (filter changes, navigating away and back) within the same session.
@@ -166,6 +170,7 @@ export function renderGymMap(container, gymId) {
   let activeHeatmap = null; // null | "completed" | "difficulty"
   let moveMode = false;
   let movingRouteId = null;
+  let viewMode = "map"; // "map" | "list" — the list view shares filters and heatmaps with the map
   // Admin-unlock state can't change while this view stays mounted (it's only
   // ever set via the Profile page, which navigates away first), so this is
   // safe to compute once instead of re-checking on every render.
@@ -177,16 +182,12 @@ export function renderGymMap(container, gymId) {
         <button class="btn btn-outline btn-sm" id="open-filters">Filters</button>
         <button class="btn btn-ghost btn-sm ${isFilterActive() ? "" : "hidden"}" id="clear-filters">Clear all</button>
         <span class="result-count" id="result-count">Loading…</span>
-      </div>
-      <div class="map-viewport" id="map-viewport">
-        <div class="map-canvas" id="map-canvas"></div>
-        <div class="map-zoom-controls">
-          <button id="zoom-in" aria-label="Zoom in">+</button>
-          <button id="zoom-out" aria-label="Zoom out">−</button>
-          <button id="zoom-reset" aria-label="Reset view" style="font-size:13px;">⤢</button>
-        </div>
         <button class="map-menu-btn" id="map-menu-btn" aria-label="More options" aria-haspopup="true" aria-expanded="false">${MENU_ICON}</button>
         <div class="map-menu hidden" id="map-menu">
+          <div class="view-toggle" role="group" aria-label="View">
+            <button type="button" data-view="list" aria-pressed="false">${LIST_ICON}<span>List</span></button>
+            <button type="button" class="active" data-view="map" aria-pressed="true">${MAP_ICON}<span>Map</span></button>
+          </div>
           <div class="map-heatmap-toggles">
             <button class="heatmap-toggle-btn heatmap-toggle-completed" id="heatmap-completed-btn"
                     aria-label="Toggle completed-climbs heatmap" aria-pressed="false">${PIXEL_CHECK_ICON}</button>
@@ -195,11 +196,20 @@ export function renderGymMap(container, gymId) {
           </div>
           <button class="btn btn-success btn-sm ${showMoveBtn ? "" : "hidden"}" id="move-route-btn">MOVE</button>
         </div>
+      </div>
+      <div class="map-viewport" id="map-viewport">
+        <div class="map-canvas" id="map-canvas"></div>
+        <div class="map-zoom-controls">
+          <button id="zoom-in" aria-label="Zoom in">+</button>
+          <button id="zoom-out" aria-label="Zoom out">−</button>
+          <button id="zoom-reset" aria-label="Reset view" style="font-size:13px;">⤢</button>
+        </div>
         <button class="btn btn-primary" id="add-route-btn" style="position:absolute; left:12px; top:12px; z-index:25;">+ Add Route</button>
         <button class="btn btn-outline btn-sm hidden" id="back-to-map-btn" style="position:absolute; left:12px; top:56px; z-index:25; background:#fff;">&larr; All Areas</button>
         <button class="btn btn-danger btn-sm hidden" id="reset-wall-btn" style="position:absolute; left:12px; top:100px; z-index:25;">RESET</button>
         <div class="map-hint" id="map-hint">Pinch or scroll to zoom · drag to pan · tap a wall to zoom in · tap a marker for details</div>
       </div>
+      <div class="route-list-view hidden" id="route-list-view"></div>
     </div>
   `;
 
@@ -262,7 +272,7 @@ export function renderGymMap(container, gymId) {
   }
 
   const pollTimer = setInterval(() => {
-    if (!placementMode && !moveMode) renderCanvasContents({ quiet: true });
+    if (!placementMode && !moveMode && !isListBusy()) renderCanvasContents({ quiet: true });
   }, REFRESH_MS);
 
   addBtn.addEventListener("click", () => {
@@ -284,9 +294,32 @@ export function renderGymMap(container, gymId) {
   // Outlines the menu button while a mode it contains is on, so it's visible with the menu closed.
   function syncMenuBtn() { menuBtn.classList.toggle("active", !!activeHeatmap || moveMode); }
   menuBtn.addEventListener("click", () => setMenuOpen(menu.classList.contains("hidden")));
-  viewport.addEventListener("pointerdown", (e) => {
+  // Capture phase so a tap anywhere (map pan, marker drag, list rows) closes the menu.
+  container.querySelector(".map-page").addEventListener("pointerdown", (e) => {
     if (!menu.contains(e.target) && !menuBtn.contains(e.target)) setMenuOpen(false);
-  });
+  }, true);
+
+  const listView = container.querySelector("#route-list-view");
+  function setViewMode(mode) {
+    if (mode === viewMode) return;
+    if (mode === "list") {
+      if (placementMode) exitPlacementMode();
+      if (moveMode) exitMoveMode();
+    } else {
+      closeListPopover();
+    }
+    viewMode = mode;
+    viewport.classList.toggle("hidden", mode === "list");
+    listView.classList.toggle("hidden", mode !== "list");
+    moveBtn.classList.toggle("hidden", !showMoveBtn || mode === "list"); // moving routes is a map gesture
+    container.querySelectorAll("[data-view]").forEach((b) => {
+      const on = b.dataset.view === mode;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-pressed", String(on));
+    });
+    renderCanvasContents();
+  }
+  container.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => setViewMode(b.dataset.view)));
 
   const completedHeatBtn = container.querySelector("#heatmap-completed-btn");
   const difficultyHeatBtn = container.querySelector("#heatmap-difficulty-btn");
@@ -398,9 +431,41 @@ export function renderGymMap(container, gymId) {
     fitToBounds({ minX: 0, maxX: CANVAS_W, minY: 0, maxY: CANVAS_H });
   }
 
+  // Bubble color/label for a route: its hold color and grade normally, or a
+  // magma heat color when a heatmap is on. Shared by map markers and list rows.
+  function markerLook(r) {
+    let bg = HOLD_COLOR_HEX[r.holdColor];
+    let label = r.officialGrade !== null ? `V${r.officialGrade}`
+      : r.communityGrade != null ? `${r.communityGrade.toFixed(1)}?`
+      : "?";
+    let textStyle = "";
+    let holdAttr = ` data-hold="${r.holdColor}"`;
+    if (activeHeatmap === "completed") {
+      const finishes = r.finishes || 0;
+      const { bg: heat, isDark } = magmaStyle(finishes / 3); // 0-30 by 3 -> indices 0-10
+      bg = heat;
+      label = String(finishes);
+      textStyle = ` color:${isDark ? "#fff" : "#1b1d21"}; text-shadow:${isDark ? "0 1px 1px rgba(0,0,0,.4)" : "none"};`;
+      holdAttr = "";
+    } else if (activeHeatmap === "difficulty") {
+      const value = r.officialGrade !== null ? r.officialGrade : r.communityGrade;
+      if (value === null || value === undefined) {
+        bg = HEAT_NO_DATA;
+        textStyle = " color:#fff; text-shadow:0 1px 1px rgba(0,0,0,.4);";
+      } else {
+        const { bg: heat, isDark } = magmaStyle(clamp(value, 0, MAX_GRADE)); // 0-10 by 1 -> indices 0-10
+        bg = heat;
+        textStyle = ` color:${isDark ? "#fff" : "#1b1d21"}; text-shadow:${isDark ? "0 1px 1px rgba(0,0,0,.4)" : "none"};`;
+      }
+      holdAttr = "";
+    }
+    return { bg, label, textStyle, holdAttr };
+  }
+
   async function renderCanvasContents({ quiet = false } = {}) {
     let visibleRoutes;
     let completedRouteIds = new Set();
+    let flashedRouteIds = new Set();
     let resets = {};
     try {
       const currentUser = getCurrentUser();
@@ -411,10 +476,37 @@ export function renderGymMap(container, gymId) {
       ]);
       if (destroyed) return;
       completedRouteIds = new Set(myLog.map((e) => e.routeId));
+      flashedRouteIds = new Set(myLog.filter((e) => e.flash).map((e) => e.routeId));
       resets = gyms.find((g) => g.id === gymId)?.resets || {};
       visibleRoutes = allRoutes.filter((r) => routeMatches(r, completedRouteIds));
     } catch (err) {
       if (!quiet) container.querySelector("#result-count").textContent = "Couldn't load routes";
+      return;
+    }
+
+    if (viewMode === "list") {
+      // Same filtered routes as the map; routes outside every wall section
+      // never show on the map either, so they're left out here too.
+      const bySection = new Map(WALL_SECTIONS.map((s) => [s.id, []]));
+      let placed = 0;
+      for (const r of visibleRoutes) {
+        const sectionId = findWallSectionAt(r.mapX, r.mapY);
+        if (sectionId) { bySection.get(sectionId).push(r); placed++; }
+      }
+      const tagNames = new Map((await getAllTags().catch(() => [])).map((t) => [t.id, t.name]));
+      if (destroyed || viewMode !== "list") return;
+      renderRouteList(container.querySelector("#route-list-view"), {
+        sections: WALL_SECTIONS.map((s) => ({ id: s.id, name: s.name, routes: bySection.get(s.id) })),
+        resets, completedIds: completedRouteIds, flashedIds: flashedRouteIds, tagNames,
+        look: markerLook,
+        openRoute: (routeId) => openRouteDetail(routeId, {
+          onClose: () => renderCanvasContents(),
+          onChanged: () => renderCanvasContents(),
+        }),
+        onChanged: () => renderCanvasContents(),
+      });
+      if (!quiet) container.querySelector("#result-count").textContent = `${placed} route${placed === 1 ? "" : "s"}`;
+      container.querySelector("#clear-filters").classList.toggle("hidden", !isFilterActive());
       return;
     }
 
@@ -450,35 +542,9 @@ export function renderGymMap(container, gymId) {
 
     const markersHTML = visibleRoutes
       .map((r) => {
-        const label = r.officialGrade !== null ? `V${r.officialGrade}`
-          : r.communityGrade != null ? `${r.communityGrade.toFixed(1)}?`
-          : "?";
         const completed = completedRouteIds.has(r.id);
         const isNew = r.id === newlyAddedRouteId;
-
-        let markerBg = HOLD_COLOR_HEX[r.holdColor];
-        let markerLabel = label;
-        let textStyle = "";
-        let holdAttr = ` data-hold="${r.holdColor}"`;
-        if (activeHeatmap === "completed") {
-          const finishes = r.finishes || 0;
-          const { bg, isDark } = magmaStyle(finishes / 3); // 0-30 by 3 -> indices 0-10
-          markerBg = bg;
-          markerLabel = String(finishes);
-          textStyle = ` color:${isDark ? "#fff" : "#1b1d21"}; text-shadow:${isDark ? "0 1px 1px rgba(0,0,0,.4)" : "none"};`;
-          holdAttr = "";
-        } else if (activeHeatmap === "difficulty") {
-          const value = r.officialGrade !== null ? r.officialGrade : r.communityGrade;
-          if (value === null || value === undefined) {
-            markerBg = HEAT_NO_DATA;
-            textStyle = " color:#fff; text-shadow:0 1px 1px rgba(0,0,0,.4);";
-          } else {
-            const { bg, isDark } = magmaStyle(clamp(value, 0, MAX_GRADE)); // 0-10 by 1 -> indices 0-10
-            markerBg = bg;
-            textStyle = ` color:${isDark ? "#fff" : "#1b1d21"}; text-shadow:${isDark ? "0 1px 1px rgba(0,0,0,.4)" : "none"};`;
-          }
-          holdAttr = "";
-        }
+        const { bg: markerBg, label: markerLabel, textStyle, holdAttr } = markerLook(r);
 
         return `
           <div class="route-marker ${completed ? "completed" : "uncompleted"} ${isNew ? "just-added" : ""} ${r.id === selectedRouteId ? "selected" : ""} ${!r.active ? "retired" : ""} ${zoomedSectionId ? "zoomed" : ""}"
@@ -822,5 +888,6 @@ export function renderGymMap(container, gymId) {
   return function cleanup() {
     destroyed = true;
     clearInterval(pollTimer);
+    closeListPopover();
   };
 }
