@@ -47,7 +47,9 @@ function pixelIconSVG(cells, cols, rows) {
   return `<svg viewBox="0 0 ${cols} ${rows}" width="22" height="22" aria-hidden="true">${rects}</svg>`;
 }
 
-const PIXEL_CHECK_ICON = pixelIconSVG([[1, 2], [2, 3], [3, 4], [4, 3], [5, 2], [6, 1], [7, 0]], 9, 6);
+const MENU_ICON = `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>`;
+
+const PIXEL_CHECK_ICON =pixelIconSVG([[1, 2], [2, 3], [3, 4], [4, 3], [5, 2], [6, 1], [7, 0]], 9, 6);
 
 // Persisted at module scope so pan/zoom feels stable across re-renders
 // (filter changes, navigating away and back) within the same session.
@@ -183,16 +185,19 @@ export function renderGymMap(container, gymId) {
           <button id="zoom-out" aria-label="Zoom out">−</button>
           <button id="zoom-reset" aria-label="Reset view" style="font-size:13px;">⤢</button>
         </div>
-        <div class="map-heatmap-toggles">
-          <button class="heatmap-toggle-btn heatmap-toggle-completed" id="heatmap-completed-btn"
-                  aria-label="Toggle completed-climbs heatmap" aria-pressed="false">${PIXEL_CHECK_ICON}</button>
-          <button class="heatmap-toggle-btn heatmap-toggle-difficulty" id="heatmap-difficulty-btn"
-                  aria-label="Toggle difficulty heatmap" aria-pressed="false">V</button>
+        <button class="map-menu-btn" id="map-menu-btn" aria-label="More options" aria-haspopup="true" aria-expanded="false">${MENU_ICON}</button>
+        <div class="map-menu hidden" id="map-menu">
+          <div class="map-heatmap-toggles">
+            <button class="heatmap-toggle-btn heatmap-toggle-completed" id="heatmap-completed-btn"
+                    aria-label="Toggle completed-climbs heatmap" aria-pressed="false">${PIXEL_CHECK_ICON}</button>
+            <button class="heatmap-toggle-btn heatmap-toggle-difficulty" id="heatmap-difficulty-btn"
+                    aria-label="Toggle difficulty heatmap" aria-pressed="false">V</button>
+          </div>
+          <button class="btn btn-success btn-sm ${showMoveBtn ? "" : "hidden"}" id="move-route-btn">MOVE</button>
         </div>
         <button class="btn btn-primary" id="add-route-btn" style="position:absolute; left:12px; top:12px; z-index:25;">+ Add Route</button>
         <button class="btn btn-outline btn-sm hidden" id="back-to-map-btn" style="position:absolute; left:12px; top:56px; z-index:25; background:#fff;">&larr; All Areas</button>
-        <button class="btn btn-success btn-sm ${showMoveBtn ? "" : "hidden"}" id="move-route-btn" style="position:absolute; left:12px; top:100px; z-index:25;">MOVE</button>
-        <button class="btn btn-danger btn-sm hidden" id="reset-wall-btn" style="position:absolute; left:12px; top:${showMoveBtn ? 144 : 100}px; z-index:25;">RESET</button>
+        <button class="btn btn-danger btn-sm hidden" id="reset-wall-btn" style="position:absolute; left:12px; top:100px; z-index:25;">RESET</button>
         <div class="map-hint" id="map-hint">Pinch or scroll to zoom · drag to pan · tap a wall to zoom in · tap a marker for details</div>
       </div>
     </div>
@@ -270,11 +275,25 @@ export function renderGymMap(container, gymId) {
     enterMoveMode();
   });
 
+  const menuBtn = container.querySelector("#map-menu-btn");
+  const menu = container.querySelector("#map-menu");
+  function setMenuOpen(open) {
+    menu.classList.toggle("hidden", !open);
+    menuBtn.setAttribute("aria-expanded", String(open));
+  }
+  // Outlines the menu button while a mode it contains is on, so it's visible with the menu closed.
+  function syncMenuBtn() { menuBtn.classList.toggle("active", !!activeHeatmap || moveMode); }
+  menuBtn.addEventListener("click", () => setMenuOpen(menu.classList.contains("hidden")));
+  viewport.addEventListener("pointerdown", (e) => {
+    if (!menu.contains(e.target) && !menuBtn.contains(e.target)) setMenuOpen(false);
+  });
+
   const completedHeatBtn = container.querySelector("#heatmap-completed-btn");
   const difficultyHeatBtn = container.querySelector("#heatmap-difficulty-btn");
 
   function setActiveHeatmap(mode) {
     activeHeatmap = activeHeatmap === mode ? null : mode;
+    syncMenuBtn();
     completedHeatBtn.classList.toggle("active", activeHeatmap === "completed");
     completedHeatBtn.setAttribute("aria-pressed", String(activeHeatmap === "completed"));
     difficultyHeatBtn.classList.toggle("active", activeHeatmap === "difficulty");
@@ -316,6 +335,8 @@ export function renderGymMap(container, gymId) {
     moveBtn.textContent = "Cancel";
     moveBtn.classList.remove("btn-success");
     moveBtn.classList.add("btn-danger");
+    syncMenuBtn();
+    setMenuOpen(false);
     updateHint();
     renderCanvasContents();
   }
@@ -326,6 +347,7 @@ export function renderGymMap(container, gymId) {
     moveBtn.textContent = "MOVE";
     moveBtn.classList.remove("btn-danger");
     moveBtn.classList.add("btn-success");
+    syncMenuBtn();
     updateHint();
     renderCanvasContents();
   }

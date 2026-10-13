@@ -276,9 +276,17 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
   width:40px; height:40px; border-radius:12px; background:#fff; border:1px solid var(--pr-border);
   box-shadow:var(--pr-shadow); font-size:18px; font-weight:700; color:var(--pr-ink);
 }
-.map-heatmap-toggles{
-  position:absolute; right:12px; top:12px; display:flex; flex-direction:column; gap:8px; z-index:20;
+.map-menu-btn{
+  position:absolute; right:12px; top:12px; z-index:26; width:40px; height:40px; border-radius:12px;
+  background:#fff; border:1px solid var(--pr-border); box-shadow:var(--pr-shadow); color:var(--pr-ink);
+  display:flex; align-items:center; justify-content:center;
 }
+.map-menu-btn.active{ outline:3px solid var(--pr-orange); outline-offset:2px; }
+.map-menu{
+  position:absolute; right:12px; top:60px; z-index:26; display:flex; flex-direction:column; gap:10px;
+  padding:10px; background:#fff; border:1px solid var(--pr-border); border-radius:12px; box-shadow:var(--pr-shadow);
+}
+.map-heatmap-toggles{ display:flex; gap:8px; justify-content:center; }
 .heatmap-toggle-btn{
   width:40px; height:40px; border-radius:50%; border:3px solid #fff;
   box-shadow:var(--pr-shadow); color:#fff; font-size:18px; font-weight:800;
