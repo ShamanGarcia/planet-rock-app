@@ -68,6 +68,26 @@ def load_db():
             db = json.load(f)
         db.setdefault("routeMedia", [])
         db.setdefault("routeArchive", [])
+        # ponytail: one-off — rebuild history for routes deleted before routeArchive
+        # existed, from the snapshot each send kept. Only routes sent at least once
+        # survive that way (no tags, estimate or position), and it assumes one gym.
+        # Idempotent; delete once it has run in production.
+        known = {r["id"] for r in db.get("routes", [])} | {a["id"] for a in db["routeArchive"]}
+        gone = {}
+        for e in db.get("climbingLog", []):
+            if e["routeId"] not in known:
+                gone.setdefault(e["routeId"], []).append(e)
+        for route_id, entries in gone.items():
+            s = entries[0].get("snapshot", {})
+            db["routeArchive"].append({
+                "id": route_id, "gymId": db["gyms"][0]["id"], "holdColor": s.get("holdColor"),
+                "holdType": s.get("holdType"), "holdTypes": [s.get("holdType")], "wallSection": s.get("wallSection"),
+                "mapX": None, "mapY": None, "officialGrade": s.get("officialGrade"), "communityGrade": None,
+                "finishes": len(entries), "tagNames": [], "createdAt": min(e["completedAt"] for e in entries),
+                "retiredAt": None, "backfilled": True,
+            })
+        if gone:
+            _write_db_to_disk(db)
         for route in db.get("routes", []):
             route.pop("name", None)
         for entry in db.get("climbingLog", []):
@@ -380,7 +400,8 @@ def purge_routes(route_ids):
         if r["id"] in route_ids:
             DB["routeArchive"].append({
                 "id": r["id"], "gymId": r["gymId"], "holdColor": r["holdColor"], "holdType": r["holdType"],
-                "holdTypes": r.get("holdTypes") or [r["holdType"]], "mapX": r["mapX"], "mapY": r["mapY"],
+                "holdTypes": r.get("holdTypes") or [r["holdType"]], "wallSection": r.get("wallSection"),
+                "mapX": r["mapX"], "mapY": r["mapY"],
                 "officialGrade": r["officialGrade"], "communityGrade": get_community_grade(r["id"]),
                 "finishes": get_route_finishes(r["id"]),
                 "tagNames": [tag_name[t] for t in r.get("tags", []) if t in tag_name],

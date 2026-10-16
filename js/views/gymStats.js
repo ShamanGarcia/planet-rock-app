@@ -2,6 +2,7 @@ import { getRoutes, getRouteHistory, getAllTags } from "../data/api.js";
 import { MAX_GRADE, HOLD_TYPES, WALL_SECTIONS, findWallSectionAt, formatGrade } from "../data/constants.js";
 import { renderBarChart, shadesOf } from "../components/charts.js";
 import { escapeHtml } from "../utils.js";
+import { MAP_ICON } from "./gymMap.js";
 
 // Running tally of the gym: what's up on the walls now, and everything ever set
 // (retired routes included). Each tally has a fixed grade chart (official or
@@ -40,7 +41,8 @@ function holdSeries(routes, kind, tagNames) {
   }
   if (kind === "area") {
     const names = new Map(WALL_SECTIONS.map((s) => [s.id, s.name]));
-    const c = tally(WALL_SECTIONS.map((s) => s.name), (r) => [names.get(findWallSectionAt(r.mapX, r.mapY))]);
+    // Backfilled history has no map position, only the wall section its sends recorded.
+    const c = tally(WALL_SECTIONS.map((s) => s.name), (r) => [names.get(r.mapX == null ? r.wallSection : findWallSectionAt(r.mapX, r.mapY))]);
     return { labels: [...c.keys()], data: [...c.values()] };
   }
   // Live routes carry tag ids; archived ones carry the names they had when retired.
@@ -121,10 +123,10 @@ export async function renderGymStats(container, gymId) {
     <div class="page">
       <div class="page-header">
         <div>
-          <a href="#/map" class="btn btn-ghost btn-sm" style="padding-left:0;">Back</a>
           <h1>Gym Stats</h1>
           <div class="page-sub" id="gs-sub">Loading…</div>
         </div>
+        <a href="#/map" class="map-menu-btn" aria-label="Back to the map" title="Map" style="text-decoration:none;">${MAP_ICON}</a>
       </div>
       <div id="gs-body"></div>
     </div>`;
@@ -140,7 +142,7 @@ export async function renderGymStats(container, gymId) {
   const allTime = [...current, ...history];
   container.querySelector("#gs-sub").textContent = `${current.length} up now · ${allTime.length} set all time`;
   // The archive only fills as routes are retired, so say what the tally covers.
-  const note = `Routes up now plus ${history.length} retired since the gym started keeping a history. Resets and deletions are recorded from here on.`;
+  const note = `Routes up now plus ${history.length} retired. Older retired routes were rebuilt from the send log, so only ones someone sent are counted (no tags or estimates).`;
   body.innerHTML = sectionHTML("now", "In the Gym Now", current) + sectionHTML("all", "All Time", allTime, note);
   wireSection(body, "now", current, tagNames);
   wireSection(body, "all", allTime, tagNames);
