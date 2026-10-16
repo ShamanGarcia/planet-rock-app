@@ -121,6 +121,11 @@ export function getRoutes(gymId, { includeInactive = false } = {}) {
   return request("GET", `/api/routes?${qs.toString()}`);
 }
 
+// Lean records of routes the gym has since retired (reset or deleted), for all-time stats.
+export function getRouteHistory(gymId) {
+  return request("GET", `/api/gyms/${gymId}/route-history`);
+}
+
 export function getRouteDetail(routeId) {
   return request("GET", `/api/routes/${routeId}/detail`);
 }

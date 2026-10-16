@@ -1,6 +1,8 @@
 // Shared enums / lookup tables. Keeping these centralized makes it easy to
 // extend (new hold colors, tags, grades) without touching business logic.
 
+import { pointInPolygon } from "../utils.js";
+
 export const HOLD_COLORS = ["Red", "Orange", "Yellow", "Green", "Blue", "Purple", "Pink", "Black", "White"];
 
 export const HOLD_COLOR_HEX = {
@@ -54,6 +56,13 @@ export function routeLabel(route) {
 // convention as a route's mapX/mapY — so zone shapes and route markers share
 // one coordinate system.
 export const MAP_ASPECT_RATIO = 1835 / 780;
+
+// Id of the wall section containing a map point (percent coordinates), or null.
+// Routes are assigned to areas by where they sit, so moved routes follow.
+export function findWallSectionAt(x, y) {
+  const hit = WALL_SECTIONS.find((s) => pointInPolygon(x, y, s.points));
+  return hit ? hit.id : null;
+}
 
 export const WALL_SECTIONS = [
   {

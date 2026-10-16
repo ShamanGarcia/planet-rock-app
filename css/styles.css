@@ -339,14 +339,17 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
   color:#5c5847; pointer-events:none; transform:translate(-50%, -50%); white-space:nowrap;
   text-shadow:0 1px 2px rgba(255,255,255,.7);
 }
-.wall-label .new-set{
-  position:absolute; bottom:100%; left:50%; transform:translateX(-50%); font-size:12px;
+/* Rainbow text: the map's "New Set" tag and the Random Climb button share it. */
+.new-set{
   background:linear-gradient(90deg,#e53935,#fb8c00,#fdd835,#43a047,#1e88e5,#8e24aa,#e53935) 0 0/200% 100%;
   -webkit-background-clip:text; background-clip:text; color:transparent; text-shadow:none;
   animation:rainbow-slide 3s linear infinite;
 }
+.wall-label .new-set{
+  position:absolute; bottom:100%; left:50%; transform:translateX(-50%); font-size:12px;
+}
 @keyframes rainbow-slide{ to{ background-position:200% 0; } }
-@media (prefers-reduced-motion: reduce){ .wall-label .new-set{ animation:none; } }
+@media (prefers-reduced-motion: reduce){ .new-set{ animation:none; } }
 
 /* Filter drawer */
 .drawer-backdrop{
@@ -542,6 +545,39 @@ table.log-table tbody tr.row-removing{ transition:opacity var(--t-fast) var(--ea
 .grade-option{ padding:9px 0; border:none; border-radius:8px; background:#f7f6f2; font:inherit; font-size:13.5px; font-weight:700; color:var(--pr-ink); }
 .grade-option[data-value=""]{ grid-column:1 / -1; }
 .grade-option.active{ background:var(--pr-ink); color:#fff; }
+
+/* List view: grid of areas, then one area's full list */
+.list-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.list-tile{
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; min-height:92px; padding:14px 10px;
+  font:inherit; color:inherit; text-align:center; cursor:pointer;
+}
+.list-tile:active{ background:#faf9f6; }
+.list-tile-name{ font-size:17px; font-weight:800; }
+.list-tile-count{ font-size:12.5px; font-weight:600; color:var(--pr-text-soft); }
+.list-back{ align-self:flex-start; }
+.list-box.full .list-box-body{ max-height:none; overflow:visible; }
+
+/* Random Climb: grey out every marker, then flash a random one at a time */
+.map-canvas.randomizing .route-marker:not(.lit){
+  background:#9aa0a6 !important; color:#fff !important; box-shadow:0 2px 6px rgba(0,0,0,.2) !important; opacity:.85;
+}
+.map-canvas.randomizing .route-marker.lit{
+  z-index:12; transform:scale(1.6); transition:none;
+  box-shadow:0 0 0 4px #fff, 0 0 18px 8px rgba(255,213,0,.9) !important;
+}
+.map-menu .btn{ justify-content:center; }
+.random-btn .new-set{ font-weight:800; font-size:13.5px; }
+.stats-btn{ display:flex; align-items:center; gap:6px; }
+
+/* Gym stats page */
+.gs-heading{ margin:20px 0 10px; font-size:17px; }
+.gs-note{ margin:-6px 0 10px; font-size:12px; color:var(--pr-text-soft); }
+.gs-heading ~ .stats-grid{ grid-template-columns:repeat(3,1fr); }
+.gs-card-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:4px; }
+.gs-card-head h3{ margin:0; padding-right:0; }
+.gs-toggle button{ padding:6px 12px; font-size:12px; }
+.gs-select{ padding:7px 10px; border-radius:9px; border:1.5px solid var(--pr-border); font-size:12.5px; background:#fff; }
 
 .filters-bar{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
 .filters-bar select, .filters-bar input{ padding:7px 10px; border-radius:9px; border:1.5px solid var(--pr-border); font-size:12.5px; background:#fff; }

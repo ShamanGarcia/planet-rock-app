@@ -33,8 +33,23 @@ function resetInfo(iso) {
   return { days, color: `hsl(${120 * (1 - clamp(days / RESET_RED_DAYS, 0, 1))}, 72%, 36%)` };
 }
 
+// Left to right along the wall, the way a climber walks it.
 function sortRoutes(routes) {
-  return [...routes].sort((a, b) => (a.officialGrade ?? 99) - (b.officialGrade ?? 99) || a.holdColor.localeCompare(b.holdColor));
+  return [...routes].sort((a, b) => a.mapX - b.mapX || a.mapY - b.mapY);
+}
+
+// Opening screen: a 2-column grid with one tile per area.
+function gridHTML(ctx) {
+  return `<div class="list-grid">${ctx.sections.map((s) => `
+    <button type="button" class="card list-tile" data-section-id="${s.id}">
+      <span class="list-tile-name">${escapeHtml(s.name)}</span>
+      <span class="list-tile-count">${s.routes.length} route${s.routes.length === 1 ? "" : "s"}</span>
+    </button>`).join("")}</div>`;
+}
+
+// One area's full list (no 5-row window), with a way back to the grid.
+function areaHTML(s, ctx) {
+  return `<button type="button" class="btn btn-outline btn-sm list-back" id="list-back">&larr; All Areas</button>${boxHTML(s, ctx)}`;
 }
 
 function rowHTML(r, ctx) {
@@ -64,7 +79,7 @@ function boxHTML(s, ctx) {
   const n = s.routes.length;
   const reset = resetInfo(ctx.resets[s.id]);
   return `
-    <section class="card list-box" data-section-box="${s.id}">
+    <section class="card list-box${ctx.sectionId ? " full" : ""}" data-section-box="${s.id}">
       <div class="list-box-head">
         <h2>${escapeHtml(s.name)}</h2>
         <div class="list-box-meta">
@@ -87,7 +102,10 @@ export function renderRouteList(el, ctx) {
   closeListPopover();
   closeOpenRow = null;
 
-  el.innerHTML = ctx.sections.map((s) => boxHTML(s, ctx)).join("");
+  const area = ctx.sections.find((s) => s.id === ctx.sectionId);
+  el.innerHTML = area ? areaHTML(area, ctx) : gridHTML(ctx);
+  el.querySelectorAll(".list-tile").forEach((tile) => tile.addEventListener("click", () => ctx.onSelectSection(tile.dataset.sectionId)));
+  el.querySelector("#list-back")?.addEventListener("click", ctx.onBack);
   const routeById = new Map(ctx.sections.flatMap((s) => s.routes).map((r) => [r.id, r]));
 
   el.querySelectorAll("[data-section-box]").forEach((box) => {

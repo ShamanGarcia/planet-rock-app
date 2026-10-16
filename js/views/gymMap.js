@@ -1,6 +1,7 @@
 import { getRoutes, getAllTags, getCurrentUser, getLogEntries, updateRoute, getGyms } from "../data/api.js";
 import {
   HOLD_COLORS, HOLD_COLOR_HEX, HOLD_COLOR_TEXT, HOLD_TYPES, WALL_SECTIONS, MAP_ASPECT_RATIO, MAX_GRADE, formatGrade, routeLabel,
+  findWallSectionAt,
 } from "../data/constants.js";
 import { openRouteDetail } from "./routeDetail.js";
 import { openAddRouteForm } from "../components/addRoute.js";
@@ -8,7 +9,7 @@ import { openResetWallModal } from "../components/resetWallModal.js";
 import { renderRouteList, isListBusy, closeListPopover } from "./gymList.js";
 import { showToast } from "../components/toast.js";
 import { isAdminUnlocked } from "../adminAuth.js";
-import { escapeHtml, clamp, pointInPolygon, polygonCentroid, polygonBounds, dismissOverlay } from "../utils.js";
+import { escapeHtml, clamp, polygonCentroid, polygonBounds, dismissOverlay } from "../utils.js";
 
 // The canvas is sized in CSS pixels at this fixed base (before pan/zoom
 // scaling) so it matches the sketch's own proportions; every zone/marker
@@ -50,7 +51,8 @@ function pixelIconSVG(cells, cols, rows) {
 
 const MENU_ICON = `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>`;
 
-const MAP_ICON = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 6.5l6-2.5 6 2.5 6-2.5v13.5l-6 2.5-6-2.5-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg>`;
+const STATS_ICON = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 20V11M12 20V4M19 20v-6"/></svg>`;
+const MAP_ICON =`<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 6.5l6-2.5 6 2.5 6-2.5v13.5l-6 2.5-6-2.5-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg>`;
 const LIST_ICON = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r=".8" fill="currentColor"/><circle cx="4.5" cy="12" r=".8" fill="currentColor"/><circle cx="4.5" cy="18" r=".8" fill="currentColor"/></svg>`;
 
 const PIXEL_CHECK_ICON = pixelIconSVG([[1, 2], [2, 3], [3, 4], [4, 3], [5, 2], [6, 1], [7, 0]], 9, 6);
@@ -151,11 +153,6 @@ function wireRangeSlider(el, onCommit) {
   sync();
 }
 
-function findWallSectionAt(x, y) {
-  const hit = WALL_SECTIONS.find((s) => pointInPolygon(x, y, s.points));
-  return hit ? hit.id : null;
-}
-
 const NEW_SET_MS = 7 * 24 * 60 * 60 * 1000;
 const REFRESH_MS = 12000; // keeps the map in sync with routes/votes added from other devices
 
@@ -171,6 +168,8 @@ export function renderGymMap(container, gymId) {
   let moveMode = false;
   let movingRouteId = null;
   let viewMode = "map"; // "map" | "list" — the list view shares filters and heatmaps with the map
+  let listSection = null; // list view: null shows the grid of areas, an id shows that area's routes
+  let randomRunning = false; // while the Random Climb animation owns the markers, nothing may re-render them
   // Admin-unlock state can't change while this view stays mounted (it's only
   // ever set via the Profile page, which navigates away first), so this is
   // safe to compute once instead of re-checking on every render.
@@ -194,6 +193,8 @@ export function renderGymMap(container, gymId) {
             <button class="heatmap-toggle-btn heatmap-toggle-difficulty" id="heatmap-difficulty-btn"
                     aria-label="Toggle difficulty heatmap" aria-pressed="false">V</button>
           </div>
+          <button class="btn btn-outline btn-sm random-btn" id="random-climb-btn"><span class="new-set">Random Climb</span></button>
+          <button class="btn btn-outline btn-sm stats-btn" id="gym-stats-btn">${STATS_ICON}<span>Gym Stats</span></button>
           <button class="btn btn-success btn-sm ${showMoveBtn ? "" : "hidden"}" id="move-route-btn">MOVE</button>
         </div>
       </div>
@@ -272,7 +273,7 @@ export function renderGymMap(container, gymId) {
   }
 
   const pollTimer = setInterval(() => {
-    if (!placementMode && !moveMode && !isListBusy()) renderCanvasContents({ quiet: true });
+    if (!placementMode && !moveMode && !randomRunning && !isListBusy()) renderCanvasContents({ quiet: true });
   }, REFRESH_MS);
 
   addBtn.addEventListener("click", () => {
@@ -305,6 +306,7 @@ export function renderGymMap(container, gymId) {
     if (mode === "list") {
       if (placementMode) exitPlacementMode();
       if (moveMode) exitMoveMode();
+      listSection = null; // always open on the grid of areas
     } else {
       closeListPopover();
     }
@@ -312,6 +314,7 @@ export function renderGymMap(container, gymId) {
     viewport.classList.toggle("hidden", mode === "list");
     listView.classList.toggle("hidden", mode !== "list");
     moveBtn.classList.toggle("hidden", !showMoveBtn || mode === "list"); // moving routes is a map gesture
+    container.querySelector("#random-climb-btn").classList.toggle("hidden", mode === "list"); // so is picking from the map
     container.querySelectorAll("[data-view]").forEach((b) => {
       const on = b.dataset.view === mode;
       b.classList.toggle("active", on);
@@ -320,6 +323,46 @@ export function renderGymMap(container, gymId) {
     renderCanvasContents();
   }
   container.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => setViewMode(b.dataset.view)));
+
+  container.querySelector("#gym-stats-btn").addEventListener("click", () => { location.hash = "#/stats"; });
+
+  // Random Climb: greys every marker, flashes through random ones (slowing down as
+  // it lands), then opens the winner's popup — the same one tapping it opens.
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  async function pickRandomClimb() {
+    if (randomRunning || destroyed) return;
+    randomRunning = true;
+    setMenuOpen(false);
+    if (placementMode) exitPlacementMode();
+    if (moveMode) exitMoveMode();
+    if (zoomedSectionId) { // pick from the whole gym, not just the zoomed wall
+      zoomedSectionId = null;
+      backBtn.classList.add("hidden");
+      resetBtn.classList.add("hidden");
+      animateNextTransform(fitToScreen);
+    }
+    await renderCanvasContents({ quiet: true }); // fresh markers, current filters applied
+    const markers = [...canvas.querySelectorAll(".route-marker[data-route-id]")];
+    if (!markers.length || destroyed) { randomRunning = false; if (!destroyed) showToast("No routes to pick from"); return; }
+    const winner = markers[Math.floor(Math.random() * markers.length)];
+    canvas.classList.add("randomizing");
+    const STEPS = 20;
+    let current = null;
+    for (let i = 0; i < STEPS && !destroyed; i++) {
+      let next = i === STEPS - 1 ? winner : markers[Math.floor(Math.random() * markers.length)];
+      if (next === current && markers.length > 1) next = markers[(markers.indexOf(next) + 1) % markers.length]; // always visibly change
+      current?.classList.remove("lit");
+      next.classList.add("lit");
+      current = next;
+      await sleep(40 + i * i * 0.35); // ~40ms at first, easing out to ~170ms
+    }
+    await sleep(600); // let the winner glow for a beat
+    canvas.classList.remove("randomizing");
+    current?.classList.remove("lit");
+    randomRunning = false;
+    if (!destroyed) winner.click();
+  }
+  container.querySelector("#random-climb-btn").addEventListener("click", pickRandomClimb);
 
   const completedHeatBtn = container.querySelector("#heatmap-completed-btn");
   const difficultyHeatBtn = container.querySelector("#heatmap-difficulty-btn");
@@ -499,6 +542,9 @@ export function renderGymMap(container, gymId) {
         sections: WALL_SECTIONS.map((s) => ({ id: s.id, name: s.name, routes: bySection.get(s.id) })),
         resets, completedIds: completedRouteIds, flashedIds: flashedRouteIds, tagNames,
         look: markerLook,
+        sectionId: listSection,
+        onSelectSection: (id) => { listSection = id; window.scrollTo(0, 0); renderCanvasContents(); },
+        onBack: () => { listSection = null; window.scrollTo(0, 0); renderCanvasContents(); },
         openRoute: (routeId) => openRouteDetail(routeId, {
           onClose: () => renderCanvasContents(),
           onChanged: () => renderCanvasContents(),

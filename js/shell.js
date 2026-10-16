@@ -4,6 +4,7 @@ import { renderClimbingLog } from "./views/climbingLog.js";
 import { renderProfile } from "./views/profile.js";
 import { renderFriends } from "./views/friends.js";
 import { renderAdmin, renderAdminUserLog } from "./views/admin.js";
+import { renderGymStats } from "./views/gymStats.js";
 import { isAdminUnlocked } from "./adminAuth.js";
 import { initials } from "./utils.js";
 
@@ -95,6 +96,8 @@ export async function renderShell(root) {
       if (!isAdminUnlocked()) { location.hash = "#/map"; return; }
       const logMatch = hash.match(/^#\/admin\/users\/([^/]+)\/log$/);
       result = logMatch ? renderAdminUserLog(contentArea, logMatch[1]) : renderAdmin(contentArea);
+    } else if (hash.startsWith("#/stats")) {
+      result = renderGymStats(contentArea, activeGymId); // async; nothing to clean up
     } else {
       result = renderGymMap(contentArea, activeGymId);
     }

@@ -67,6 +67,7 @@ def load_db():
         with open(DB_PATH, "r", encoding="utf-8") as f:
             db = json.load(f)
         db.setdefault("routeMedia", [])
+        db.setdefault("routeArchive", [])
         for route in db.get("routes", []):
             route.pop("name", None)
         for entry in db.get("climbingLog", []):
@@ -78,6 +79,7 @@ def load_db():
                 gym.setdefault("resets", {}).setdefault("arch", "2026-09-23T16:00:00+00:00")
         return db
     db = build_seed_data()
+    db.setdefault("routeArchive", [])
     _write_db_to_disk(db)
     return db
 
@@ -371,7 +373,19 @@ def purge_routes(route_ids):
     """Removes routes (and everything that directly references them — media
     files/dir, tag joins, tag votes, grade estimates). climbingLog entries
     are deliberately left alone; entry_data() falls back to their snapshot
-    once get_route() can no longer find the route."""
+    once get_route() can no longer find the route. A lean copy of each route goes
+    to routeArchive first, so the gym's all-time stats survive resets."""
+    tag_name = {t["id"]: t["name"] for t in DB["tags"]}
+    for r in DB["routes"]:
+        if r["id"] in route_ids:
+            DB["routeArchive"].append({
+                "id": r["id"], "gymId": r["gymId"], "holdColor": r["holdColor"], "holdType": r["holdType"],
+                "holdTypes": r.get("holdTypes") or [r["holdType"]], "mapX": r["mapX"], "mapY": r["mapY"],
+                "officialGrade": r["officialGrade"], "communityGrade": get_community_grade(r["id"]),
+                "finishes": get_route_finishes(r["id"]),
+                "tagNames": [tag_name[t] for t in r.get("tags", []) if t in tag_name],
+                "createdAt": r["createdAt"], "retiredAt": now_iso(),
+            })
     for route_id in route_ids:
         for m in [m for m in DB["routeMedia"] if m["routeId"] == route_id]:
             if m["url"].startswith("/uploads/"):
@@ -588,6 +602,9 @@ class Handler(BaseHTTPRequestHandler):
         if method == "GET" and m:
             gym = find(DB["gyms"], id=m.group(1))
             return self._json(200, gym) if gym else self._json(404, {"error": "Gym not found"})
+        m = re.match(r"^/api/gyms/([^/]+)/route-history$", path)
+        if method == "GET" and m:
+            return self._route_history(m.group(1))
         m = re.match(r"^/api/gyms/([^/]+)/wall-sections/([^/]+)/reset$", path)
         if method == "POST" and m:
             return self._reset_wall_section(m.group(1), m.group(2))
@@ -726,6 +743,10 @@ class Handler(BaseHTTPRequestHandler):
         include_inactive = qs.get("includeInactive") == "1"
         routes = [r for r in DB["routes"] if (not gym_id or r["gymId"] == gym_id) and (include_inactive or r["active"])]
         self._json(200, [route_summary(r) for r in routes])
+
+    # Every route the gym has retired (reset or deleted), for the all-time stats.
+    def _route_history(self, gym_id):
+        self._json(200, [r for r in DB["routeArchive"] if r["gymId"] == gym_id])
 
     def _get_route(self, route_id):
         route = get_route(route_id)
