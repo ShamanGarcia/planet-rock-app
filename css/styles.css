@@ -579,6 +579,11 @@ table.log-table tbody tr.row-removing{ transition:opacity var(--t-fast) var(--ea
 .gs-toggle button{ padding:6px 12px; font-size:12px; }
 .gs-select{ padding:7px 10px; border-radius:9px; border:1.5px solid var(--pr-border); font-size:12.5px; background:#fff; }
 
+.week-nav{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
+.week-nav .btn{ width:40px; padding:6px 0; font-size:18px; line-height:1; }
+.week-label{ display:flex; flex-direction:column; align-items:center; text-align:center; }
+.week-label strong{ font-size:14px; }
+.week-label span{ font-size:12px; color:var(--pr-text-soft); }
 .filters-bar{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
 .filters-bar select, .filters-bar input{ padding:7px 10px; border-radius:9px; border:1.5px solid var(--pr-border); font-size:12.5px; background:#fff; }
 

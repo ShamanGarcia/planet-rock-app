@@ -320,7 +320,8 @@ export function renderGymMap(container, gymId) {
       b.classList.toggle("active", on);
       b.setAttribute("aria-pressed", String(on));
     });
-    renderCanvasContents();
+    if (mode === "map" && listSection) enterZoomedSection(listSection); // keep looking at the area you were reading
+    else renderCanvasContents();
   }
   container.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => setViewMode(b.dataset.view)));
 
@@ -360,7 +361,7 @@ export function renderGymMap(container, gymId) {
     canvas.classList.remove("randomizing");
     current?.classList.remove("lit");
     randomRunning = false;
-    if (!destroyed) winner.click();
+    if (!destroyed) showRoute(winner); // straight to the popup, not the area zoom a tap would trigger
   }
   container.querySelector("#random-climb-btn").addEventListener("click", pickRandomClimb);
 
@@ -472,6 +473,18 @@ export function renderGymMap(container, gymId) {
   // Fits the whole gym canvas inside the viewport (see fitToBounds above).
   function fitToScreen() {
     fitToBounds({ minX: 0, maxX: CANVAS_W, minY: 0, maxY: CANVAS_H });
+  }
+
+  // Selects a marker and opens its route popup (shared by marker taps and Random Climb).
+  function showRoute(el) {
+    selectedRouteId = el.getAttribute("data-route-id");
+    newlyAddedRouteId = null;
+    canvas.querySelectorAll(".route-marker").forEach((m) => m.classList.remove("selected", "just-added"));
+    el.classList.add("selected");
+    openRouteDetail(selectedRouteId, {
+      onClose: () => { selectedRouteId = null; renderCanvasContents(); },
+      onChanged: () => renderCanvasContents(),
+    });
   }
 
   // Bubble color/label for a route: its hold color and grade normally, or a
@@ -617,14 +630,10 @@ export function renderGymMap(container, gymId) {
     canvas.querySelectorAll(".route-marker[data-route-id]").forEach((el) => {
       el.addEventListener("click", () => {
         if (panMoved || placementMode || moveMode) return;
-        selectedRouteId = el.getAttribute("data-route-id");
-        newlyAddedRouteId = null;
-        canvas.querySelectorAll(".route-marker").forEach((m) => m.classList.remove("selected", "just-added"));
-        el.classList.add("selected");
-        openRouteDetail(selectedRouteId, {
-          onClose: () => { selectedRouteId = null; renderCanvasContents(); },
-          onChanged: () => renderCanvasContents(),
-        });
+        // From the whole-gym map a tap goes to that route's area first; a tap inside an area opens the route.
+        const sectionId = zoomedSectionId ? null : findWallSectionAt(parseFloat(el.style.left), parseFloat(el.style.top));
+        if (sectionId) { enterZoomedSection(sectionId); return; }
+        showRoute(el);
       });
       el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); el.click(); } });
       if (moveMode) wireMarkerDrag(el, el.getAttribute("data-route-id"));

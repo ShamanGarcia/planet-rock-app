@@ -25,11 +25,12 @@ export function formatDate(iso) {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
-// Local midnight of the Sunday starting the week containing `date`.
-export function weekStart(date) {
+// Local midnight of the day starting the week containing `date`. Weeks start on
+// Sunday (0) unless startDay says otherwise (0-6, Sunday = 0; the log uses Tuesday = 2).
+export function weekStart(date, startDay = 0) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() - d.getDay());
+  d.setDate(d.getDate() - ((d.getDay() - startDay + 7) % 7));
   return d;
 }
 

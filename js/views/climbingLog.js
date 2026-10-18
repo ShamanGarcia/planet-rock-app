@@ -7,6 +7,7 @@ const BRAND_RED = "#bf2c37";
 const NEXT_CHART_MODE = { bar: "radar", radar: "pie", pie: "bar" };
 const CHART_MODE_LABEL = { bar: "Bar", radar: "Radar", pie: "Pie" };
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const LOG_WEEK_START = 2; // the log's weeks run Tuesday to Monday (Sunday = 0)
 import { openGalleryPrompt } from "../components/gallery.js";
 import { showToast } from "../components/toast.js";
 
@@ -40,12 +41,20 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
   let allEntries = [];
   let loaded = false;
   let loadError = null;
-  const filterState = { dateFrom: "", dateTo: "", officialGrade: "", holdType: "", holdColor: "", tag: "", area: "" };
+  let weekOffset = 0; // table view: weeks back from the current week (0 = this week)
+  const filterState = { officialGrade: "", holdType: "", holdColor: "", tag: "", area: "" };
+
+  // The week on screen, Tuesday to Monday, local time.
+  function logWeek() {
+    const start = weekStart(new Date(), LOG_WEEK_START);
+    start.setDate(start.getDate() - 7 * weekOffset);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    return { start, end };
+  }
 
   function getFiltered() {
     let entries = allEntries;
-    if (filterState.dateFrom) entries = entries.filter((e) => e.completedAt >= filterState.dateFrom);
-    if (filterState.dateTo) entries = entries.filter((e) => e.completedAt <= filterState.dateTo + "T23:59:59");
     if (filterState.officialGrade !== "") entries = entries.filter((e) => String(routeData(e).officialGrade) === filterState.officialGrade);
     if (filterState.holdType) entries = entries.filter((e) => routeData(e).holdType === filterState.holdType);
     if (filterState.holdColor) entries = entries.filter((e) => routeData(e).holdColor === filterState.holdColor);
@@ -134,12 +143,20 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
     else renderStats(body);
   }
 
-  function renderTable(body, entries) {
+  function renderTable(body, matching) {
     const tags = allTagNames();
+    const week = logWeek();
+    const entries = matching.filter((e) => { const t = new Date(e.completedAt); return t >= week.start && t < week.end; });
+    const earliest = allEntries.length
+      ? weekStart(allEntries.reduce((m, e) => (e.completedAt < m ? e.completedAt : m), allEntries[0].completedAt), LOG_WEEK_START)
+      : null;
     body.innerHTML = `
+      <div class="week-nav">
+        <button class="btn btn-outline btn-sm" id="week-prev" aria-label="Previous week" ${!earliest || week.start <= earliest ? "disabled" : ""}>‹</button>
+        <div class="week-label"><strong>${weekWindowLabel([week.start])}</strong><span>${entries.length} climb${entries.length === 1 ? "" : "s"}</span></div>
+        <button class="btn btn-outline btn-sm" id="week-next" aria-label="Next week" ${weekOffset === 0 ? "disabled" : ""}>›</button>
+      </div>
       <div class="filters-bar">
-        <input type="date" id="f-from" value="${filterState.dateFrom}" aria-label="From date"/>
-        <input type="date" id="f-to" value="${filterState.dateTo}" aria-label="To date"/>
         <select id="f-grade"><option value="">Any Grade</option>${Array.from({ length: MAX_GRADE + 1 }, (_, g) => `<option value="${g}" ${filterState.officialGrade === String(g) ? "selected" : ""}>V${g}</option>`).join("")}</select>
         <select id="f-holdtype"><option value="">Any Hold Type</option>${HOLD_TYPES.map((h) => `<option ${filterState.holdType === h ? "selected" : ""}>${h}</option>`).join("")}</select>
         <select id="f-holdcolor"><option value="">Any Hold Color</option>${HOLD_COLORS.map((c) => `<option ${filterState.holdColor === c ? "selected" : ""}>${c}</option>`).join("")}</select>
@@ -223,8 +240,8 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
       const entry = entries.find((x) => x.id === row.getAttribute("data-entry-id"));
       wireLogCard(row, () => entry && handleDelete(entry, row));
     });
-    body.querySelector("#f-from").addEventListener("change", (e) => { filterState.dateFrom = e.target.value; render(); });
-    body.querySelector("#f-to").addEventListener("change", (e) => { filterState.dateTo = e.target.value; render(); });
+    body.querySelector("#week-prev").addEventListener("click", () => { weekOffset++; render(); });
+    body.querySelector("#week-next").addEventListener("click", () => { weekOffset--; render(); });
     body.querySelector("#f-grade").addEventListener("change", (e) => { filterState.officialGrade = e.target.value; render(); });
     body.querySelector("#f-holdtype").addEventListener("change", (e) => { filterState.holdType = e.target.value; render(); });
     body.querySelector("#f-holdcolor").addEventListener("change", (e) => { filterState.holdColor = e.target.value; render(); });
@@ -287,7 +304,7 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
   }
 
   function emptyState() {
-    return `<div class="empty-state card"><div>No climbs match these filters yet.</div></div>`;
+    return `<div class="empty-state card"><div>No climbs match these filters in this week.</div></div>`;
   }
 
   async function renderStats(body) {
