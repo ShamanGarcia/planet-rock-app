@@ -2,8 +2,12 @@ import {
   getRouteDetail, addTagToRoute, getAllTags, submitGradeEstimate,
   getAcceptedFriends, updateRoute, deleteRoute, getCurrentUser,
 } from "../data/api.js";
-import { formatGrade, formatEstimate, MAX_GRADE, HOLD_COLOR_HEX, HOLD_COLOR_TEXT, routeLabel } from "../data/constants.js";
+import {
+  formatGrade, formatEstimate, MAX_GRADE, ROPE_BASE_GRADES, CLIMB_TYPE_LABELS, disciplineOf, gradeScaleLabel,
+  HOLD_COLOR_HEX, HOLD_COLOR_TEXT, routeLabel,
+} from "../data/constants.js";
 import { renderRadarChart } from "../components/charts.js";
+import { ropeGradePickerHTML, wireRopeGradePicker } from "../components/ropeGradePicker.js";
 import { openLogSendSheet } from "../components/logSendSheet.js";
 import { openFullGallery, getCombinedMedia, openAddMediaForm } from "../components/gallery.js";
 import { openPasswordPromptModal } from "../components/passwordPromptModal.js";
@@ -61,6 +65,8 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
     const { route, tagDetails, communityGrade, gradeDistribution, mySends, myEstimate, senders } = detail;
     const media = await getCombinedMedia(routeId);
     const label = routeLabel(route);
+    const discipline = disciplineOf(route);
+    const rope = discipline === "rope";
     const hasEstimates = gradeDistribution.some((c) => c > 0);
     const linkedTagIds = new Set(route.tags);
     const availableTags = (await getAllTags())
@@ -79,17 +85,24 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
           </div>
         </div>
 
+        ${rope && (route.routeTitle || route.setterInitials || (route.climbTypes || []).length) ? `
+        <div class="rope-meta">
+          ${route.routeTitle ? `<div class="rope-meta-title">${escapeHtml(route.routeTitle)}</div>` : ""}
+          ${route.setterInitials ? `<div class="page-sub">Set by ${escapeHtml(route.setterInitials)}</div>` : ""}
+          ${(route.climbTypes || []).length ? `<div class="chip-row">${route.climbTypes.map((t) => `<span class="chip">${escapeHtml(CLIMB_TYPE_LABELS[t] || t)}</span>`).join("")}</div>` : ""}
+        </div>` : ""}
+
         ${mySends ? `<div class="page-sub">You've sent this ${mySends}×</div>` : ""}
 
         <div class="grade-badges">
           <div class="grade-badge" style="background:${HOLD_COLOR_HEX[route.holdColor]};color:${HOLD_COLOR_TEXT[route.holdColor]};">
             <div class="g-label">Official Grade</div>
-            <div class="g-value">${formatGrade(route.officialGrade)}</div>
+            <div class="g-value">${formatGrade(route.officialGrade, discipline)}</div>
             ${route.holdType ? `<div class="g-label" style="margin-top:2px;">${escapeHtml(route.holdType)}</div>` : ""}
           </div>
           <button type="button" class="grade-badge" id="rd-community-badge" aria-label="View grade distribution">
             <div class="g-label">Community Estimate</div>
-            <div class="g-value">${communityGrade === null ? "—" : formatEstimate(communityGrade)}</div>
+            <div class="g-value">${communityGrade === null ? "—" : formatEstimate(communityGrade, discipline)}</div>
             <div class="g-hint">*click for details</div>
           </button>
         </div>
@@ -98,17 +111,19 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
         <div class="estimate-form">
           <div class="grade-control-col">
             <label class="g-label" for="rd-official-grade-select">Official Grade</label>
+            ${rope ? `<div id="rd-official-grade-select">${ropeGradePickerHTML({ label: "Official rope grade" })}</div>` : `
             <select id="rd-official-grade-select" aria-label="Official grade">
               <option value="">Ungraded</option>
               ${Array.from({ length: MAX_GRADE + 1 }, (_, g) => `<option value="${g}" ${route.officialGrade === g ? "selected" : ""}>V${g}</option>`).join("")}
-            </select>
+            </select>`}
           </div>
           <form id="rd-estimate-form" style="display:contents;">
             <div class="grade-control-col">
               <label class="g-label" for="rd-estimate-select">Estimated Grade</label>
+              ${rope ? `<div id="rd-estimate-select">${ropeGradePickerHTML({ label: "Your rope grade estimate", ungradedLabel: "Select grade" })}</div>` : `
               <select id="rd-estimate-select" name="grade" aria-label="Your grade estimate">
                 ${Array.from({ length: MAX_GRADE + 1 }, (_, g) => `<option value="${g}" ${myEstimate === g ? "selected" : ""}>V${g}</option>`).join("")}
-              </select>
+              </select>`}
             </div>
             <button class="btn btn-outline btn-sm" type="submit">${myEstimate !== null && myEstimate !== undefined ? "Update Estimate" : "Submit Estimate"}</button>
           </form>
@@ -162,22 +177,34 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
     backdrop.querySelector("#rd-close").addEventListener("click", close);
     backdrop.querySelector("#rd-view-gallery")?.addEventListener("click", () => openFullGallery(routeId, label));
     backdrop.querySelector("#rd-add-media").addEventListener("click", () => openAddMediaForm(routeId, label, { onAdded: render }));
-    backdrop.querySelector("#rd-community-badge").addEventListener("click", () => openGradeDistributionPopup(hasEstimates, gradeDistribution));
+    backdrop.querySelector("#rd-community-badge").addEventListener("click", () => openGradeDistributionPopup(hasEstimates, gradeDistribution, discipline));
 
+    // Rope grades come from the -/dropdown/+ picker, boulder grades from a plain select.
+    const estimatePicker = rope
+      ? wireRopeGradePicker(backdrop.querySelector("#rd-estimate-select [data-rope-grade]"), myEstimate ?? null)
+      : null;
     backdrop.querySelector("#rd-estimate-form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const grade = Number(new FormData(e.target).get("grade"));
+      const grade = rope ? estimatePicker.get() : Number(new FormData(e.target).get("grade"));
+      if (grade === null) { showToast("Pick a grade to estimate", { small: true }); return; }
       await submitGradeEstimate(routeId, grade);
       onChanged?.();
       render();
     });
 
-    backdrop.querySelector("#rd-official-grade-select").addEventListener("change", async (e) => {
-      const val = e.target.value;
-      await updateRoute(routeId, { officialGrade: val === "" ? null : Number(val) });
+    async function saveOfficialGrade(grade) {
+      await updateRoute(routeId, { officialGrade: grade });
       onChanged?.();
       render();
-    });
+    }
+    if (rope) {
+      wireRopeGradePicker(backdrop.querySelector("#rd-official-grade-select [data-rope-grade]"), route.officialGrade ?? null, saveOfficialGrade);
+    } else {
+      backdrop.querySelector("#rd-official-grade-select").addEventListener("change", (e) => {
+        const val = e.target.value;
+        saveOfficialGrade(val === "" ? null : Number(val));
+      });
+    }
 
     backdrop.querySelector("#rd-delete-route").addEventListener("click", () => {
       openPasswordPromptModal({
@@ -225,7 +252,7 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
     });
   }
 
-  function openGradeDistributionPopup(hasEstimates, gradeDistribution) {
+  function openGradeDistributionPopup(hasEstimates, gradeDistribution, discipline) {
     const popup = document.createElement("div");
     popup.className = "mini-popup-backdrop";
     document.body.appendChild(popup);
@@ -242,7 +269,14 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
     popup.querySelector("#rd-dist-close").addEventListener("click", closePopup);
 
     if (hasEstimates) {
-      renderRadarChart(popup.querySelector("#rd-radar-popup"), gradeDistribution.map((_, g) => `V${g}`), gradeDistribution);
+      if (discipline === "rope") {
+        // 21 steps (5.7- ... 5.13+) is too many spokes for a radar, so fold the
+        // -/neither/+ steps of each base grade into one.
+        const folded = ROPE_BASE_GRADES.map((_, i) => gradeDistribution.slice(i * 3, i * 3 + 3).reduce((a, b) => a + b, 0));
+        renderRadarChart(popup.querySelector("#rd-radar-popup"), ROPE_BASE_GRADES.map((b) => `5.${b}`), folded);
+      } else {
+        renderRadarChart(popup.querySelector("#rd-radar-popup"), gradeDistribution.map((_, g) => gradeScaleLabel(g)), gradeDistribution);
+      }
     }
   }
 

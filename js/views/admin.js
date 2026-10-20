@@ -2,7 +2,9 @@ import {
   getAllTags, deleteRoute, adminListUsers, adminDeleteUser, adminDeleteTag, getAllRoutesForAdmin,
   adminGetStats, getUser,
 } from "../data/api.js";
-import { HOLD_COLORS, HOLD_COLOR_HEX, WALL_SECTIONS, MAX_GRADE, formatGrade } from "../data/constants.js";
+import {
+  HOLD_COLORS, HOLD_COLOR_HEX, DISCIPLINES, DISCIPLINE_LABELS, maxGradeFor, sectionsFor, disciplineOf, gradeScaleLabel, formatGrade,
+} from "../data/constants.js";
 import { formatDate, escapeHtml, dismissOverlay, weekStart, weekWindow, weekWindowLabel } from "../utils.js";
 import { openPasswordPromptModal } from "../components/passwordPromptModal.js";
 import { showToast } from "../components/toast.js";
@@ -231,7 +233,8 @@ export function renderAdmin(container) {
       if (routeFilters.date && (r.createdAt || "").slice(0, 10) !== routeFilters.date) return false;
       if (routeFilters.area && r.wallSection !== routeFilters.area) return false;
       if (routeFilters.color && r.holdColor !== routeFilters.color) return false;
-      if (routeFilters.grade !== "" && String(r.officialGrade) !== routeFilters.grade) return false;
+      // Grade filter values are "<discipline>:<grade>" since the two scales overlap numerically.
+      if (routeFilters.grade !== "" && `${disciplineOf(r)}:${r.officialGrade}` !== routeFilters.grade) return false;
       return true;
     });
   }
@@ -245,15 +248,15 @@ export function renderAdmin(container) {
     body.innerHTML = `
       <div class="filters-bar">
         <input type="date" id="c-date" value="${routeFilters.date}" aria-label="Date added"/>
-        <select id="c-area"><option value="">Any Area</option>${WALL_SECTIONS.map((s) => `<option value="${s.id}" ${routeFilters.area === s.id ? "selected" : ""}>${escapeHtml(s.name)}</option>`).join("")}</select>
+        <select id="c-area"><option value="">Any Area</option>${DISCIPLINES.flatMap((d) => sectionsFor(d)).map((s) => `<option value="${s.id}" ${routeFilters.area === s.id ? "selected" : ""}>${escapeHtml(s.name)}</option>`).join("")}</select>
         <select id="c-color"><option value="">Any Color</option>${HOLD_COLORS.map((c) => `<option ${routeFilters.color === c ? "selected" : ""}>${c}</option>`).join("")}</select>
-        <select id="c-grade"><option value="">Any Grade</option>${Array.from({ length: MAX_GRADE + 1 }, (_, g) => `<option value="${g}" ${routeFilters.grade === String(g) ? "selected" : ""}>V${g}</option>`).join("")}</select>
+        <select id="c-grade"><option value="">Any Grade</option>${DISCIPLINES.map((d) => `<optgroup label="${DISCIPLINE_LABELS[d]}">${Array.from({ length: maxGradeFor(d) + 1 }, (_, g) => `<option value="${d}:${g}" ${routeFilters.grade === `${d}:${g}` ? "selected" : ""}>${gradeScaleLabel(g, d)}</option>`).join("")}</optgroup>`).join("")}</select>
         <button class="btn btn-ghost btn-sm" id="c-clear">Clear</button>
       </div>
       <div class="info-list">
         ${filtered.length ? filtered.map((r) => `
           <div class="info-row">
-            <span class="k"><span class="hold-dot" style="background:${HOLD_COLOR_HEX[r.holdColor]}"></span> ${escapeHtml(r.holdColor)} ${formatGrade(r.officialGrade)} · ${escapeHtml((r.wallSection || "").replace(/-/g, " "))}</span>
+            <span class="k"><span class="hold-dot" style="background:${HOLD_COLOR_HEX[r.holdColor]}"></span> ${escapeHtml(r.holdColor)} ${formatGrade(r.officialGrade, disciplineOf(r))}${r.routeTitle ? ` “${escapeHtml(r.routeTitle)}”` : ""} · ${escapeHtml((r.wallSection || "").replace(/-/g, " "))}</span>
             <button type="button" class="btn btn-danger btn-sm" data-delete-route="${r.id}">Delete</button>
           </div>
         `).join("") : `<div class="page-sub">No climbs match.</div>`}

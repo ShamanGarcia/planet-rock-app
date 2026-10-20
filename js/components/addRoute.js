@@ -1,15 +1,19 @@
 import { createRoute } from "../data/api.js";
 import { saveLocalMedia } from "../data/localMedia.js";
-import { HOLD_COLORS, HOLD_COLOR_HEX, HOLD_COLOR_TEXT, HOLD_TYPES, MAX_GRADE, formatGrade, SHARED_MEDIA_LIMIT_BYTES } from "../data/constants.js";
+import { HOLD_COLORS, HOLD_COLOR_HEX, HOLD_COLOR_TEXT, HOLD_TYPES, MAX_GRADE, CLIMB_TYPES, formatGrade, SHARED_MEDIA_LIMIT_BYTES } from "../data/constants.js";
+import { ropeGradePickerHTML, wireRopeGradePicker } from "./ropeGradePicker.js";
 import { escapeHtml, compressImageFile, dataUrlByteSize, dismissOverlay } from "../utils.js";
 import { showToast } from "./toast.js";
 
 // Opens the "add a new route" drawer for a map position the user already
-// tapped. Routes have no name — climbers identify them by hold color +
-// grade — so this lets them pick color/type, optionally set an official
-// grade, add tags, and attach a photo (camera on mobile, file picker on
-// desktop) before uploading it so it appears for every climber.
-export function openAddRouteForm({ gymId, mapX, mapY, wallSection, allTags, onCreated, onCancel }) {
+// tapped. Boulder problems have no name — climbers identify them by hold
+// color + grade — so this lets them pick color/type, optionally set an
+// official grade, add tags, and attach a photo (camera on mobile, file picker
+// on desktop) before uploading it so it appears for every climber. Rope routes
+// add the type of climb, an optional name and setter initials, and use the
+// 5.x grade scale.
+export function openAddRouteForm({ gymId, discipline = "boulder", mapX, mapY, wallSection, allTags, onCreated, onCancel }) {
+  const rope = discipline === "rope";
   const backdrop = document.createElement("div");
   backdrop.className = "drawer-backdrop";
   document.body.appendChild(backdrop);
@@ -18,6 +22,9 @@ export function openAddRouteForm({ gymId, mapX, mapY, wallSection, allTags, onCr
   let newTagDraft = "";
   let selectedColor = null;
   let selectedHoldType = null;
+  const selectedClimbTypes = new Set();
+  let routeTitle = "";
+  let setterInitials = "";
   const selectedTags = new Set();
   let photoDataUrl = null;
   let photoTooBigForSharing = false;
@@ -29,7 +36,7 @@ export function openAddRouteForm({ gymId, mapX, mapY, wallSection, allTags, onCr
 
   function previewLabel() {
     if (!selectedColor) return "New Route";
-    return `${selectedColor} ${officialGrade === "" ? "(Ungraded)" : formatGrade(Number(officialGrade))}`;
+    return `${selectedColor} ${officialGrade === "" ? "(Ungraded)" : formatGrade(Number(officialGrade), discipline)}`;
   }
 
   function sortedTags() {
@@ -64,6 +71,15 @@ export function openAddRouteForm({ gymId, mapX, mapY, wallSection, allTags, onCr
             ${photoDataUrl ? `<button type="button" class="btn btn-ghost btn-sm" id="ar-photo-remove">Remove Photo</button>` : ""}
           </div>
 
+          ${rope ? `
+          <div class="field">
+            <label>Type of Climb</label>
+            <div class="chip-row">
+              ${CLIMB_TYPES.map((t) => `<button type="button" class="chip ${selectedClimbTypes.has(t.id) ? "active" : ""}" data-climbtype="${t.id}" aria-pressed="${selectedClimbTypes.has(t.id)}">${t.label}</button>`).join("")}
+            </div>
+            <div class="field-hint">Pick every style this route can be climbed as.</div>
+          </div>` : ""}
+
           <div class="field">
             <label>Hold Color</label>
             <div class="chip-row">
@@ -80,12 +96,25 @@ export function openAddRouteForm({ gymId, mapX, mapY, wallSection, allTags, onCr
             </div>
           </div>
 
+          ${rope ? `
+          <div class="field-row">
+            <div class="field">
+              <label for="ar-title">Route Name (optional)</label>
+              <input type="text" id="ar-title" maxlength="60" autocomplete="off" value="${escapeHtml(routeTitle)}" />
+            </div>
+            <div class="field narrow">
+              <label for="ar-setter">Setter (optional)</label>
+              <input type="text" id="ar-setter" maxlength="4" autocomplete="off" autocapitalize="characters" placeholder="Initials" value="${escapeHtml(setterInitials)}" />
+            </div>
+          </div>` : ""}
+
           <div class="field">
             <label>Official Grade (optional)</label>
+            ${rope ? ropeGradePickerHTML({ label: "Official rope grade" }) : `
             <select name="officialGrade" id="ar-grade">
               <option value="" ${officialGrade === "" ? "selected" : ""}>Ungraded</option>
               ${Array.from({ length: MAX_GRADE + 1 }, (_, g) => `<option value="${g}" ${officialGrade === String(g) ? "selected" : ""}>V${g}</option>`).join("")}
-            </select>
+            </select>`}
             <div class="field-hint">Leave blank if this hasn't been officially graded yet — climbers can still submit community estimates.</div>
           </div>
 
@@ -121,10 +150,28 @@ export function openAddRouteForm({ gymId, mapX, mapY, wallSection, allTags, onCr
       if (h2) h2.textContent = previewLabel();
     }
 
-    backdrop.querySelector("#ar-grade").addEventListener("change", (e) => {
-      officialGrade = e.target.value;
-      updateHeader();
-    });
+    if (rope) {
+      wireRopeGradePicker(backdrop.querySelector("[data-rope-grade]"), officialGrade === "" ? null : Number(officialGrade), (index) => {
+        officialGrade = index === null ? "" : String(index);
+        updateHeader();
+      });
+      backdrop.querySelector("#ar-title").addEventListener("input", (e) => { routeTitle = e.target.value; });
+      backdrop.querySelector("#ar-setter").addEventListener("input", (e) => {
+        setterInitials = e.target.value.toUpperCase();
+        e.target.value = setterInitials;
+      });
+      backdrop.querySelectorAll("[data-climbtype]").forEach((btn) => btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-climbtype");
+        if (selectedClimbTypes.has(id)) selectedClimbTypes.delete(id); else selectedClimbTypes.add(id);
+        btn.classList.toggle("active", selectedClimbTypes.has(id));
+        btn.setAttribute("aria-pressed", String(selectedClimbTypes.has(id)));
+      }));
+    } else {
+      backdrop.querySelector("#ar-grade").addEventListener("change", (e) => {
+        officialGrade = e.target.value;
+        updateHeader();
+      });
+    }
     backdrop.querySelector("#ar-new-tag").addEventListener("input", (e) => { newTagDraft = e.target.value; });
 
     backdrop.querySelectorAll("[data-color]").forEach((btn) => btn.addEventListener("click", () => {
@@ -196,6 +243,12 @@ export function openAddRouteForm({ gymId, mapX, mapY, wallSection, allTags, onCr
         const shareablePhoto = photoDataUrl && !photoTooBigForSharing ? photoDataUrl : null;
         const route = await createRoute({
           gymId,
+          discipline,
+          ...(rope ? {
+            climbTypes: CLIMB_TYPES.map((t) => t.id).filter((id) => selectedClimbTypes.has(id)),
+            routeTitle: routeTitle.trim(),
+            setterInitials: setterInitials.trim(),
+          } : {}),
           wallSection,
           mapX, mapY,
           holdColor: selectedColor,

@@ -42,6 +42,11 @@ DATA_DIR = Path(os.environ.get("DATA_DIR") or (BACKEND_DIR / "data"))
 UPLOADS_DIR = DATA_DIR / "uploads"
 DB_PATH = DATA_DIR / "db.json"
 MAX_GRADE = 10
+# Rope grades are stored as an index into 5.7-, 5.7, 5.7+, ... 5.13+ (7 bases x 3
+# modifiers). Mirrored in js/data/constants.js.
+MAX_ROPE_GRADE = 20
+DISCIPLINES = ("boulder", "rope")
+ROPE_CLIMB_TYPES = ("top", "lead", "autobelay")
 # Given to route setters so they can clear a wall before resetting it —
 # intentionally a shared plain-text key, not a per-user permission system.
 ROUTESETTER_KEY = "TEARDOWN"
@@ -215,10 +220,30 @@ def get_community_grade(route_id):
     return sum(grades) / len(grades) if grades else None
 
 
+def _clean_text(value, limit):
+    return str(value or "").strip()[:limit]
+
+
+def _clean_climb_types(value):
+    if not isinstance(value, list):
+        return []
+    # Keep the canonical order and drop anything unknown or repeated.
+    return [t for t in ROPE_CLIMB_TYPES if t in value]
+
+
+def discipline_of(data):
+    # Routes and log snapshots created before rope climbing have no discipline.
+    return data.get("discipline") if data and data.get("discipline") in DISCIPLINES else "boulder"
+
+
+def max_grade_for(discipline):
+    return MAX_ROPE_GRADE if discipline == "rope" else MAX_GRADE
+
+
 def get_grade_distribution(route_id):
-    counts = [0] * (MAX_GRADE + 1)
+    counts = [0] * (max_grade_for(discipline_of(get_route(route_id))) + 1)
     for e in DB["gradeEstimates"]:
-        if e["routeId"] == route_id:
+        if e["routeId"] == route_id and e["grade"] < len(counts):
             counts[e["grade"]] += 1
     return counts
 
@@ -277,13 +302,23 @@ def entry_data(e):
 
 def compute_user_stats(user_id):
     entries = get_log_entries(user_id)
+    # Boulder and rope grades live on different scales, so every figure below is
+    # computed per discipline. The top-level keys stay boulder-only so existing
+    # clients keep working; the rope figures sit under "rope".
+    stats = _compute_discipline_stats([e for e in entries if discipline_of(entry_data(e)) == "boulder"], "boulder")
+    stats["rope"] = _compute_discipline_stats([e for e in entries if discipline_of(entry_data(e)) == "rope"], "rope")
+    return stats
+
+
+def _compute_discipline_stats(entries, discipline):
+    max_grade = max_grade_for(discipline)
     total = len(entries)
     graded = [e for e in entries if entry_data(e).get("officialGrade") is not None]
     highest = max((entry_data(e)["officialGrade"] for e in graded), default=None)
 
-    grade_dist = [0] * (MAX_GRADE + 1)
+    grade_dist = [0] * (max_grade + 1)
     for e in graded:
-        grade_dist[entry_data(e)["officialGrade"]] += 1
+        grade_dist[min(entry_data(e)["officialGrade"], max_grade)] += 1
 
     hold_dist = Counter(entry_data(e).get("holdType") for e in entries if entry_data(e).get("holdType"))
     area_dist = Counter(entry_data(e).get("wallSection") for e in entries if entry_data(e).get("wallSection"))
@@ -292,10 +327,10 @@ def compute_user_stats(user_id):
     style_dist = [{"name": k, "count": v} for k, v in style_counts.most_common()]
     favorite_style = style_dist[0]["name"] if style_dist else None
 
-    est_buckets = [0] * (MAX_GRADE + 1)
+    est_buckets = [0] * (max_grade + 1)
     for e in entries:
         if e["estimatedGrade"] is not None:
-            est_buckets[round(e["estimatedGrade"])] += 1
+            est_buckets[min(round(e["estimatedGrade"]), max_grade)] += 1
 
     favorite_hold_calc = hold_dist.most_common(1)[0][0] if hold_dist else None
 
@@ -403,6 +438,8 @@ def purge_routes(route_ids):
                 "holdTypes": r.get("holdTypes") or [r["holdType"]], "wallSection": r.get("wallSection"),
                 "mapX": r["mapX"], "mapY": r["mapY"],
                 "officialGrade": r["officialGrade"], "communityGrade": get_community_grade(r["id"]),
+                "discipline": discipline_of(r), "climbTypes": r.get("climbTypes") or [],
+                "routeTitle": r.get("routeTitle", ""), "setterInitials": r.get("setterInitials", ""),
                 "finishes": get_route_finishes(r["id"]),
                 "tagNames": [tag_name[t] for t in r.get("tags", []) if t in tag_name],
                 "createdAt": r["createdAt"], "retiredAt": now_iso(),
@@ -825,13 +862,25 @@ class Handler(BaseHTTPRequestHandler):
         if not find(DB["gyms"], id=gym_id):
             raise ApiError(404, "Gym not found.")
 
+        discipline = body.get("discipline") or "boulder"
+        if discipline not in DISCIPLINES:
+            raise ApiError(400, "discipline must be 'boulder' or 'rope'.")
         hold_type = body.get("holdType") or "Jug"
         hold_color = body.get("holdColor") or "Red"
         official_grade = body.get("officialGrade")
         if official_grade in (None, ""):
             official_grade = None
         else:
-            official_grade = max(0, min(MAX_GRADE, int(official_grade)))
+            try:
+                official_grade = max(0, min(max_grade_for(discipline), int(official_grade)))
+            except (TypeError, ValueError):
+                raise ApiError(400, "officialGrade must be a number.")
+        climb_types = []
+        route_title = setter_initials = ""
+        if discipline == "rope":
+            climb_types = _clean_climb_types(body.get("climbTypes"))
+            route_title = _clean_text(body.get("routeTitle"), 60)
+            setter_initials = _clean_text(body.get("setterInitials"), 4).upper()
 
         tag_ids = []
         for tag_name in body.get("tags") or []:
@@ -849,6 +898,8 @@ class Handler(BaseHTTPRequestHandler):
             "mapX": float(body["mapX"]), "mapY": float(body["mapY"]),
             "holdType": hold_type, "holdTypes": body.get("holdTypes") or [hold_type],
             "holdColor": hold_color, "officialGrade": official_grade,
+            "discipline": discipline, "climbTypes": climb_types,
+            "routeTitle": route_title, "setterInitials": setter_initials,
             "tags": tag_ids, "photoUrl": None,
             "createdAt": now_iso(), "createdBy": user["id"], "active": True,
         }
@@ -876,6 +927,15 @@ class Handler(BaseHTTPRequestHandler):
                       "holdColor", "officialGrade", "active", "photoUrl"]:
             if field in body:
                 route[field] = body[field]
+        # Discipline is fixed at creation (changing it would reinterpret the
+        # grade), but the rope-only details can be edited.
+        if discipline_of(route) == "rope":
+            if "climbTypes" in body:
+                route["climbTypes"] = _clean_climb_types(body["climbTypes"])
+            if "routeTitle" in body:
+                route["routeTitle"] = _clean_text(body["routeTitle"], 60)
+            if "setterInitials" in body:
+                route["setterInitials"] = _clean_text(body["setterInitials"], 4).upper()
         save_db()
         self._json(200, route_summary(route))
 
@@ -935,10 +995,11 @@ class Handler(BaseHTTPRequestHandler):
         if not route:
             raise ApiError(404, "Route not found.")
         body = self._body()
+        max_grade = max_grade_for(discipline_of(route))
         try:
-            grade = max(0, min(MAX_GRADE, round(float(body.get("grade")))))
+            grade = max(0, min(max_grade, round(float(body.get("grade")))))
         except (TypeError, ValueError):
-            raise ApiError(400, "grade must be a number 0-10.")
+            raise ApiError(400, f"grade must be a number 0-{max_grade}.")
         existing = get_user_estimate(route_id, user["id"])
         if existing:
             existing["grade"] = grade
@@ -972,6 +1033,8 @@ class Handler(BaseHTTPRequestHandler):
             "snapshot": {
                 "holdColor": route["holdColor"], "holdType": route["holdType"],
                 "officialGrade": route["officialGrade"], "wallSection": route.get("wallSection"),
+                "discipline": discipline_of(route), "climbTypes": route.get("climbTypes") or [],
+                "routeTitle": route.get("routeTitle", ""), "setterInitials": route.get("setterInitials", ""),
             },
         }
         DB["climbingLog"].append(entry)

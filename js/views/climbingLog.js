@@ -1,5 +1,9 @@
 import { getLogEntries, computeUserStats, deleteLogEntry, getCurrentUser } from "../data/api.js";
-import { formatGrade, formatEstimate, HOLD_COLORS, HOLD_TYPES, MAX_GRADE, WALL_SECTIONS } from "../data/constants.js";
+import {
+  formatGrade, formatEstimate, HOLD_COLORS, HOLD_TYPES, DISCIPLINES, DISCIPLINE_LABELS,
+  maxGradeFor, sectionsFor, disciplineOf, gradeScaleLabel,
+} from "../data/constants.js";
+import { getDiscipline, storeDiscipline } from "../data/discipline.js";
 import { formatDate, escapeHtml, clamp, weekStart, weekWindow, weekWindowLabel, WEEKS_PER_WINDOW } from "../utils.js";
 import { renderBarChart, renderRadarChart, renderPieChart, renderLineChart, shadesOf } from "../components/charts.js";
 
@@ -11,8 +15,11 @@ const LOG_WEEK_START = 2; // the log's weeks run Tuesday to Monday (Sunday = 0)
 import { openGalleryPrompt } from "../components/gallery.js";
 import { showToast } from "../components/toast.js";
 
+// Looks across both areas' sections: an entry's wall section belongs to
+// whichever discipline it was logged under.
+const ALL_SECTIONS = [...sectionsFor("boulder"), ...sectionsFor("rope")];
 function wallSectionName(id) {
-  return WALL_SECTIONS.find((s) => s.id === id)?.name || null;
+  return ALL_SECTIONS.find((s) => s.id === id)?.name || null;
 }
 
 // The live route (holdColor/holdType/officialGrade/wallSection) if it still
@@ -24,7 +31,7 @@ function routeData(entry) {
 
 function snapshotLabel(entry) {
   const data = routeData(entry);
-  const base = `${data.holdColor} ${formatGrade(data.officialGrade)}`;
+  const base = `${data.holdColor} ${formatGrade(data.officialGrade, disciplineOf(data))}`;
   const place = wallSectionName(data.wallSection);
   return place ? `${base} - ${place}` : base;
 }
@@ -36,6 +43,7 @@ function areaLabel(entry) {
 export function renderClimbingLog(container, userId, { title = "Climbing Log", canGoBack = false, backHash = "#/friends", adminPassword } = {}) {
   const isOwn = getCurrentUser()?.id === userId;
   let mode = "table";
+  let discipline = getDiscipline(); // bouldering and rope grades differ, so the log shows one at a time
   let sortField = "completedAt";
   let sortDir = "desc";
   let allEntries = [];
@@ -54,7 +62,7 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
   }
 
   function getFiltered() {
-    let entries = allEntries;
+    let entries = allEntries.filter((e) => disciplineOf(routeData(e)) === discipline);
     if (filterState.officialGrade !== "") entries = entries.filter((e) => String(routeData(e).officialGrade) === filterState.officialGrade);
     if (filterState.holdType) entries = entries.filter((e) => routeData(e).holdType === filterState.holdType);
     if (filterState.holdColor) entries = entries.filter((e) => routeData(e).holdColor === filterState.holdColor);
@@ -128,12 +136,27 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
             <button data-mode="stats" class="${mode === "stats" ? "active" : ""}">Stats</button>
           </div>
         </div>
+        <div class="discipline-bar gs-discipline">
+          <div class="view-toggle discipline-toggle" role="group" aria-label="Climbing type">
+            ${DISCIPLINES.map((d) => `<button type="button" class="${d === discipline ? "active" : ""}" data-discipline="${d}" aria-pressed="${d === discipline}">${DISCIPLINE_LABELS[d]}</button>`).join("")}
+          </div>
+        </div>
         <div id="log-body"></div>
       </div>
     `;
 
     container.querySelectorAll("[data-mode]").forEach((btn) =>
       btn.addEventListener("click", () => { mode = btn.getAttribute("data-mode"); render(); })
+    );
+    container.querySelectorAll("[data-discipline]").forEach((btn) =>
+      btn.addEventListener("click", () => {
+        if (btn.dataset.discipline === discipline) return;
+        discipline = btn.dataset.discipline;
+        storeDiscipline(discipline);
+        filterState.officialGrade = ""; // grade and area filters only make sense within one discipline
+        filterState.area = "";
+        render();
+      })
     );
 
     const body = container.querySelector("#log-body");
@@ -157,11 +180,11 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
         <button class="btn btn-outline btn-sm" id="week-next" aria-label="Next week" ${weekOffset === 0 ? "disabled" : ""}>›</button>
       </div>
       <div class="filters-bar">
-        <select id="f-grade"><option value="">Any Grade</option>${Array.from({ length: MAX_GRADE + 1 }, (_, g) => `<option value="${g}" ${filterState.officialGrade === String(g) ? "selected" : ""}>V${g}</option>`).join("")}</select>
+        <select id="f-grade"><option value="">Any Grade</option>${Array.from({ length: maxGradeFor(discipline) + 1 }, (_, g) => `<option value="${g}" ${filterState.officialGrade === String(g) ? "selected" : ""}>${gradeScaleLabel(g, discipline)}</option>`).join("")}</select>
         <select id="f-holdtype"><option value="">Any Hold Type</option>${HOLD_TYPES.map((h) => `<option ${filterState.holdType === h ? "selected" : ""}>${h}</option>`).join("")}</select>
         <select id="f-holdcolor"><option value="">Any Hold Color</option>${HOLD_COLORS.map((c) => `<option ${filterState.holdColor === c ? "selected" : ""}>${c}</option>`).join("")}</select>
         <select id="f-tag"><option value="">Any Style</option>${tags.map((t) => `<option ${filterState.tag === t ? "selected" : ""}>${escapeHtml(t)}</option>`).join("")}</select>
-        <select id="f-area"><option value="">Any Area</option>${WALL_SECTIONS.map((s) => `<option value="${s.id}" ${filterState.area === s.id ? "selected" : ""}>${escapeHtml(s.name)}</option>`).join("")}</select>
+        <select id="f-area"><option value="">Any Area</option>${sectionsFor(discipline).map((s) => `<option value="${s.id}" ${filterState.area === s.id ? "selected" : ""}>${escapeHtml(s.name)}</option>`).join("")}</select>
         <button class="btn btn-ghost btn-sm" id="f-clear">Clear</button>
       </div>
       ${entries.length === 0 ? emptyState() : `
@@ -181,8 +204,8 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
               <tr data-route-id="${e.routeId}" data-label="${escapeHtml(snapshotLabel(e))}" tabindex="0">
                 <td>${formatDate(e.completedAt)}</td>
                 <td><span class="hold-dot" style="background:var(--hold-${routeData(e).holdColor.toLowerCase()})"></span> ${escapeHtml(areaLabel(e))}${!e.route ? ' <span class="badge-soft">retired</span>' : ""}</td>
-                <td>${formatGrade(routeData(e).officialGrade)}</td>
-                <td>${e.estimatedGrade === null ? "—" : formatEstimate(e.estimatedGrade)}</td>
+                <td>${formatGrade(routeData(e).officialGrade, discipline)}</td>
+                <td>${e.estimatedGrade === null ? "—" : formatEstimate(e.estimatedGrade, discipline)}</td>
                 <td>${routeData(e).holdType || "—"}</td>
                 <td>${[
                   e.flash ? `<span class="chip flash-chip" style="margin:2px;">FLASH</span>` : "",
@@ -205,7 +228,7 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
                 ${!e.route ? '<span class="badge-soft">retired</span>' : ""}
                 <span class="log-card-date">${formatDate(e.completedAt)}</span>
               </div>
-              <div class="log-card-meta">${formatGrade(routeData(e).officialGrade)} · ${routeData(e).holdType || "—"} · Community Est. ${e.estimatedGrade === null ? "—" : formatEstimate(e.estimatedGrade)}</div>
+              <div class="log-card-meta">${formatGrade(routeData(e).officialGrade, discipline)} · ${routeData(e).holdType || "—"} · Community Est. ${e.estimatedGrade === null ? "—" : formatEstimate(e.estimatedGrade, discipline)}</div>
               ${e.flash || e.topTags.length ? `<div class="log-card-tags">${e.flash ? `<span class="chip flash-chip">FLASH</span>` : ""}${e.topTags.map((t) => `<span class="chip">${escapeHtml(t.name)}</span>`).join("")}</div>` : ""}
             </button>
           </div>
@@ -311,21 +334,24 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
     body.innerHTML = `<div class="empty-state card">Loading stats…</div>`;
     let stats;
     try {
-      stats = await computeUserStats(userId, adminPassword);
+      // The server computes each discipline's figures separately (their grade
+      // scales differ); the top level is bouldering, "rope" holds the rest.
+      const all = await computeUserStats(userId, adminPassword);
+      stats = discipline === "rope" ? all.rope : all;
     } catch (err) {
       body.innerHTML = `<div class="empty-state card">${escapeHtml(err.message)}</div>`;
       return;
     }
     if (stats.totalClimbs === 0) {
-      body.innerHTML = `<div class="empty-state card"><div>Log a send to start seeing your stats.</div></div>`;
+      body.innerHTML = `<div class="empty-state card"><div>Log a ${discipline === "rope" ? "rope " : ""}send to start seeing your stats.</div></div>`;
       return;
     }
 
     // Each of the first four charts cycles bar -> radar -> pie independently.
     const chartMode = { grade: "bar", est: "bar", area: "bar", style: "bar" };
 
-    const allGradeLabels = stats.gradeDistribution.map((_, g) => `V${g}`);
-    const allEstLabels = stats.estGradeDistribution.map((_, g) => `V${g}`);
+    const allGradeLabels = stats.gradeDistribution.map((_, g) => gradeScaleLabel(g, discipline));
+    const allEstLabels = stats.estGradeDistribution.map((_, g) => gradeScaleLabel(g, discipline));
     const areaEntries = Object.entries(stats.areaDistribution);
     const areaLabels = areaEntries.map(([id]) => wallSectionName(id) || id);
     const areaData = areaEntries.map(([, count]) => count);
@@ -335,7 +361,7 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
     body.innerHTML = `
       <div class="stats-grid">
         <div class="card stat-tile"><div class="stat-value">${stats.totalClimbs}</div><div class="stat-label">Total Climbs</div></div>
-        <div class="card stat-tile"><div class="stat-value">${stats.highestGrade === null ? "—" : formatGrade(stats.highestGrade)}</div><div class="stat-label">Highest Grade</div></div>
+        <div class="card stat-tile"><div class="stat-value">${stats.highestGrade === null ? "—" : formatGrade(stats.highestGrade, discipline)}</div><div class="stat-label">Highest Grade</div></div>
         <div class="card stat-tile"><div class="stat-value" style="font-size:15px;">${stats.favoriteStyleCalculated || "—"}</div><div class="stat-label">Favorite Style</div></div>
         <div class="card stat-tile"><div class="stat-value" style="font-size:15px;">${stats.favoriteHoldTypeCalculated || "—"}</div><div class="stat-label">Most Climbed Hold</div></div>
       </div>
