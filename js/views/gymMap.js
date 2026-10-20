@@ -1,8 +1,10 @@
 import { getRoutes, getAllTags, getCurrentUser, getLogEntries, updateRoute, getGyms } from "../data/api.js";
 import {
-  HOLD_COLORS, HOLD_COLOR_HEX, HOLD_COLOR_TEXT, HOLD_TYPES, WALL_SECTIONS, MAP_ASPECT_RATIO, MAX_GRADE, formatGrade, routeLabel,
+  HOLD_COLORS, HOLD_COLOR_HEX, HOLD_COLOR_TEXT, HOLD_TYPES, ROPE_BASE_GRADES, CLIMB_TYPES, DISCIPLINES, DISCIPLINE_LABELS,
+  aspectRatioFor, sectionsFor, sectionPolygons, maxGradeFor, disciplineOf, gradeScaleLabel, formatRopeGrade, routeLabel,
   findWallSectionAt,
 } from "../data/constants.js";
+import { getDiscipline, storeDiscipline } from "../data/discipline.js";
 import { openRouteDetail } from "./routeDetail.js";
 import { openAddRouteForm } from "../components/addRoute.js";
 import { openResetWallModal } from "../components/resetWallModal.js";
@@ -14,8 +16,11 @@ import { escapeHtml, clamp, polygonCentroid, polygonBounds, dismissOverlay } fro
 // The canvas is sized in CSS pixels at this fixed base (before pan/zoom
 // scaling) so it matches the sketch's own proportions; every zone/marker
 // position is a 0-100 percentage of these, same convention as mapX/mapY.
-const CANVAS_W = 1000;
-const CANVAS_H = Math.round(CANVAS_W / MAP_ASPECT_RATIO);
+// The rope area is far smaller on screen than the boulder gym, so it gets a
+// narrower base canvas — its markers then read at the fit-to-screen zoom
+// instead of needing a tap-to-zoom step the way boulder walls do.
+const canvasWidth = (d) => (d === "rope" ? 520 : 1000);
+const canvasHeight = (d) => Math.round(canvasWidth(d) / aspectRatioFor(d));
 
 function toSvgPoints(points) {
   return points.map(([x, y]) => `${x},${y}`).join(" ");
@@ -67,32 +72,43 @@ let hasFitToScreen = false;
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 3.5;
 
-const defaultFilters = () => ({
+// Which discipline the map is showing (shared with the stats pages, see data/discipline.js).
+let discipline = getDiscipline();
+
+// Grade filters only mean something on one scale, so each discipline keeps its
+// own filter state; switching swaps it in and out.
+const defaultFilters = (d) => ({
   gradeMin: 0,
-  gradeMax: MAX_GRADE,
+  gradeMax: maxGradeFor(d),
   estMin: 0,
-  estMax: MAX_GRADE,
+  estMax: maxGradeFor(d),
   completion: new Set(), // "completed" | "uncompleted"
   holdTypes: new Set(),
   holdColors: new Set(),
   tagIds: new Set(),
+  climbTypes: new Set(), // rope only: "top" | "lead" | "autobelay"
 });
-let filters = defaultFilters();
+const filtersByDiscipline = { [discipline]: defaultFilters(discipline) };
+let filters = filtersByDiscipline[discipline];
 
 function isFilterActive() {
+  const max = maxGradeFor(discipline);
   return (
     filters.gradeMin !== 0 ||
-    filters.gradeMax !== MAX_GRADE ||
+    filters.gradeMax !== max ||
     filters.completion.size > 0 ||
     filters.holdTypes.size > 0 ||
     filters.holdColors.size > 0 ||
     filters.tagIds.size > 0 ||
+    filters.climbTypes.size > 0 ||
     filters.estMin !== 0 ||
-    filters.estMax !== MAX_GRADE
+    filters.estMax !== max
   );
 }
 
 function routeMatches(route, completedRouteIds) {
+  const MAX_GRADE = maxGradeFor(discipline);
+  if (filters.climbTypes.size > 0 && !(route.climbTypes || []).some((t) => filters.climbTypes.has(t))) return false;
   if (filters.gradeMin !== 0 || filters.gradeMax !== MAX_GRADE) {
     const g = route.officialGrade;
     if (g === null || g < filters.gradeMin || g > filters.gradeMax) return false;
@@ -116,8 +132,12 @@ function routeMatches(route, completedRouteIds) {
 // Two-handle V-grade slider: two native range inputs stacked on one track,
 // only their thumbs take pointer events (see .range-slider in styles.css).
 function rangeSliderHTML(key, label, lo, hi) {
-  const marks = Array.from({ length: MAX_GRADE + 1 }, (_, g) =>
-    `<span style="left:${(g / MAX_GRADE) * 100}%">V${g}</span>`).join("");
+  const MAX_GRADE = maxGradeFor(discipline);
+  // Rope has 21 steps (5.7- ... 5.13+), too many to label, so only the base
+  // grades are marked, each at its unmodified step.
+  const markGrades = discipline === "rope" ? ROPE_BASE_GRADES.map((b) => (b - ROPE_BASE_GRADES[0]) * 3 + 1) : Array.from({ length: MAX_GRADE + 1 }, (_, g) => g);
+  const marks = markGrades.map((g) =>
+    `<span style="left:${(g / MAX_GRADE) * 100}%">${discipline === "rope" ? `5.${ROPE_BASE_GRADES[0] + Math.floor(g / 3)}` : `V${g}`}</span>`).join("");
   return `
     <div class="range-slider" data-range="${key}">
       <div class="range-value"></div>
@@ -133,6 +153,7 @@ function rangeSliderHTML(key, label, lo, hi) {
 // Live-updates the fill/label while dragging; onCommit only fires on release
 // so the map doesn't refetch on every step.
 function wireRangeSlider(el, onCommit) {
+  const MAX_GRADE = maxGradeFor(discipline);
   const [loIn, hiIn] = el.querySelectorAll("input");
   const fill = el.querySelector(".range-fill");
   const valueEl = el.querySelector(".range-value");
@@ -143,7 +164,8 @@ function wireRangeSlider(el, onCommit) {
     }
     fill.style.left = `${(lo / MAX_GRADE) * 100}%`;
     fill.style.right = `${100 - (hi / MAX_GRADE) * 100}%`;
-    valueEl.textContent = lo === hi ? `V${lo}` : `V${lo} – V${hi}`;
+    const name = (g) => gradeScaleLabel(g, discipline);
+    valueEl.textContent = lo === hi ? name(lo) : `${name(lo)} – ${name(hi)}`;
     return [lo, hi];
   }
   [loIn, hiIn].forEach((input) => {
@@ -177,6 +199,11 @@ export function renderGymMap(container, gymId) {
 
   container.innerHTML = `
     <div class="page map-page">
+      <div class="discipline-bar">
+        <div class="view-toggle discipline-toggle" role="group" aria-label="Climbing type">
+          ${DISCIPLINES.map((d) => `<button type="button" class="${d === discipline ? "active" : ""}" data-discipline="${d}" aria-pressed="${d === discipline}">${DISCIPLINE_LABELS[d]}</button>`).join("")}
+        </div>
+      </div>
       <div class="map-toolbar">
         <button class="btn btn-outline btn-sm" id="open-filters">Filters</button>
         <button class="btn btn-ghost btn-sm ${isFilterActive() ? "" : "hidden"}" id="clear-filters">Clear all</button>
@@ -191,7 +218,7 @@ export function renderGymMap(container, gymId) {
             <button class="heatmap-toggle-btn heatmap-toggle-completed" id="heatmap-completed-btn"
                     aria-label="Toggle completed-climbs heatmap" aria-pressed="false">${PIXEL_CHECK_ICON}</button>
             <button class="heatmap-toggle-btn heatmap-toggle-difficulty" id="heatmap-difficulty-btn"
-                    aria-label="Toggle difficulty heatmap" aria-pressed="false">V</button>
+                    aria-label="Toggle difficulty heatmap" aria-pressed="false">${discipline === "rope" ? "5." : "V"}</button>
           </div>
           <button class="btn btn-outline btn-sm random-btn" id="random-climb-btn"><span class="new-set">Random Climb</span></button>
           <button class="btn btn-outline btn-sm stats-btn" id="gym-stats-btn">${STATS_ICON}<span>Gym Stats</span></button>
@@ -221,8 +248,16 @@ export function renderGymMap(container, gymId) {
   const backBtn = container.querySelector("#back-to-map-btn");
   const resetBtn = container.querySelector("#reset-wall-btn");
   const moveBtn = container.querySelector("#move-route-btn");
+  // Canvas size and the zoom state follow the discipline (see setDiscipline).
+  let CANVAS_W = canvasWidth(discipline);
+  let CANVAS_H = canvasHeight(discipline);
   canvas.style.width = `${CANVAS_W}px`;
   canvas.style.height = `${CANVAS_H}px`;
+  // A discipline with a single section (rope) has nothing to zoom between, so
+  // it stays "zoomed" into that section: no area picker, and RESET is always at hand.
+  const sections = () => sectionsFor(discipline);
+  const singleSection = () => sections().length === 1;
+  syncSingleSection();
 
   if (!hasFitToScreen) {
     fitToScreen();
@@ -239,7 +274,7 @@ export function renderGymMap(container, gymId) {
   });
 
   resetBtn.addEventListener("click", () => {
-    const section = WALL_SECTIONS.find((s) => s.id === zoomedSectionId);
+    const section = sections().find((s) => s.id === zoomedSectionId);
     if (!section) return;
     openResetWallModal(gymId, section.id, section.name, {
       onReset: () => {
@@ -253,17 +288,61 @@ export function renderGymMap(container, gymId) {
   });
 
   function exitZoomedSection() {
+    if (singleSection()) { renderCanvasContents(); return; }
     zoomedSectionId = null;
     backBtn.classList.add("hidden");
     resetBtn.classList.add("hidden");
     renderCanvasContents();
   }
 
+  // Keeps the zoomed-section state consistent with the current discipline.
+  function syncSingleSection() {
+    if (singleSection()) {
+      zoomedSectionId = sections()[0].id;
+      backBtn.classList.add("hidden");
+      resetBtn.classList.remove("hidden");
+    } else {
+      zoomedSectionId = null;
+      backBtn.classList.add("hidden");
+      resetBtn.classList.add("hidden");
+    }
+  }
+
+  function setDiscipline(next) {
+    if (next === discipline || !DISCIPLINES.includes(next)) return;
+    if (placementMode) exitPlacementMode();
+    if (moveMode) exitMoveMode();
+    closeListPopover();
+    filtersByDiscipline[discipline] = filters;
+    discipline = next;
+    filters = filtersByDiscipline[next] || (filtersByDiscipline[next] = defaultFilters(next));
+    storeDiscipline(next);
+    CANVAS_W = canvasWidth(next);
+    CANVAS_H = canvasHeight(next);
+    canvas.style.width = `${CANVAS_W}px`;
+    canvas.style.height = `${CANVAS_H}px`;
+    listSection = null;
+    selectedRouteId = null;
+    newlyAddedRouteId = null;
+    syncSingleSection();
+    container.querySelectorAll("[data-discipline]").forEach((b) => {
+      const on = b.dataset.discipline === next;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-pressed", String(on));
+    });
+    container.querySelector("#heatmap-difficulty-btn").textContent = next === "rope" ? "5." : "V";
+    updateHint();
+    canvas.classList.add("switching");
+    fitToScreen();
+    renderCanvasContents().finally(() => canvas.classList.remove("switching"));
+  }
+  container.querySelectorAll("[data-discipline]").forEach((b) => b.addEventListener("click", () => setDiscipline(b.dataset.discipline)));
+
   function enterZoomedSection(sectionId) {
     zoomedSectionId = sectionId;
-    backBtn.classList.remove("hidden");
+    backBtn.classList.toggle("hidden", singleSection());
     resetBtn.classList.remove("hidden");
-    const section = WALL_SECTIONS.find((s) => s.id === sectionId);
+    const section = sections().find((s) => s.id === sectionId);
     const pct = polygonBounds(section.points);
     animateNextTransform(() => fitToBounds({
       minX: (pct.minX / 100) * CANVAS_W, maxX: (pct.maxX / 100) * CANVAS_W,
@@ -336,7 +415,7 @@ export function renderGymMap(container, gymId) {
     setMenuOpen(false);
     if (placementMode) exitPlacementMode();
     if (moveMode) exitMoveMode();
-    if (zoomedSectionId) { // pick from the whole gym, not just the zoomed wall
+    if (zoomedSectionId && !singleSection()) { // pick from the whole gym, not just the zoomed wall
       zoomedSectionId = null;
       backBtn.classList.add("hidden");
       resetBtn.classList.add("hidden");
@@ -384,6 +463,7 @@ export function renderGymMap(container, gymId) {
   function defaultHintText() {
     if (activeHeatmap === "completed") return "Color shows total completions · pale = fewest, dark = most";
     if (activeHeatmap === "difficulty") return "Color shows difficulty · pale = easiest, dark = hardest";
+    if (singleSection()) return "Pinch or scroll to zoom · drag to pan · tap a marker for details";
     return "Pinch or scroll to zoom · drag to pan · tap a wall to zoom in · tap a marker for details";
   }
 
@@ -491,8 +571,9 @@ export function renderGymMap(container, gymId) {
   // magma heat color when a heatmap is on. Shared by map markers and list rows.
   function markerLook(r) {
     let bg = HOLD_COLOR_HEX[r.holdColor];
-    let label = r.officialGrade !== null ? `V${r.officialGrade}`
-      : r.communityGrade != null ? `${r.communityGrade.toFixed(1)}?`
+    const rope = disciplineOf(r) === "rope";
+    let label = r.officialGrade !== null ? gradeScaleLabel(r.officialGrade, discipline)
+      : r.communityGrade != null ? (rope ? `${formatRopeGrade(Math.round(r.communityGrade))}?` : `${r.communityGrade.toFixed(1)}?`)
       : "?";
     let textStyle = "";
     let holdAttr = ` data-hold="${r.holdColor}"`;
@@ -509,7 +590,8 @@ export function renderGymMap(container, gymId) {
         bg = HEAT_NO_DATA;
         textStyle = " color:#fff; text-shadow:0 1px 1px rgba(0,0,0,.4);";
       } else {
-        const { bg: heat, isDark } = magmaStyle(clamp(value, 0, MAX_GRADE)); // 0-10 by 1 -> indices 0-10
+        // Boulder is 0-10 by 1; rope's 0-20 is halved so both span the 11-step palette.
+        const { bg: heat, isDark } = magmaStyle(rope ? clamp(value, 0, 20) / 2 : clamp(value, 0, 10));
         bg = heat;
         textStyle = ` color:${isDark ? "#fff" : "#1b1d21"}; text-shadow:${isDark ? "0 1px 1px rgba(0,0,0,.4)" : "none"};`;
       }
@@ -534,7 +616,7 @@ export function renderGymMap(container, gymId) {
       completedRouteIds = new Set(myLog.map((e) => e.routeId));
       flashedRouteIds = new Set(myLog.filter((e) => e.flash).map((e) => e.routeId));
       resets = gyms.find((g) => g.id === gymId)?.resets || {};
-      visibleRoutes = allRoutes.filter((r) => routeMatches(r, completedRouteIds));
+      visibleRoutes = allRoutes.filter((r) => disciplineOf(r) === discipline && routeMatches(r, completedRouteIds));
     } catch (err) {
       if (!quiet) container.querySelector("#result-count").textContent = "Couldn't load routes";
       return;
@@ -543,16 +625,17 @@ export function renderGymMap(container, gymId) {
     if (viewMode === "list") {
       // Same filtered routes as the map; routes outside every wall section
       // never show on the map either, so they're left out here too.
-      const bySection = new Map(WALL_SECTIONS.map((s) => [s.id, []]));
+      const bySection = new Map(sections().map((s) => [s.id, []]));
       let placed = 0;
       for (const r of visibleRoutes) {
-        const sectionId = findWallSectionAt(r.mapX, r.mapY);
+        const sectionId = findWallSectionAt(r.mapX, r.mapY, discipline);
         if (sectionId) { bySection.get(sectionId).push(r); placed++; }
       }
       const tagNames = new Map((await getAllTags().catch(() => [])).map((t) => [t.id, t.name]));
       if (destroyed || viewMode !== "list") return;
       renderRouteList(container.querySelector("#route-list-view"), {
-        sections: WALL_SECTIONS.map((s) => ({ id: s.id, name: s.name, routes: bySection.get(s.id) })),
+        sections: sections().map((s) => ({ id: s.id, name: s.name, routes: bySection.get(s.id) })),
+        discipline,
         resets, completedIds: completedRouteIds, flashedIds: flashedRouteIds, tagNames,
         look: markerLook,
         sectionId: listSection,
@@ -569,15 +652,16 @@ export function renderGymMap(container, gymId) {
       return;
     }
 
-    const visibleSections = zoomedSectionId ? WALL_SECTIONS.filter((s) => s.id === zoomedSectionId) : WALL_SECTIONS;
+    const visibleSections = zoomedSectionId ? sections().filter((s) => s.id === zoomedSectionId) : sections();
 
     const zonesHTML = `
-      <svg class="floor-plan" viewBox="0 0 100 100" preserveAspectRatio="none">
-        ${visibleSections.map((s) => `<polygon class="wall-zone" data-section-id="${s.id}" points="${toSvgPoints(s.points)}"></polygon>`).join("")}
+      <svg class="floor-plan ${discipline}" viewBox="0 0 100 100" preserveAspectRatio="none">
+        ${visibleSections.map((s) => sectionPolygons(s).map((poly) => `<polygon class="wall-zone" data-section-id="${s.id}" points="${toSvgPoints(poly)}"></polygon>`).join("")).join("")}
       </svg>
     `;
 
-    const labelsHTML = visibleSections.map((s) => {
+    // A map with one section needs no area name printed across it.
+    const labelsHTML = singleSection() ? "" : visibleSections.map((s) => {
       const [cx, cy] = polygonCentroid(s.points);
       const bounds = polygonBounds(s.points);
       const margin = 3;
@@ -595,7 +679,7 @@ export function renderGymMap(container, gymId) {
     // Only routes placed inside a wall section ever render as markers; when
     // zoomed into one section, only its own routes show.
     visibleRoutes = visibleRoutes.filter((r) => {
-      const sectionId = findWallSectionAt(r.mapX, r.mapY);
+      const sectionId = findWallSectionAt(r.mapX, r.mapY, discipline);
       return sectionId && (!zoomedSectionId || sectionId === zoomedSectionId);
     });
 
@@ -606,7 +690,7 @@ export function renderGymMap(container, gymId) {
         const { bg: markerBg, label: markerLabel, textStyle, holdAttr } = markerLook(r);
 
         return `
-          <div class="route-marker ${completed ? "completed" : "uncompleted"} ${isNew ? "just-added" : ""} ${r.id === selectedRouteId ? "selected" : ""} ${!r.active ? "retired" : ""} ${zoomedSectionId ? "zoomed" : ""}"
+          <div class="route-marker ${discipline === "rope" ? "rope" : ""} ${completed ? "completed" : "uncompleted"} ${isNew ? "just-added" : ""} ${r.id === selectedRouteId ? "selected" : ""} ${!r.active ? "retired" : ""} ${zoomedSectionId && !singleSection() ? "zoomed" : ""}"
                style="left:${r.mapX}%; top:${r.mapY}%; background:${markerBg};${textStyle}"
                data-route-id="${r.id}"${holdAttr}
                role="button" tabindex="0" aria-label="${escapeHtml(routeLabel(r))}, ${r.holdType}, ${completed ? "completed" : "not yet completed"}${r.mediaCount ? `, ${r.mediaCount} photo${r.mediaCount === 1 ? "" : "s"}/videos` : ""}">
@@ -617,13 +701,13 @@ export function renderGymMap(container, gymId) {
       .join("");
 
     const pendingHTML = pendingPoint
-      ? `<div class="route-marker pending" style="left:${pendingPoint.mapX}%; top:${pendingPoint.mapY}%;"><span class="marker-grade">NEW</span></div>`
+      ? `<div class="route-marker pending ${discipline === "rope" ? "rope" : ""}" style="left:${pendingPoint.mapX}%; top:${pendingPoint.mapY}%;"><span class="marker-grade">NEW</span></div>`
       : "";
 
     canvas.innerHTML = zonesHTML + labelsHTML + markersHTML + pendingHTML;
     canvas.querySelectorAll(".wall-zone").forEach((el) => {
       el.addEventListener("click", () => {
-        if (panMoved || placementMode || zoomedSectionId) return;
+        if (panMoved || placementMode || zoomedSectionId || singleSection()) return;
         enterZoomedSection(el.getAttribute("data-section-id"));
       });
     });
@@ -631,7 +715,7 @@ export function renderGymMap(container, gymId) {
       el.addEventListener("click", () => {
         if (panMoved || placementMode || moveMode) return;
         // From the whole-gym map a tap goes to that route's area first; a tap inside an area opens the route.
-        const sectionId = zoomedSectionId ? null : findWallSectionAt(parseFloat(el.style.left), parseFloat(el.style.top));
+        const sectionId = zoomedSectionId ? null : findWallSectionAt(parseFloat(el.style.left), parseFloat(el.style.top), discipline);
         if (sectionId) { enterZoomedSection(sectionId); return; }
         showRoute(el);
       });
@@ -724,7 +808,7 @@ export function renderGymMap(container, gymId) {
     openFilterDrawer(() => renderCanvasContents());
   });
   container.querySelector("#clear-filters").addEventListener("click", () => {
-    filters = defaultFilters();
+    filters = filtersByDiscipline[discipline] = defaultFilters(discipline);
     renderCanvasContents();
   });
 
@@ -813,9 +897,9 @@ export function renderGymMap(container, gymId) {
       const relY = (e.clientY - rect.top) / rect.height;
       const mapX = clamp(relX * 100, 0, 100);
       const mapY = clamp(relY * 100, 0, 100);
-      const wallSection = findWallSectionAt(mapX, mapY);
+      const wallSection = findWallSectionAt(mapX, mapY, discipline);
       if (!wallSection) {
-        showToast("Tap inside a wall section to place a route", { small: true });
+        showToast(singleSection() ? "Tap on a wall to place a route" : "Tap inside a wall section to place a route", { small: true });
         return;
       }
       pendingPoint = { mapX, mapY, wallSection };
@@ -823,6 +907,7 @@ export function renderGymMap(container, gymId) {
       getAllTags().then((tags) => {
         openAddRouteForm({
           gymId,
+          discipline,
           mapX, mapY,
           wallSection: pendingPoint.wallSection,
           allTags: tags,
@@ -841,7 +926,7 @@ export function renderGymMap(container, gymId) {
       animateNextTransform(() => zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, 0.8));
     });
     container.querySelector("#zoom-reset").addEventListener("click", () => {
-      if (zoomedSectionId) exitZoomedSection();
+      if (zoomedSectionId && !singleSection()) exitZoomedSection();
       animateNextTransform(fitToScreen);
     });
 
@@ -869,6 +954,14 @@ export function renderGymMap(container, gymId) {
               <button class="chip ${filters.completion.has("uncompleted") ? "active" : ""}" data-completion="uncompleted">Not Completed</button>
             </div>
           </div>
+
+          ${discipline === "rope" ? `
+          <div class="filter-group">
+            <h3>Type of Climb</h3>
+            <div class="chip-row">
+              ${CLIMB_TYPES.map((t) => `<button class="chip ${filters.climbTypes.has(t.id) ? "active" : ""}" data-climb-type="${t.id}">${t.label}</button>`).join("")}
+            </div>
+          </div>` : ""}
 
           <div class="filter-group">
             <h3>Official Grade</h3>
@@ -912,6 +1005,11 @@ export function renderGymMap(container, gymId) {
       backdrop.querySelectorAll("[data-completion]").forEach((btn) => btn.addEventListener("click", () => {
         const c = btn.getAttribute("data-completion");
         filters.completion.has(c) ? filters.completion.delete(c) : filters.completion.add(c);
+        onApply(); renderDrawer();
+      }));
+      backdrop.querySelectorAll("[data-climb-type]").forEach((btn) => btn.addEventListener("click", () => {
+        const t = btn.getAttribute("data-climb-type");
+        filters.climbTypes.has(t) ? filters.climbTypes.delete(t) : filters.climbTypes.add(t);
         onApply(); renderDrawer();
       }));
       wireRangeSlider(backdrop.querySelector('[data-range="grade"]'), (lo, hi) => {

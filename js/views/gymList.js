@@ -1,5 +1,5 @@
 import { updateRoute, submitGradeEstimate, logSend } from "../data/api.js";
-import { MAX_GRADE, formatGrade, formatEstimate, routeLabel } from "../data/constants.js";
+import { maxGradeFor, gradeScaleLabel, formatGrade, formatEstimate, routeLabel } from "../data/constants.js";
 import { showToast } from "../components/toast.js";
 import { escapeHtml, clamp } from "../utils.js";
 
@@ -63,12 +63,12 @@ function rowHTML(r, ctx) {
       <button class="swipe-action swipe-complete" aria-label="Log as completed">${CHECK_ICON}</button>
       <div class="log-card list-row" role="button" tabindex="0" aria-label="${escapeHtml(routeLabel(r))}, ${escapeHtml(r.holdType || "")}">
         <span class="list-route-cell">
-          <span class="list-bubble" style="background:${look.bg};${look.textStyle}"${look.holdAttr}>${look.label}</span>
+          <span class="list-bubble${ctx.discipline === "rope" ? " rope" : ""}" style="background:${look.bg};${look.textStyle}"${look.holdAttr}>${look.label}</span>
           <span class="list-color">${escapeHtml(r.holdColor)}</span>
           <span class="list-status">${done ? `<span class="list-done" title="Completed">${CHECK_ICON}</span>` : ""}${flashed ? `<span class="list-flashed" title="Flashed">${BOLT_ICON}</span>` : ""}</span>
         </span>
-        <button type="button" class="grade-cell" data-kind="official" aria-label="Set official grade">${formatGrade(r.officialGrade)}</button>
-        <button type="button" class="grade-cell" data-kind="estimate" aria-label="Submit grade estimate">${r.communityGrade == null ? "—" : formatEstimate(r.communityGrade)}</button>
+        <button type="button" class="grade-cell" data-kind="official" aria-label="Set official grade">${formatGrade(r.officialGrade, ctx.discipline)}</button>
+        <button type="button" class="grade-cell" data-kind="estimate" aria-label="Submit grade estimate">${r.communityGrade == null ? "—" : formatEstimate(r.communityGrade, ctx.discipline)}</button>
         <span class="list-hold">${escapeHtml(r.holdType || "—")}</span>
         <span class="list-tags">${tags.map((t) => `<span class="chip">${escapeHtml(t)}</span>`).join("")}</span>
       </div>
@@ -92,7 +92,7 @@ function boxHTML(s, ctx) {
     </section>`;
 }
 
-// ctx: { sections: [{id, name, routes}], resets, completedIds, flashedIds,
+// ctx: { sections: [{id, name, routes}], discipline ("boulder" | "rope"), resets, completedIds, flashedIds,
 //        tagNames (id -> name), look(route) -> {bg, textStyle, holdAttr, label},
 //        openRoute(routeId), onChanged() }
 export function renderRouteList(el, ctx) {
@@ -198,7 +198,7 @@ function openGradePopover(anchor, kind, route, ctx) {
   const official = kind === "official";
   const options = [
     ...(official ? [{ label: "Ungraded", value: null }] : []),
-    ...Array.from({ length: MAX_GRADE + 1 }, (_, g) => ({ label: `V${g}`, value: g })),
+    ...Array.from({ length: maxGradeFor(ctx.discipline) + 1 }, (_, g) => ({ label: gradeScaleLabel(g, ctx.discipline), value: g })),
   ];
   const pop = document.createElement("div");
   pop.className = "grade-popover";
@@ -236,10 +236,10 @@ function openGradePopover(anchor, kind, route, ctx) {
     try {
       if (official) {
         await updateRoute(route.id, { officialGrade: value });
-        showToast(value === null ? "Official grade cleared" : `Official grade set to V${value}`);
+        showToast(value === null ? "Official grade cleared" : `Official grade set to ${gradeScaleLabel(value, ctx.discipline)}`);
       } else {
         await submitGradeEstimate(route.id, value);
-        showToast(`Estimate submitted: V${value}`);
+        showToast(`Estimate submitted: ${gradeScaleLabel(value, ctx.discipline)}`);
       }
       ctx.onChanged();
     } catch (err) { showToast(err.message); }

@@ -244,6 +244,12 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
 
 /* ===== Gym Map ===== */
 .map-page{ padding:0; max-width:none; }
+/* Bouldering | Rope switch above the toolbar. Its height is part of the viewport calc below. */
+.discipline-bar{
+  display:flex; align-items:center; justify-content:center; height:44px; padding:6px 12px;
+  background:var(--pr-card); border-bottom:1px solid var(--pr-border);
+}
+.discipline-toggle{ width:100%; max-width:360px; }
 .map-toolbar{
   display:flex; gap:8px; align-items:center; padding:10px 12px; background:var(--pr-card);
   border-bottom:1px solid var(--pr-border); position:sticky; top:var(--topbar-h); z-index:30;
@@ -255,11 +261,11 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
   /* no text selection / long-press callout: holding a marker to move it must not highlight its "V3" label */
   user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
   position:relative; overflow:hidden; touch-action:none;
-  height: calc(100vh - var(--topbar-h) - 46px - var(--nav-h));
+  height: calc(100vh - var(--topbar-h) - 46px - 44px - var(--nav-h));
   background:#eae6dd;
 }
 @media (min-width:900px){
-  .map-viewport{ height: calc(100vh - var(--topbar-h) - 46px); }
+  .map-viewport{ height: calc(100vh - var(--topbar-h) - 46px - 44px); }
 }
 .map-canvas{
   position:absolute; top:0; left:0; transform-origin:0 0;
@@ -269,6 +275,24 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
 .map-canvas.animating{ transition:transform var(--t-base) var(--ease-out); }
 .floor-plan{ position:absolute; inset:0; width:100%; height:100%; display:block; }
 .wall-zone{ fill:#36454F; stroke:rgba(27,29,33,.35); stroke-width:.3; opacity:.92; cursor:pointer; }
+/* The rope area is a single section, so its walls aren't tap targets. */
+.floor-plan.rope .wall-zone{ cursor:default; }
+.map-canvas.switching{ opacity:.55; }
+
+/* Rope grade input: - toggle, base grade dropdown, + toggle (components/ropeGradePicker.js). */
+.rope-grade-picker{ display:flex; align-items:stretch; gap:8px; }
+.rope-grade-picker .rgp-base{ flex:1; min-width:0; }
+.rope-grade-picker .rgp-mod{
+  flex:0 0 48px; border:1.5px solid var(--pr-border); border-radius:10px; background:#fff;
+  font-size:20px; font-weight:800; color:var(--pr-ink);
+}
+.rope-grade-picker .rgp-mod.active{ background:var(--pr-ink); color:#fff; border-color:var(--pr-ink); }
+.rope-grade-picker .rgp-mod:disabled{ opacity:.4; }
+.rope-meta{ margin:0 0 12px; display:flex; flex-direction:column; gap:6px; }
+.rope-meta-title{ font-size:18px; font-weight:800; color:var(--pr-ink); }
+.field-row{ display:flex; gap:10px; }
+.field-row > .field{ flex:1; min-width:0; }
+.field-row > .field.narrow{ flex:0 0 124px; }
 
 .chip.flash-chip{ background:#FFD500; color:#1b1d21; font-weight:800; }
 .map-zoom-controls{
@@ -318,6 +342,11 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
   color:#fff; text-shadow:0 1px 1px rgba(0,0,0,.4); z-index:5;
 }
 .route-marker.zoomed{ transform:scale(.5); }
+/* Rope routes are rounded rectangles: the grade ("5.10+") is wider than a boulder "V4". */
+.route-marker.rope{
+  width:58px; height:32px; margin-left:-29px; margin-top:-16px; border-radius:12px; font-size:13px;
+}
+.route-marker.rope.pending{ font-size:10px; }
 .route-marker.completed{ box-shadow:0 0 0 3px var(--pr-success), 0 2px 6px rgba(0,0,0,.35); }
 .route-marker.just-added{ box-shadow:0 0 0 3px #FFD500, 0 2px 6px rgba(0,0,0,.35); }
 .route-marker.selected{ outline:3px solid var(--pr-ink); outline-offset:2px; z-index:10; transform:scale(1.15); }
@@ -506,6 +535,7 @@ table.log-table tbody tr.row-removing{ transition:opacity var(--t-fast) var(--ea
   flex-shrink:0; width:30px; height:30px; border-radius:50%; border:3px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.35);
   display:flex; align-items:center; justify-content:center; font-size:10.5px; font-weight:800; color:#fff; text-shadow:0 1px 1px rgba(0,0,0,.4);
 }
+.list-bubble.rope{ width:auto; min-width:44px; padding:0 6px; border-radius:11px; }
 .list-bubble[data-hold="Yellow"], .list-bubble[data-hold="White"]{ color:#1b1d21; text-shadow:none; }
 .list-color{ font-size:13.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .list-status{ display:flex; gap:3px; flex-shrink:0; }
@@ -739,3 +769,6 @@ table.log-table tbody tr.row-removing{ transition:opacity var(--t-fast) var(--ea
 .onboarding-prev{ left:20px; }
 .onboarding-next{ right:20px; }
 .onboarding-arrow-done{ width:auto; padding:0 20px; border-radius:999px; background:var(--pr-orange); color:#fff; border-color:var(--pr-orange); font-size:14px; font-weight:800; text-transform:uppercase; }
+
+/* Discipline switch inside a page (Gym Stats, Climbing Log, Profile) rather than the map's own bar. */
+.gs-discipline{ border:none; background:transparent; padding:0; margin:0 0 4px; }

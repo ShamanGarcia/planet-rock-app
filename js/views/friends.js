@@ -21,7 +21,7 @@ async function friendCard(user, { actionsHTML }) {
       <div class="avatar sm">${user.profilePicture ? `<img src="${user.profilePicture}" alt=""/>` : initials(user.name)}</div>
       <div class="fc-body">
         <div class="fc-name">${escapeHtml(user.name)}</div>
-        <div class="fc-meta">${stats.highestGrade === null ? "No sends yet" : `Highest grade: ${formatGrade(stats.highestGrade)}`} · ${stats.totalClimbs} climbs</div>
+        <div class="fc-meta">${stats.highestGrade === null && !stats.rope?.totalClimbs ? "No sends yet" : [stats.highestGrade === null ? "" : `Highest grade: ${formatGrade(stats.highestGrade)}`, stats.rope?.highestGrade == null ? "" : `Rope: ${formatGrade(stats.rope.highestGrade, "rope")}`].filter(Boolean).join(" · ")} · ${stats.totalClimbs + (stats.rope?.totalClimbs || 0)} climbs</div>
       </div>
       ${actionsHTML}
     </div>
@@ -165,8 +165,9 @@ function renderFriendProfile(container, friendId) {
             </div>
             <div class="card card-pad">
               <div class="stats-grid" style="grid-template-columns:repeat(2,1fr);">
-                <div class="stat-tile"><div class="stat-value">${stats.totalClimbs}</div><div class="stat-label">Total Climbs</div></div>
-                <div class="stat-tile"><div class="stat-value">${stats.highestGrade === null ? "—" : formatGrade(stats.highestGrade)}</div><div class="stat-label">Highest Grade</div></div>
+                <div class="stat-tile"><div class="stat-value">${stats.totalClimbs + (stats.rope?.totalClimbs || 0)}</div><div class="stat-label">Total Climbs</div></div>
+                <div class="stat-tile"><div class="stat-value">${stats.highestGrade === null ? "—" : formatGrade(stats.highestGrade)}</div><div class="stat-label">${stats.rope?.totalClimbs ? "Highest Boulder Grade" : "Highest Grade"}</div></div>
+                ${stats.rope?.totalClimbs ? `<div class="stat-tile"><div class="stat-value">${stats.rope.highestGrade === null ? "—" : formatGrade(stats.rope.highestGrade, "rope")}</div><div class="stat-label">Highest Rope Grade</div></div>` : ""}
                 <div class="stat-tile" style="grid-column:1/-1;"><div class="stat-value" style="font-size:14px;">${stats.favoriteStyleCalculated || "—"}</div><div class="stat-label">Favorite Style</div></div>
               </div>
               ${relationship === "accepted" && user.privacy.logPublic ? `<a href="#/friends/${user.id}/log" class="btn btn-primary btn-block" style="margin-top:12px;">View Climbing Log</a>` :
