@@ -624,7 +624,13 @@ table.log-table tbody tr.row-removing{ transition:opacity var(--t-fast) var(--ea
   width:34px; height:34px; border-radius:50%; border:2px solid #fff; padding:0; background:var(--swatch);
   box-shadow:0 0 0 1px var(--pr-border); color:#fff; display:flex; align-items:center; justify-content:center;
 }
-/* Color picker (components/colorPicker.js): hex field + chip, popover with SV square, swatches. */
+.field .hue-slider{
+  -webkit-appearance:none; appearance:none; width:100%; height:14px; margin:14px 0 0; border:0; border-radius:7px; padding:0;
+  background:linear-gradient(to right, hsl(0 100% 50%), hsl(60 100% 50%), hsl(120 100% 50%), hsl(180 100% 50%), hsl(240 100% 50%), hsl(300 100% 50%), hsl(359 100% 50%));
+}
+.hue-slider::-webkit-slider-thumb{ -webkit-appearance:none; width:26px; height:26px; border-radius:50%; background:#fff; border:3px solid var(--pr-ink); box-shadow:var(--pr-shadow); }
+.hue-slider::-moz-range-thumb{ width:20px; height:20px; border-radius:50%; background:#fff; border:3px solid var(--pr-ink); box-shadow:var(--pr-shadow); }
+/* Color picker (components/colorPicker.js): hex field + chip, popover with SV square, hue slider, swatches. */
 .cp{ position:relative; }
 .cp-field{ position:relative; }
 .cp-hex{ width:100%; padding-right:44px; text-transform:uppercase; }
