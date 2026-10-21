@@ -362,8 +362,8 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
       <div class="stats-grid">
         <div class="card stat-tile"><div class="stat-value">${stats.totalClimbs}</div><div class="stat-label">Total Climbs</div></div>
         <div class="card stat-tile"><div class="stat-value">${stats.highestGrade === null ? "—" : formatGrade(stats.highestGrade, discipline)}</div><div class="stat-label">Highest Grade</div></div>
-        <div class="card stat-tile"><div class="stat-value" style="font-size:15px;">${stats.favoriteStyleCalculated || "—"}</div><div class="stat-label">Favorite Style</div></div>
-        <div class="card stat-tile"><div class="stat-value" style="font-size:15px;">${stats.favoriteHoldTypeCalculated || "—"}</div><div class="stat-label">Most Climbed Hold</div></div>
+        <div class="card stat-tile"><div class="stat-value">${stats.favoriteStyleCalculated || "—"}</div><div class="stat-label">Favorite Style</div></div>
+        <div class="card stat-tile"><div class="stat-value">${stats.favoriteHoldTypeCalculated || "—"}</div><div class="stat-label">Most Climbed Hold</div></div>
       </div>
       <div class="charts-grid">
         <div class="card card-pad chart-card">

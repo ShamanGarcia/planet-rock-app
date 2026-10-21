@@ -168,7 +168,7 @@ function renderFriendProfile(container, friendId) {
                 <div class="stat-tile"><div class="stat-value">${stats.totalClimbs + (stats.rope?.totalClimbs || 0)}</div><div class="stat-label">Total Climbs</div></div>
                 <div class="stat-tile"><div class="stat-value">${stats.highestGrade === null ? "—" : formatGrade(stats.highestGrade)}</div><div class="stat-label">${stats.rope?.totalClimbs ? "Highest Boulder Grade" : "Highest Grade"}</div></div>
                 ${stats.rope?.totalClimbs ? `<div class="stat-tile"><div class="stat-value">${stats.rope.highestGrade === null ? "—" : formatGrade(stats.rope.highestGrade, "rope")}</div><div class="stat-label">Highest Rope Grade</div></div>` : ""}
-                <div class="stat-tile" style="grid-column:1/-1;"><div class="stat-value" style="font-size:14px;">${stats.favoriteStyleCalculated || "—"}</div><div class="stat-label">Favorite Style</div></div>
+                <div class="stat-tile" style="grid-column:1/-1;"><div class="stat-value">${stats.favoriteStyleCalculated || "—"}</div><div class="stat-label">Favorite Style</div></div>
               </div>
               ${relationship === "accepted" && user.privacy.logPublic ? `<a href="#/friends/${user.id}/log" class="btn btn-primary btn-block" style="margin-top:12px;">View Climbing Log</a>` :
                 `<div class="page-sub" style="margin-top:12px;">${relationship === "accepted" ? "This climber's log is private." : "Add as a friend to see their climbing log."}</div>`}

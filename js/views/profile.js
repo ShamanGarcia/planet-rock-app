@@ -4,7 +4,7 @@ import { escapeHtml, compressImageFile, initials } from "../utils.js";
 import { showToast } from "../components/toast.js";
 import { openPasswordPromptModal } from "../components/passwordPromptModal.js";
 import { unlockAdmin, ADMIN_PASSWORD } from "../adminAuth.js";
-import { applyAccent, getAccent, ACCENT_SWATCHES } from "../accent.js";
+import { applyAccent, getAccent, hueToHex, hexToHue, ACCENT_SWATCHES } from "../accent.js";
 
 const SWATCH_CHECK = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
 
@@ -55,9 +55,9 @@ export function renderProfile(container) {
               <div class="stat-tile"><div class="stat-value">${stats.totalClimbs}</div><div class="stat-label">Total Climbs</div></div>
               <div class="stat-tile"><div class="stat-value">${stats.highestGrade === null ? "—" : formatGrade(stats.highestGrade)}</div><div class="stat-label">${stats.rope?.totalClimbs ? "Highest Boulder Grade" : "Highest Grade"}</div></div>
               ${stats.rope?.totalClimbs ? `<div class="stat-tile"><div class="stat-value">${stats.rope.highestGrade === null ? "—" : formatGrade(stats.rope.highestGrade, "rope")}</div><div class="stat-label">Highest Rope Grade</div></div>` : ""}
-              <div class="stat-tile"><div class="stat-value" style="font-size:14px;">${stats.favoriteStyleCalculated || "—"}</div><div class="stat-label">Favorite Style</div></div>
+              <div class="stat-tile"><div class="stat-value">${stats.favoriteStyleCalculated || "—"}</div><div class="stat-label">Favorite Style</div></div>
               <div class="stat-tile">
-                <div class="stat-value" style="font-size:14px;">${stats.favoriteHoldTypeCalculated || "—"}</div>
+                <div class="stat-value">${stats.favoriteHoldTypeCalculated || "—"}</div>
                 <div class="stat-label">Most Climbed Hold</div>
               </div>
             </div>
@@ -118,14 +118,21 @@ export function renderProfile(container) {
       showToast("Profile updated");
       render();
     });
+    const markSwatch = (hex) => container.querySelectorAll(".swatch").forEach((b) => {
+      const on = b.dataset.hex === hex;
+      b.classList.toggle("selected", on);
+      b.setAttribute("aria-checked", String(on));
+    });
+    const slider = container.querySelector(".hue-slider");
     container.querySelectorAll(".swatch").forEach((btn) => btn.addEventListener("click", () => {
       accentChoice = applyAccent(btn.dataset.hex);
-      container.querySelectorAll(".swatch").forEach((b) => {
-        const on = b === btn;
-        b.classList.toggle("selected", on);
-        b.setAttribute("aria-checked", String(on));
-      });
+      markSwatch(accentChoice);
+      slider.value = hexToHue(accentChoice);
     }));
+    slider?.addEventListener("input", () => {
+      accentChoice = applyAccent(hueToHex(Number(slider.value)));
+      markSwatch(accentChoice);
+    });
     container.querySelector("#p-photo-btn")?.addEventListener("click", () => container.querySelector("#p-photo-input").click());
     container.querySelector("#p-photo-input")?.addEventListener("change", async (e) => {
       const file = e.target.files?.[0];
@@ -190,6 +197,7 @@ export function renderProfile(container) {
           <div class="swatch-picker" role="radiogroup" aria-label="Accent color">
             ${ACCENT_SWATCHES.map((c) => `<button type="button" class="swatch ${c.hex === (accentChoice ?? user.accentColor ?? getAccent()).toLowerCase() ? "selected" : ""}" style="--swatch:${c.hex}" data-hex="${c.hex}" role="radio" aria-checked="${c.hex === (accentChoice ?? user.accentColor ?? getAccent()).toLowerCase()}" aria-label="${c.name}" title="${c.name}">${SWATCH_CHECK}</button>`).join("")}
           </div>
+          <input type="range" class="hue-slider" min="0" max="359" value="${hexToHue(accentChoice ?? user.accentColor ?? getAccent())}" aria-label="Pick any hue"/>
         </div>
         <div class="field-hint">All fields are optional.</div>
         <div style="display:flex; gap:8px;">
