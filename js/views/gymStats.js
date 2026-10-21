@@ -3,6 +3,7 @@ import {
   HOLD_TYPES, DISCIPLINES, DISCIPLINE_LABELS, maxGradeFor, sectionsFor, disciplineOf, gradeScaleLabel, findWallSectionAt, formatGrade,
 } from "../data/constants.js";
 import { getDiscipline, storeDiscipline } from "../data/discipline.js";
+import { getAccent } from "../accent.js";
 import { renderBarChart, shadesOf } from "../components/charts.js";
 import { escapeHtml } from "../utils.js";
 import { MAP_ICON } from "./gymMap.js";
@@ -11,7 +12,6 @@ import { MAP_ICON } from "./gymMap.js";
 // (retired routes included). Each tally has a fixed grade chart (official or
 // estimated) and a distribution chart switchable between hold, area and tags.
 
-const BRAND_RED = "#bf2c37";
 const MAX_TAG_BARS = 12;
 const HOLD_KINDS = {
   hold: { option: "Hold type", title: "Hold Distribution", blurb: "Routes by hold type" },
@@ -101,14 +101,14 @@ function wireSection(root, key, routes, tagNames, discipline) {
 
   function drawGrade(kind) {
     const { counts, missing } = gradeSeries(routes, kind, discipline);
-    renderBarChart(gradeCanvas, counts.map((_, g) => gradeScaleLabel(g, discipline)), counts, BRAND_RED);
+    renderBarChart(gradeCanvas, counts.map((_, g) => gradeScaleLabel(g, discipline)), counts, getAccent());
     const label = kind === "official" ? "official grade" : "community estimate, rounded";
     const gap = kind === "official" ? "ungraded" : "no estimate yet";
     root.querySelector(`#gs-${key}-grade-note`).textContent = `Routes by ${label}${missing ? ` · ${missing} ${gap}, not shown` : ""}`;
   }
   function drawHold(kind) {
     const { labels, data } = holdSeries(routes, kind, tagNames, discipline);
-    renderBarChart(holdCanvas, labels, data, shadesOf(BRAND_RED, Math.max(labels.length, 1)));
+    renderBarChart(holdCanvas, labels, data, shadesOf(getAccent(), Math.max(labels.length, 1)));
     root.querySelector(`#gs-${key}-hold-title`).textContent = HOLD_KINDS[kind].title;
     root.querySelector(`#gs-${key}-hold-note`).textContent = labels.length ? HOLD_KINDS[kind].blurb : "Nothing to show yet";
   }

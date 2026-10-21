@@ -7,6 +7,7 @@ import { renderAdmin, renderAdminUserLog } from "./views/admin.js";
 import { renderGymStats } from "./views/gymStats.js";
 import { isAdminUnlocked } from "./adminAuth.js";
 import { initials } from "./utils.js";
+import { applyAccent } from "./accent.js";
 
 const ICON_MOUNTAIN = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M12 5 L20 19 H4 Z"/></svg>`;
 const ICON_BOOK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5c-1.8-1.3-4.7-1.8-7.5-1.3v12c2.8-.5 5.7 0 7.5 1.3 1.8-1.3 4.7-1.8 7.5-1.3v-12c-2.8-.5-5.7 0-7.5 1.3z"/><path d="M12 6.5v12"/></svg>`;
@@ -41,6 +42,7 @@ function navLinksHTML(active) {
 
 export async function renderShell(root) {
   const user = getCurrentUser();
+  applyAccent(user.accentColor);
   const gyms = await getGyms();
   const gymId = getCurrentGymId() || gyms[0]?.id;
 

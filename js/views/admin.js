@@ -8,6 +8,7 @@ import {
 import { formatDate, escapeHtml, dismissOverlay, weekStart, weekWindow, weekWindowLabel } from "../utils.js";
 import { openPasswordPromptModal } from "../components/passwordPromptModal.js";
 import { showToast } from "../components/toast.js";
+import { getAccent } from "../accent.js";
 import { renderLineChart } from "../components/charts.js";
 import { renderClimbingLog } from "./climbingLog.js";
 import { ADMIN_PASSWORD } from "../adminAuth.js";
@@ -98,7 +99,7 @@ export function renderAdmin(container) {
         end.setDate(end.getDate() + 7);
         return s.signupDates.filter((d) => new Date(d) < end).length;
       });
-      renderLineChart(el.querySelector("#dash-users-chart"), weeks.map((w) => `${w.getMonth() + 1}/${w.getDate()}`), totals, "#bf2c37");
+      renderLineChart(el.querySelector("#dash-users-chart"), weeks.map((w) => `${w.getMonth() + 1}/${w.getDate()}`), totals, getAccent());
       el.querySelector("#users-range").textContent = weekWindowLabel(weeks);
       el.querySelector("#users-next").disabled = usersOffset === 0;
       el.querySelector("#users-prev").disabled = !firstWeek || weeks[0] <= firstWeek;

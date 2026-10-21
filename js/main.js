@@ -1,6 +1,7 @@
 import { bootSession, getCurrentUser } from "./data/api.js";
 import { renderAuth } from "./views/auth.js";
 import { renderLanding } from "./views/landing.js";
+import "./accent.js"; // paints the remembered accent color before anything renders
 import { renderShell } from "./shell.js";
 import { maybeShowOnboarding } from "./components/onboarding.js";
 

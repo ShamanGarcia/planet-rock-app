@@ -5,9 +5,9 @@ import {
 } from "../data/constants.js";
 import { getDiscipline, storeDiscipline } from "../data/discipline.js";
 import { formatDate, escapeHtml, clamp, weekStart, weekWindow, weekWindowLabel, WEEKS_PER_WINDOW } from "../utils.js";
+import { getAccent } from "../accent.js";
 import { renderBarChart, renderRadarChart, renderPieChart, renderLineChart, shadesOf } from "../components/charts.js";
 
-const BRAND_RED = "#bf2c37";
 const NEXT_CHART_MODE = { bar: "radar", radar: "pie", pie: "bar" };
 const CHART_MODE_LABEL = { bar: "Bar", radar: "Radar", pie: "Pie" };
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -407,13 +407,13 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
       const canvas = body.querySelector(`#c-${key}`);
       if (!canvas) return; // area/style show an empty state instead of a canvas
       const [labels, data] = series[key];
-      if (chartMode[key] === "radar") return renderRadarChart(canvas, labels, data, BRAND_RED);
+      if (chartMode[key] === "radar") return renderRadarChart(canvas, labels, data, getAccent());
       if (chartMode[key] === "pie") {
         const keep = data.map((_, i) => i).filter((i) => data[i] > 0);
-        return renderPieChart(canvas, keep.map((i) => labels[i]), keep.map((i) => data[i]), shadesOf(BRAND_RED, Math.max(keep.length, 1)));
+        return renderPieChart(canvas, keep.map((i) => labels[i]), keep.map((i) => data[i]), shadesOf(getAccent(), Math.max(keep.length, 1)));
       }
       const isGrade = key === "grade" || key === "est";
-      renderBarChart(canvas, labels, data, isGrade ? BRAND_RED : shadesOf(BRAND_RED, labels.length));
+      renderBarChart(canvas, labels, data, isGrade ? getAccent() : shadesOf(getAccent(), labels.length));
     }
     Object.keys(series).forEach(draw);
 

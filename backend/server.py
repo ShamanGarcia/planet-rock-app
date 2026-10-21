@@ -1070,8 +1070,11 @@ class Handler(BaseHTTPRequestHandler):
         if user["id"] != user_id:
             raise ApiError(403, "You can only edit your own profile.")
         body = self._body()
+        color = body.get("accentColor")
+        if color is not None and not re.fullmatch(r"#[0-9a-fA-F]{6}", str(color)):
+            raise ApiError(400, "accentColor must be a hex color like #7f56d9.")
         for field in ["name", "age", "hometown", "climbingStartDate", "favoriteHoldType",
-                      "selfReportedHighestGrade", "profilePicture", "privacy"]:
+                      "selfReportedHighestGrade", "profilePicture", "privacy", "accentColor"]:
             if field in body:
                 user[field] = body[field]
         save_db()

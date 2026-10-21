@@ -4,6 +4,9 @@ import { escapeHtml, compressImageFile, initials } from "../utils.js";
 import { showToast } from "../components/toast.js";
 import { openPasswordPromptModal } from "../components/passwordPromptModal.js";
 import { unlockAdmin, ADMIN_PASSWORD } from "../adminAuth.js";
+import { applyAccent, getAccent, ACCENT_SWATCHES } from "../accent.js";
+
+const SWATCH_CHECK = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
 
 function climbingExperience(startDate) {
   if (!startDate) return null;
@@ -19,6 +22,7 @@ export function renderProfile(container) {
   let editing = false;
   let stats = null;
   let photoDataUrl = null; // null = keep existing user.profilePicture
+  let accentChoice = null; // null = keep the saved accent; a swatch is previewed live and saved with the form
 
   async function render() {
     const user = getCurrentUser();
@@ -94,7 +98,7 @@ export function renderProfile(container) {
       location.reload();
     });
     container.querySelector("#edit-btn")?.addEventListener("click", () => { editing = true; render(); });
-    container.querySelector("#cancel-btn")?.addEventListener("click", () => { editing = false; photoDataUrl = null; render(); });
+    container.querySelector("#cancel-btn")?.addEventListener("click", () => { editing = false; photoDataUrl = null; accentChoice = null; applyAccent(user.accentColor); render(); });
     container.querySelector("#profile-form")?.addEventListener("submit", async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
@@ -106,12 +110,22 @@ export function renderProfile(container) {
         favoriteHoldType: fd.get("favoriteHoldType") || null,
         selfReportedHighestGrade: fd.get("selfReportedHighestGrade") !== "" ? Number(fd.get("selfReportedHighestGrade")) : null,
         profilePicture: photoDataUrl === "" ? null : photoDataUrl ?? user.profilePicture ?? null,
+        accentColor: accentChoice ?? user.accentColor ?? null,
       });
       editing = false;
       photoDataUrl = null;
+      accentChoice = null;
       showToast("Profile updated");
       render();
     });
+    container.querySelectorAll(".swatch").forEach((btn) => btn.addEventListener("click", () => {
+      accentChoice = applyAccent(btn.dataset.hex);
+      container.querySelectorAll(".swatch").forEach((b) => {
+        const on = b === btn;
+        b.classList.toggle("selected", on);
+        b.setAttribute("aria-checked", String(on));
+      });
+    }));
     container.querySelector("#p-photo-btn")?.addEventListener("click", () => container.querySelector("#p-photo-input").click());
     container.querySelector("#p-photo-input")?.addEventListener("change", async (e) => {
       const file = e.target.files?.[0];
@@ -169,6 +183,12 @@ export function renderProfile(container) {
               <option value="">—</option>
               ${Array.from({ length: MAX_GRADE + 1 }, (_, g) => `<option value="${g}" ${user.selfReportedHighestGrade === g ? "selected" : ""}>V${g}</option>`).join("")}
             </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>Accent Color</label>
+          <div class="swatch-picker" role="radiogroup" aria-label="Accent color">
+            ${ACCENT_SWATCHES.map((c) => `<button type="button" class="swatch ${c.hex === (accentChoice ?? user.accentColor ?? getAccent()).toLowerCase() ? "selected" : ""}" style="--swatch:${c.hex}" data-hex="${c.hex}" role="radio" aria-checked="${c.hex === (accentChoice ?? user.accentColor ?? getAccent()).toLowerCase()}" aria-label="${c.name}" title="${c.name}">${SWATCH_CHECK}</button>`).join("")}
           </div>
         </div>
         <div class="field-hint">All fields are optional.</div>

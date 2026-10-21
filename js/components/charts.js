@@ -2,6 +2,8 @@
 // index.html). Each render function destroys any prior instance attached to
 // the canvas so re-renders (e.g. after a new vote) don't leak chart objects.
 
+import { getAccent } from "../accent.js";
+
 // Canvas text doesn't inherit page CSS fonts, so Chart.js needs this set once.
 Chart.defaults.font.family = "W95FA, sans-serif";
 
@@ -42,7 +44,7 @@ export function renderPieChart(canvas, labels, data, colors) {
 }
 
 // `color` must be a 6-digit hex — the fill appends an alpha byte to it.
-export function renderRadarChart(canvas, labels, data, color = "#bf2c37") {
+export function renderRadarChart(canvas, labels, data, color = getAccent()) {
   return mount(canvas, {
     type: "radar",
     data: {
@@ -63,7 +65,7 @@ export function renderRadarChart(canvas, labels, data, color = "#bf2c37") {
   });
 }
 
-export function renderBarChart(canvas, labels, data, color = "#ff5a1f") {
+export function renderBarChart(canvas, labels, data, color = getAccent()) {
   return mount(canvas, {
     type: "bar",
     data: { labels, datasets: [{ data, backgroundColor: color, borderRadius: 5, maxBarThickness: 34 }] },
@@ -78,7 +80,7 @@ export function renderBarChart(canvas, labels, data, color = "#ff5a1f") {
   });
 }
 
-export function renderLineChart(canvas, labels, data, color = "#ff5a1f") {
+export function renderLineChart(canvas, labels, data, color = getAccent()) {
   return mount(canvas, {
     type: "line",
     data: {

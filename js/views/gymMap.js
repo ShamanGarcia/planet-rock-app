@@ -60,6 +60,10 @@ const STATS_ICON = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" 
 export const MAP_ICON = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 6.5l6-2.5 6 2.5 6-2.5v13.5l-6 2.5-6-2.5-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg>`;
 const LIST_ICON = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r=".8" fill="currentColor"/><circle cx="4.5" cy="12" r=".8" fill="currentColor"/><circle cx="4.5" cy="18" r=".8" fill="currentColor"/></svg>`;
 
+// Pixel funnel for the filters button, traced from the reference art (cells are
+// 75 wide; the art's rows vary in height, so the rects use its real coordinates).
+const FILTER_ICON = `<svg viewBox="112 187 976 863" width="22" height="22" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true"><rect x="112" y="187" width="976" height="75"/><rect x="188" y="262" width="75" height="150"/><rect x="937" y="262" width="75" height="150"/><rect x="262" y="412" width="75" height="113"/><rect x="862" y="412" width="75" height="113"/><rect x="338" y="525" width="75" height="112"/><rect x="787" y="525" width="75" height="112"/><rect x="412" y="637" width="75" height="75"/><rect x="712" y="637" width="75" height="75"/><rect x="487" y="712" width="225" height="75"/><rect x="487" y="787" width="75" height="113"/><rect x="637" y="787" width="75" height="263"/><rect x="562" y="900" width="75" height="75"/></svg>`;
+
 const PIXEL_CHECK_ICON = pixelIconSVG([[1, 2], [2, 3], [3, 4], [4, 3], [5, 2], [6, 1], [7, 0]], 9, 6);
 
 // Persisted at module scope so pan/zoom feels stable across re-renders
@@ -199,45 +203,50 @@ export function renderGymMap(container, gymId) {
 
   container.innerHTML = `
     <div class="page map-page">
-      <div class="discipline-bar">
-        <div class="view-toggle discipline-toggle" role="group" aria-label="Climbing type">
-          ${DISCIPLINES.map((d) => `<button type="button" class="${d === discipline ? "active" : ""}" data-discipline="${d}" aria-pressed="${d === discipline}">${DISCIPLINE_LABELS[d]}</button>`).join("")}
-        </div>
-      </div>
-      <div class="map-toolbar">
-        <button class="btn btn-outline btn-sm" id="open-filters">Filters</button>
-        <button class="btn btn-ghost btn-sm ${isFilterActive() ? "" : "hidden"}" id="clear-filters">Clear all</button>
-        <span class="result-count" id="result-count">Loading…</span>
-        <button class="map-menu-btn" id="map-menu-btn" aria-label="More options" aria-haspopup="true" aria-expanded="false">${MENU_ICON}</button>
-        <div class="map-menu hidden" id="map-menu">
-          <div class="view-toggle" role="group" aria-label="View">
-            <button type="button" data-view="list" aria-pressed="false">${LIST_ICON}<span>List</span></button>
-            <button type="button" class="active" data-view="map" aria-pressed="true">${MAP_ICON}<span>Map</span></button>
+      <div class="map-stage">
+        <div class="map-topbar">
+          <div class="discipline-bar">
+            <div class="view-toggle discipline-toggle" role="group" aria-label="Climbing type">
+              ${DISCIPLINES.map((d) => `<button type="button" class="${d === discipline ? "active" : ""}" data-discipline="${d}" aria-pressed="${d === discipline}">${DISCIPLINE_LABELS[d]}</button>`).join("")}
+            </div>
+            <span class="result-count" id="result-count">Loading…</span>
           </div>
-          <div class="map-heatmap-toggles">
-            <button class="heatmap-toggle-btn heatmap-toggle-completed" id="heatmap-completed-btn"
-                    aria-label="Toggle completed-climbs heatmap" aria-pressed="false">${PIXEL_CHECK_ICON}</button>
-            <button class="heatmap-toggle-btn heatmap-toggle-difficulty" id="heatmap-difficulty-btn"
-                    aria-label="Toggle difficulty heatmap" aria-pressed="false">${discipline === "rope" ? "5." : "V"}</button>
+          <button class="map-menu-btn" id="map-menu-btn" aria-label="More options" aria-haspopup="true" aria-expanded="false">${MENU_ICON}</button>
+          <div class="map-menu hidden" id="map-menu">
+            <div class="view-toggle" role="group" aria-label="View">
+              <button type="button" data-view="list" aria-pressed="false">${LIST_ICON}<span>List</span></button>
+              <button type="button" class="active" data-view="map" aria-pressed="true">${MAP_ICON}<span>Map</span></button>
+            </div>
+            <div class="map-heatmap-toggles">
+              <button class="heatmap-toggle-btn heatmap-toggle-filters" id="open-filters"
+                      aria-label="Filters" title="Filters">${FILTER_ICON}</button>
+              <button class="heatmap-toggle-btn heatmap-toggle-completed" id="heatmap-completed-btn"
+                      aria-label="Toggle completed-climbs heatmap" aria-pressed="false">${PIXEL_CHECK_ICON}</button>
+              <button class="heatmap-toggle-btn heatmap-toggle-difficulty" id="heatmap-difficulty-btn"
+                      aria-label="Toggle difficulty heatmap" aria-pressed="false">${discipline === "rope" ? "5." : "V"}</button>
+            </div>
+            <button class="btn btn-ghost btn-sm hidden" id="clear-filters">Clear filters</button>
+            <button class="btn btn-outline btn-sm random-btn" id="random-climb-btn"><span class="new-set">Random Climb</span></button>
+            <button class="btn btn-outline btn-sm stats-btn" id="gym-stats-btn">${STATS_ICON}<span>Gym Stats</span></button>
+            <button class="btn btn-success btn-sm ${showMoveBtn ? "" : "hidden"}" id="move-route-btn">MOVE</button>
           </div>
-          <button class="btn btn-outline btn-sm random-btn" id="random-climb-btn"><span class="new-set">Random Climb</span></button>
-          <button class="btn btn-outline btn-sm stats-btn" id="gym-stats-btn">${STATS_ICON}<span>Gym Stats</span></button>
-          <button class="btn btn-success btn-sm ${showMoveBtn ? "" : "hidden"}" id="move-route-btn">MOVE</button>
         </div>
-      </div>
-      <div class="map-viewport" id="map-viewport">
-        <div class="map-canvas" id="map-canvas"></div>
-        <div class="map-zoom-controls">
-          <button id="zoom-in" aria-label="Zoom in">+</button>
-          <button id="zoom-out" aria-label="Zoom out">−</button>
-          <button id="zoom-reset" aria-label="Reset view" style="font-size:13px;">⤢</button>
+        <div class="map-viewport" id="map-viewport">
+          <div class="map-canvas" id="map-canvas"></div>
+          <div class="map-zoom-controls">
+            <button id="zoom-in" aria-label="Zoom in">+</button>
+            <button id="zoom-out" aria-label="Zoom out">−</button>
+            <button id="zoom-reset" aria-label="Reset view" style="font-size:13px;">⤢</button>
+          </div>
+          <button class="btn btn-outline btn-sm hidden" id="back-to-map-btn" style="position:absolute; left:12px; top:84px; z-index:25; background:#fff;">&larr; All Areas</button>
+          <button class="btn btn-danger btn-sm hidden" id="reset-wall-btn" style="position:absolute; left:12px; top:128px; z-index:25;">RESET</button>
+          <div class="map-bottom-left">
+            <button class="btn btn-primary" id="add-route-btn">+ Add Route</button>
+            <div class="map-hint" id="map-hint"></div>
+          </div>
         </div>
-        <button class="btn btn-primary" id="add-route-btn" style="position:absolute; left:12px; top:12px; z-index:25;">+ Add Route</button>
-        <button class="btn btn-outline btn-sm hidden" id="back-to-map-btn" style="position:absolute; left:12px; top:56px; z-index:25; background:#fff;">&larr; All Areas</button>
-        <button class="btn btn-danger btn-sm hidden" id="reset-wall-btn" style="position:absolute; left:12px; top:100px; z-index:25;">RESET</button>
-        <div class="map-hint" id="map-hint">Pinch or scroll to zoom · drag to pan · tap a wall to zoom in · tap a marker for details</div>
+        <div class="route-list-view hidden" id="route-list-view"></div>
       </div>
-      <div class="route-list-view hidden" id="route-list-view"></div>
     </div>
   `;
 
@@ -258,6 +267,18 @@ export function renderGymMap(container, gymId) {
   const sections = () => sectionsFor(discipline);
   const singleSection = () => sections().length === 1;
   syncSingleSection();
+
+  // The how-to-use hint goes away for good (per user) the first time they zoom.
+  const hintKey = `pr_map_hint_seen_${getCurrentUser()?.id}`;
+  let hintSeen = false;
+  try { hintSeen = localStorage.getItem(hintKey) === "1"; } catch { /* storage blocked — hint just shows each visit */ }
+  function dismissHint() {
+    if (hintSeen) return;
+    hintSeen = true;
+    try { localStorage.setItem(hintKey, "1"); } catch { /* not remembered */ }
+    updateHint();
+  }
+  updateHint();
 
   if (!hasFitToScreen) {
     fitToScreen();
@@ -295,12 +316,15 @@ export function renderGymMap(container, gymId) {
     renderCanvasContents();
   }
 
+  // Wiping a wall is an admin action, so RESET only shows in admin mode (and only while zoomed into a wall).
+  function syncReset() { resetBtn.classList.toggle("hidden", !(showMoveBtn && zoomedSectionId)); }
+
   // Keeps the zoomed-section state consistent with the current discipline.
   function syncSingleSection() {
     if (singleSection()) {
       zoomedSectionId = sections()[0].id;
       backBtn.classList.add("hidden");
-      resetBtn.classList.remove("hidden");
+      syncReset();
     } else {
       zoomedSectionId = null;
       backBtn.classList.add("hidden");
@@ -341,7 +365,7 @@ export function renderGymMap(container, gymId) {
   function enterZoomedSection(sectionId) {
     zoomedSectionId = sectionId;
     backBtn.classList.toggle("hidden", singleSection());
-    resetBtn.classList.remove("hidden");
+    syncReset();
     const section = sections().find((s) => s.id === sectionId);
     const pct = polygonBounds(section.points);
     animateNextTransform(() => fitToBounds({
@@ -372,7 +396,14 @@ export function renderGymMap(container, gymId) {
     menuBtn.setAttribute("aria-expanded", String(open));
   }
   // Outlines the menu button while a mode it contains is on, so it's visible with the menu closed.
-  function syncMenuBtn() { menuBtn.classList.toggle("active", !!activeHeatmap || moveMode); }
+  function syncMenuBtn() { menuBtn.classList.toggle("active", !!activeHeatmap || moveMode || isFilterActive()); }
+  // Filters live in the menu now: outline the button and offer "Clear filters" while any are set.
+  function syncFilterUI() {
+    const on = isFilterActive();
+    container.querySelector("#open-filters").classList.toggle("active", on);
+    container.querySelector("#clear-filters").classList.toggle("hidden", !on);
+    syncMenuBtn();
+  }
   menuBtn.addEventListener("click", () => setMenuOpen(menu.classList.contains("hidden")));
   // Capture phase so a tap anywhere (map pan, marker drag, list rows) closes the menu.
   container.querySelector(".map-page").addEventListener("pointerdown", (e) => {
@@ -463,14 +494,17 @@ export function renderGymMap(container, gymId) {
   function defaultHintText() {
     if (activeHeatmap === "completed") return "Color shows total completions · pale = fewest, dark = most";
     if (activeHeatmap === "difficulty") return "Color shows difficulty · pale = easiest, dark = hardest";
+    if (hintSeen) return "";
     if (singleSection()) return "Pinch or scroll to zoom · drag to pan · tap a marker for details";
     return "Pinch or scroll to zoom · drag to pan · tap a wall to zoom in · tap a marker for details";
   }
 
   function updateHint() {
-    if (placementMode) { hint.textContent = "Tap the wall where the route starts to place it"; return; }
-    if (moveMode) { hint.textContent = "Press and drag a route to reposition it — long-press on mobile"; return; }
-    hint.textContent = defaultHintText();
+    const text = placementMode ? "Tap the wall where the route starts to place it"
+      : moveMode ? "Press and drag a route to reposition it — long-press on mobile"
+      : defaultHintText();
+    hint.textContent = text;
+    hint.classList.toggle("hidden", !text);
   }
 
   function enterPlacementMode() {
@@ -648,7 +682,7 @@ export function renderGymMap(container, gymId) {
         onChanged: () => renderCanvasContents(),
       });
       if (!quiet) container.querySelector("#result-count").textContent = `${placed} route${placed === 1 ? "" : "s"}`;
-      container.querySelector("#clear-filters").classList.toggle("hidden", !isFilterActive());
+      syncFilterUI();
       return;
     }
 
@@ -726,7 +760,7 @@ export function renderGymMap(container, gymId) {
     if (!quiet) {
       container.querySelector("#result-count").textContent = `${visibleRoutes.length} route${visibleRoutes.length === 1 ? "" : "s"}`;
     }
-    container.querySelector("#clear-filters").classList.toggle("hidden", !isFilterActive());
+    syncFilterUI();
     applyTransform();
   }
 
@@ -828,6 +862,7 @@ export function renderGymMap(container, gymId) {
       viewState.ty = py - ratio * (py - viewState.ty);
       viewState.scale = newScale;
       applyTransform();
+      dismissHint();
     }
 
     viewport.addEventListener("wheel", (e) => {
@@ -884,6 +919,7 @@ export function renderGymMap(container, gymId) {
           viewState.ty = py - ratio * (py - viewState.ty);
           viewState.scale = newScale;
           applyTransform();
+          dismissHint();
         }
       }
     }, { passive: false });
