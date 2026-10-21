@@ -4,9 +4,8 @@ import { escapeHtml, compressImageFile, initials } from "../utils.js";
 import { showToast } from "../components/toast.js";
 import { openPasswordPromptModal } from "../components/passwordPromptModal.js";
 import { unlockAdmin, ADMIN_PASSWORD } from "../adminAuth.js";
-import { applyAccent, getAccent, hueToHex, hexToHue, ACCENT_SWATCHES } from "../accent.js";
-
-const SWATCH_CHECK = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
+import { applyAccent, getAccent, ACCENT_SWATCHES } from "../accent.js";
+import { mountColorPicker } from "../components/colorPicker.js";
 
 function climbingExperience(startDate) {
   if (!startDate) return null;
@@ -118,20 +117,11 @@ export function renderProfile(container) {
       showToast("Profile updated");
       render();
     });
-    const markSwatch = (hex) => container.querySelectorAll(".swatch").forEach((b) => {
-      const on = b.dataset.hex === hex;
-      b.classList.toggle("selected", on);
-      b.setAttribute("aria-checked", String(on));
-    });
-    const slider = container.querySelector(".hue-slider");
-    container.querySelectorAll(".swatch").forEach((btn) => btn.addEventListener("click", () => {
-      accentChoice = applyAccent(btn.dataset.hex);
-      markSwatch(accentChoice);
-      slider.value = hexToHue(accentChoice);
-    }));
-    slider?.addEventListener("input", () => {
-      accentChoice = applyAccent(hueToHex(Number(slider.value)));
-      markSwatch(accentChoice);
+    const accentRoot = container.querySelector("#accent-picker");
+    if (accentRoot) mountColorPicker(accentRoot, {
+      color: accentChoice ?? user.accentColor ?? getAccent(),
+      swatches: ACCENT_SWATCHES,
+      onChange: (hex) => { accentChoice = applyAccent(hex); }, // previews live; saved with the form
     });
     container.querySelector("#p-photo-btn")?.addEventListener("click", () => container.querySelector("#p-photo-input").click());
     container.querySelector("#p-photo-input")?.addEventListener("change", async (e) => {
@@ -192,13 +182,7 @@ export function renderProfile(container) {
             </select>
           </div>
         </div>
-        <div class="field">
-          <label>Accent Color</label>
-          <div class="swatch-picker" role="radiogroup" aria-label="Accent color">
-            ${ACCENT_SWATCHES.map((c) => `<button type="button" class="swatch ${c.hex === (accentChoice ?? user.accentColor ?? getAccent()).toLowerCase() ? "selected" : ""}" style="--swatch:${c.hex}" data-hex="${c.hex}" role="radio" aria-checked="${c.hex === (accentChoice ?? user.accentColor ?? getAccent()).toLowerCase()}" aria-label="${c.name}" title="${c.name}">${SWATCH_CHECK}</button>`).join("")}
-          </div>
-          <input type="range" class="hue-slider" min="0" max="359" value="${hexToHue(accentChoice ?? user.accentColor ?? getAccent())}" aria-label="Pick any hue"/>
-        </div>
+        <div class="field"><label>Accent Color</label><div id="accent-picker"></div></div>
         <div class="field-hint">All fields are optional.</div>
         <div style="display:flex; gap:8px;">
           <button class="btn btn-primary" type="submit">Save</button>
