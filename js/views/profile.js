@@ -29,6 +29,7 @@ export function renderProfile(container) {
       container.innerHTML = `<div class="page"><div class="empty-state card">Loading profile…</div></div>`;
       try { stats = await computeUserStats(user.id); } catch { stats = { totalClimbs: 0, highestGrade: null, favoriteStyleCalculated: null, favoriteHoldTypeCalculated: null }; }
     }
+    const pic = photoDataUrl ?? user.profilePicture; // a picked photo previews in the header; it is only saved with the form
     const exp = climbingExperience(user.climbingStartDate);
     const showBothHoldTypes = user.favoriteHoldType && stats.favoriteHoldTypeCalculated && user.favoriteHoldType !== stats.favoriteHoldTypeCalculated;
 
@@ -38,7 +39,7 @@ export function renderProfile(container) {
 
         <div class="card card-pad section-block">
           <div class="profile-header">
-            <div class="avatar">${user.profilePicture ? `<img src="${user.profilePicture}" alt=""/>` : initials(user.name)}</div>
+            <div class="avatar">${pic ? `<img src="${pic}" alt=""/>` : initials(user.name)}</div>
             <div>
               <h1>${escapeHtml(user.name)}</h1>
               <div class="sub">${escapeHtml(user.hometown || "Hometown not set")}${exp ? ` · ${exp}` : ""}</div>
@@ -153,15 +154,15 @@ export function renderProfile(container) {
   }
 
   function editForm(user) {
+    const pic = photoDataUrl ?? user.profilePicture;
     return `
       <form id="profile-form" style="margin-top:10px;">
         <div class="field"><label>Name</label><input type="text" name="name" value="${escapeHtml(user.name)}"/></div>
         <div class="field">
           <label>Profile Picture</label>
-          ${(photoDataUrl ?? user.profilePicture) ? `<div class="avatar" style="margin-bottom:8px;"><img src="${photoDataUrl ?? user.profilePicture}" alt=""/></div>` : ""}
           <input type="file" accept="image/*" id="p-photo-input" class="visually-hidden"/>
           <button type="button" class="btn btn-outline btn-sm" id="p-photo-btn">Take or Choose Photo</button>
-          ${(photoDataUrl ?? user.profilePicture) ? `<button type="button" class="btn btn-ghost btn-sm" id="p-photo-remove">Remove Photo</button>` : ""}
+          ${pic ? `<button type="button" class="btn btn-ghost btn-sm" id="p-photo-remove">Remove Photo</button>` : ""}
         </div>
         <div class="form-row">
           <div class="field"><label>Age</label><input type="number" name="age" min="0" max="120" value="${user.age ?? ""}"/></div>
