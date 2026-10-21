@@ -238,7 +238,6 @@ export function renderGymMap(container, gymId) {
             <button id="zoom-out" aria-label="Zoom out">−</button>
             <button id="zoom-reset" aria-label="Reset view" style="font-size:13px;">⤢</button>
           </div>
-          <button class="btn btn-outline btn-sm hidden" id="back-to-map-btn" style="position:absolute; left:12px; top:84px; z-index:25; background:#fff;">&larr; All Areas</button>
           <button class="btn btn-danger btn-sm hidden" id="reset-wall-btn" style="position:absolute; left:12px; top:128px; z-index:25;">RESET</button>
           <div class="map-bottom-left">
             <button class="btn btn-primary" id="add-route-btn">+ Add Route</button>
@@ -254,7 +253,7 @@ export function renderGymMap(container, gymId) {
   const canvas = container.querySelector("#map-canvas");
   const hint = container.querySelector("#map-hint");
   const addBtn = container.querySelector("#add-route-btn");
-  const backBtn = container.querySelector("#back-to-map-btn");
+  const zoomResetBtn = container.querySelector("#zoom-reset");
   const resetBtn = container.querySelector("#reset-wall-btn");
   const moveBtn = container.querySelector("#move-route-btn");
   // Canvas size and the zoom state follow the discipline (see setDiscipline).
@@ -289,11 +288,6 @@ export function renderGymMap(container, gymId) {
   renderCanvasContents();
   wirePanZoom();
 
-  backBtn.addEventListener("click", () => {
-    exitZoomedSection();
-    animateNextTransform(fitToScreen);
-  });
-
   resetBtn.addEventListener("click", () => {
     const section = sections().find((s) => s.id === zoomedSectionId);
     if (!section) return;
@@ -311,24 +305,23 @@ export function renderGymMap(container, gymId) {
   function exitZoomedSection() {
     if (singleSection()) { renderCanvasContents(); return; }
     zoomedSectionId = null;
-    backBtn.classList.add("hidden");
-    resetBtn.classList.add("hidden");
+    syncReset();
     renderCanvasContents();
   }
 
   // Wiping a wall is an admin action, so RESET only shows in admin mode (and only while zoomed into a wall).
-  function syncReset() { resetBtn.classList.toggle("hidden", !(showMoveBtn && zoomedSectionId)); }
+  function syncReset() { resetBtn.classList.toggle("hidden", !(showMoveBtn && zoomedSectionId));
+    zoomResetBtn.classList.toggle("in-area", !!zoomedSectionId && !singleSection()); // in an area this button is the way back out, so it inverts
+  }
 
   // Keeps the zoomed-section state consistent with the current discipline.
   function syncSingleSection() {
     if (singleSection()) {
       zoomedSectionId = sections()[0].id;
-      backBtn.classList.add("hidden");
       syncReset();
     } else {
       zoomedSectionId = null;
-      backBtn.classList.add("hidden");
-      resetBtn.classList.add("hidden");
+      syncReset();
     }
   }
 
@@ -364,7 +357,6 @@ export function renderGymMap(container, gymId) {
 
   function enterZoomedSection(sectionId) {
     zoomedSectionId = sectionId;
-    backBtn.classList.toggle("hidden", singleSection());
     syncReset();
     const section = sections().find((s) => s.id === sectionId);
     const pct = polygonBounds(section.points);
@@ -448,8 +440,7 @@ export function renderGymMap(container, gymId) {
     if (moveMode) exitMoveMode();
     if (zoomedSectionId && !singleSection()) { // pick from the whole gym, not just the zoomed wall
       zoomedSectionId = null;
-      backBtn.classList.add("hidden");
-      resetBtn.classList.add("hidden");
+      syncReset();
       animateNextTransform(fitToScreen);
     }
     await renderCanvasContents({ quiet: true }); // fresh markers, current filters applied
