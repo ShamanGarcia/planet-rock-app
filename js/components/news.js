@@ -16,7 +16,7 @@ const NEWS = [
   {
     id: "color-picker",
     title: "Pick a Color!",
-    text: "Don't like the look? Change it in Edit Profile and the buttons, charts and highlights follow it",
+    text: "Don't like the look? Change it in Edit Profile and the buttons, charts and highlights follow it.",
     image: "/assets/news/color-picker.png",
   },
 ];
