@@ -6,6 +6,7 @@ import {
 } from "../data/constants.js";
 import { getDiscipline, storeDiscipline } from "../data/discipline.js";
 import { disciplineButtonsHTML } from "../components/disciplineToggle.js";
+import { openNews, unreadCount, NEWS_ICON } from "../components/news.js";
 import { openRouteDetail } from "./routeDetail.js";
 import { openAddRouteForm } from "../components/addRoute.js";
 import { openResetWallModal } from "../components/resetWallModal.js";
@@ -212,6 +213,7 @@ export function renderGymMap(container, gymId) {
             <span class="result-count" id="result-count">Loading…</span>
           </div>
           <button class="map-menu-btn" id="map-menu-btn" aria-label="More options" aria-haspopup="true" aria-expanded="false">${MENU_ICON}</button>
+          <button class="news-float hidden" id="news-float" aria-label="News: new updates"><img src="${NEWS_ICON}" alt="" width="40" height="19"/><span class="news-badge"></span></button>
           <div class="map-menu hidden" id="map-menu">
             <div class="view-toggle" role="group" aria-label="View">
               <button type="button" data-view="list" aria-pressed="false">${LIST_ICON}<span>List</span></button>
@@ -228,6 +230,7 @@ export function renderGymMap(container, gymId) {
             <button class="btn btn-ghost btn-sm hidden" id="clear-filters">Clear filters</button>
             <button class="btn btn-outline btn-sm random-btn" id="random-climb-btn"><span class="new-set">Random Climb</span></button>
             <button class="btn btn-outline btn-sm stats-btn" id="gym-stats-btn">${STATS_ICON}<span>Gym Stats</span></button>
+            <button class="btn btn-outline btn-sm news-btn hidden" id="news-menu-btn"><img src="${NEWS_ICON}" alt="" width="32" height="15"/><span>News</span></button>
           </div>
         </div>
         <div class="map-viewport" id="map-viewport">
@@ -434,6 +437,21 @@ export function renderGymMap(container, gymId) {
   container.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => setViewMode(b.dataset.view)));
 
   container.querySelector("#gym-stats-btn").addEventListener("click", () => { location.hash = "#/stats"; });
+
+  // News: while anything is unread its icon floats under the menu button and bounces now and then;
+  // once everything is read it moves into the menu as a NEWS entry.
+  const newsFloat = container.querySelector("#news-float");
+  const newsMenuBtn = container.querySelector("#news-menu-btn");
+  function syncNews() {
+    const unread = unreadCount();
+    newsFloat.classList.toggle("hidden", !unread);
+    newsMenuBtn.classList.toggle("hidden", !!unread);
+    newsFloat.querySelector(".news-badge").textContent = unread;
+  }
+  const showNews = () => { setMenuOpen(false); openNews({ onChange: syncNews }); };
+  newsFloat.addEventListener("click", showNews);
+  newsMenuBtn.addEventListener("click", showNews);
+  syncNews();
 
   // Random Climb: greys every marker, flashes through random ones (slowing down as
   // it lands), then opens the winner's popup — the same one tapping it opens.
