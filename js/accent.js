@@ -13,7 +13,6 @@ export const ACCENT_SWATCHES = [
   { name: "Pink", hex: "#dd2590" },
   { name: "Purple", hex: "#7f56d9" },
   { name: "Violet", hex: "#6938ef" },
-  { name: "Indigo", hex: "#444ce7" },
   { name: "Blue", hex: "#1570ef" },
   { name: "Cyan", hex: "#0086c9" },
   { name: "Teal", hex: "#0e9384" },

@@ -60,9 +60,7 @@ const STATS_ICON = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" 
 export const MAP_ICON = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 6.5l6-2.5 6 2.5 6-2.5v13.5l-6 2.5-6-2.5-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg>`;
 const LIST_ICON = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r=".8" fill="currentColor"/><circle cx="4.5" cy="12" r=".8" fill="currentColor"/><circle cx="4.5" cy="18" r=".8" fill="currentColor"/></svg>`;
 
-// Pixel funnel for the filters button, traced from the reference art (cells are
-// 75 wide; the art's rows vary in height, so the rects use its real coordinates).
-const FILTER_ICON = `<svg viewBox="112 187 976 863" width="22" height="22" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true"><rect x="112" y="187" width="976" height="75"/><rect x="188" y="262" width="75" height="150"/><rect x="937" y="262" width="75" height="150"/><rect x="262" y="412" width="75" height="113"/><rect x="862" y="412" width="75" height="113"/><rect x="338" y="525" width="75" height="112"/><rect x="787" y="525" width="75" height="112"/><rect x="412" y="637" width="75" height="75"/><rect x="712" y="637" width="75" height="75"/><rect x="487" y="712" width="225" height="75"/><rect x="487" y="787" width="75" height="113"/><rect x="637" y="787" width="75" height="263"/><rect x="562" y="900" width="75" height="75"/></svg>`;
+const FILTER_ICON = `<img src="/assets/icons/filter.svg" alt="" width="26" height="26"/>`; // 8-bit funnel, 64px art shown at 26px
 
 const PIXEL_CHECK_ICON = pixelIconSVG([[1, 2], [2, 3], [3, 4], [4, 3], [5, 2], [6, 1], [7, 0]], 9, 6);
 

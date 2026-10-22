@@ -9,11 +9,11 @@ import { isAdminUnlocked } from "./adminAuth.js";
 import { initials } from "./utils.js";
 import { applyAccent } from "./accent.js";
 
-const ICON_MOUNTAIN = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M12 5 L20 19 H4 Z"/></svg>`;
-const ICON_BOOK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5c-1.8-1.3-4.7-1.8-7.5-1.3v12c2.8-.5 5.7 0 7.5 1.3 1.8-1.3 4.7-1.8 7.5-1.3v-12c-2.8-.5-5.7 0-7.5 1.3z"/><path d="M12 6.5v12"/></svg>`;
-const ICON_SMILEY = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><circle cx="9" cy="10.2" r=".9" fill="currentColor" stroke="none"/><circle cx="15" cy="10.2" r=".9" fill="currentColor" stroke="none"/><path d="M8.3 14.5c1 1.3 2.4 2 3.7 2s2.7-.7 3.7-2"/></svg>`;
-const ICON_FRIENDS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8.5" cy="12" r="6"/><circle cx="15.5" cy="12" r="6"/><circle cx="6.7" cy="10.6" r=".7" fill="currentColor" stroke="none"/><circle cx="10" cy="10.6" r=".7" fill="currentColor" stroke="none"/><path d="M6.3 13.8c.6.8 1.4 1.2 2.2 1.2s1.6-.4 2.2-1.2"/><circle cx="13.8" cy="10.6" r=".7" fill="currentColor" stroke="none"/><circle cx="17.1" cy="10.6" r=".7" fill="currentColor" stroke="none"/><path d="M13.4 13.8c.6.8 1.4 1.2 2.2 1.2s1.6-.4 2.2-1.2"/></svg>`;
-const ICON_EYE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M2 12c3-5.5 7-8 10-8s7 2.5 10 8c-3 5.5-7 8-10 8s-7-2.5-10-8z"/><circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"/></svg>`;
+const ICON_MOUNTAIN = `<img src="/assets/icons/nav-gym-map.svg" alt="" width="32" height="32"/>`;
+const ICON_BOOK = `<img src="/assets/icons/nav-climbing-log.svg" alt="" width="32" height="32"/>`;
+const ICON_SMILEY = `<img src="/assets/icons/nav-profile.svg" alt="" width="32" height="32"/>`;
+const ICON_FRIENDS = `<img src="/assets/icons/nav-friends.svg" alt="" width="32" height="32"/>`;
+const ICON_EYE = `<img src="/assets/icons/nav-admin.svg" alt="" width="32" height="32"/>`;
 
 const NAV_ITEMS = [
   { hash: "#/map", label: "Gym Map", icon: ICON_MOUNTAIN },

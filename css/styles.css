@@ -827,3 +827,7 @@ table.log-table tbody tr.row-removing{ transition:opacity var(--t-fast) var(--ea
 /* Discipline switch inside a page (Gym Stats, Climbing Log, Profile) rather than the map's own bar. */
 .gs-discipline{ border:none; background:transparent; padding:0; margin:0 0 4px; }
 .map-zoom-controls button.in-area{ background:var(--pr-text-soft); color:#fff; border-color:var(--pr-text-soft); }
+.cp-pop{ scroll-margin-bottom:calc(var(--nav-h) + 16px); }
+.nav-icon img{ width:32px; height:32px; image-rendering:pixelated; opacity:.55; }
+.bottom-nav a.active .nav-icon img, .sidebar a.active .nav-icon img{ opacity:1; }
+.heatmap-toggle-filters img{ image-rendering:pixelated; }

@@ -55,7 +55,10 @@ export function mountColorPicker(root, { color, swatches, onChange }) {
     else { input.classList.add("invalid"); error.classList.remove("hidden"); }
   });
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); pop.classList.add("hidden"); } });
-  input.addEventListener("focus", () => pop.classList.remove("hidden"));
+  input.addEventListener("focus", () => {
+    pop.classList.remove("hidden");
+    pop.scrollIntoView({ block: "nearest", behavior: "smooth" }); // bring the whole popover into view (scroll-margin clears the nav)
+  });
   input.addEventListener("blur", () => { if (!input.classList.contains("invalid")) paint(); }); // tidy "d36" into "#DD3366"
 
   let dragging = false;
