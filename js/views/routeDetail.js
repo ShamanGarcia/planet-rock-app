@@ -247,7 +247,7 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
         return;
       }
       openLogSendSheet(routeId, label, {
-        onLogged: async () => { justSent = true; onChanged?.(); render(); },
+        onLogged: () => { onChanged?.(); close(); }, // logging a send also closes the route drawer
       });
     });
   }

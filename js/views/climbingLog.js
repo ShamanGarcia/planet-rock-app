@@ -4,6 +4,7 @@ import {
   maxGradeFor, sectionsFor, disciplineOf, gradeScaleLabel,
 } from "../data/constants.js";
 import { getDiscipline, storeDiscipline } from "../data/discipline.js";
+import { disciplineButtonsHTML } from "../components/disciplineToggle.js";
 import { formatDate, escapeHtml, clamp, weekStart, weekWindow, weekWindowLabel, WEEKS_PER_WINDOW } from "../utils.js";
 import { getAccent } from "../accent.js";
 import { renderBarChart, renderRadarChart, renderPieChart, renderLineChart, shadesOf } from "../components/charts.js";
@@ -138,7 +139,7 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
         </div>
         <div class="discipline-bar gs-discipline">
           <div class="view-toggle discipline-toggle" role="group" aria-label="Climbing type">
-            ${DISCIPLINES.map((d) => `<button type="button" class="${d === discipline ? "active" : ""}" data-discipline="${d}" aria-pressed="${d === discipline}">${DISCIPLINE_LABELS[d]}</button>`).join("")}
+            ${disciplineButtonsHTML(discipline)}
           </div>
         </div>
         <div id="log-body"></div>

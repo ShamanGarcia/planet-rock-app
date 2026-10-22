@@ -3,6 +3,7 @@ import {
   HOLD_TYPES, DISCIPLINES, DISCIPLINE_LABELS, maxGradeFor, sectionsFor, disciplineOf, gradeScaleLabel, findWallSectionAt, formatGrade,
 } from "../data/constants.js";
 import { getDiscipline, storeDiscipline } from "../data/discipline.js";
+import { disciplineButtonsHTML } from "../components/disciplineToggle.js";
 import { getAccent } from "../accent.js";
 import { renderBarChart, shadesOf } from "../components/charts.js";
 import { escapeHtml } from "../utils.js";
@@ -134,7 +135,7 @@ export async function renderGymStats(container, gymId) {
       </div>
       <div class="discipline-bar gs-discipline">
         <div class="view-toggle discipline-toggle" role="group" aria-label="Climbing type">
-          ${DISCIPLINES.map((d) => `<button type="button" data-discipline="${d}">${DISCIPLINE_LABELS[d]}</button>`).join("")}
+          ${disciplineButtonsHTML()}
         </div>
       </div>
       <div id="gs-body"></div>

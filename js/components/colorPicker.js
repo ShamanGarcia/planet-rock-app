@@ -25,6 +25,7 @@ export function mountColorPicker(root, { color, swatches, onChange }) {
     </div>
     <div class="cp-error hidden">Provide a valid color value</div>
     <div class="cp-pop hidden">
+      <button type="button" class="cp-close" aria-label="Close color picker">&times;</button>
       <div class="cp-sv" role="slider" aria-label="Saturation and brightness"><div class="cp-thumb"></div></div>
       <input type="range" class="hue-slider" min="0" max="359" aria-label="Hue"/>
       <div class="swatch-picker">
@@ -34,6 +35,8 @@ export function mountColorPicker(root, { color, swatches, onChange }) {
   const q = (s) => root.querySelector(s);
   const input = q(".cp-hex"), chip = q(".cp-chip"), pop = q(".cp-pop"), sv = q(".cp-sv"), thumb = q(".cp-thumb");
   const hue = q(".hue-slider"), error = q(".cp-error");
+  const open = () => { pop.classList.remove("hidden"); pop.scrollIntoView({ block: "nearest", behavior: "smooth" }); }; // scroll-margin clears the nav
+  const hide = () => pop.classList.add("hidden");
 
   function paint({ keepText = false } = {}) {
     if (!keepText) input.value = hex.toUpperCase();
@@ -55,10 +58,9 @@ export function mountColorPicker(root, { color, swatches, onChange }) {
     else { input.classList.add("invalid"); error.classList.remove("hidden"); }
   });
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); pop.classList.add("hidden"); } });
-  input.addEventListener("focus", () => {
-    pop.classList.remove("hidden");
-    pop.scrollIntoView({ block: "nearest", behavior: "smooth" }); // bring the whole popover into view (scroll-margin clears the nav)
-  });
+  input.addEventListener("focus", open);
+  q(".cp-field").addEventListener("click", open); // clicking the field again brings back a picker closed with the x
+  q(".cp-close").addEventListener("click", hide);
   input.addEventListener("blur", () => { if (!input.classList.contains("invalid")) paint(); }); // tidy "d36" into "#DD3366"
 
   let dragging = false;
@@ -73,13 +75,15 @@ export function mountColorPicker(root, { color, swatches, onChange }) {
   hue.addEventListener("input", () => setHsv(Number(hue.value), hsv.s, hsv.v));
   root.querySelectorAll(".swatch").forEach((sw) => sw.addEventListener("click", () => setHex(sw.dataset.hex)));
 
-  // Close on a tap outside or Escape; the listener retires itself once the form is re-rendered away.
+  // Stays open while you scroll or tap around the profile form; only a tap outside the form (or the x / Escape) closes it.
+  // The listener retires itself once the form is re-rendered away.
+  const form = root.closest("form") || root;
   const outside = (e) => {
     if (!root.isConnected) { document.removeEventListener("pointerdown", outside); return; }
-    if (!root.contains(e.target)) pop.classList.add("hidden");
+    if (!form.contains(e.target)) hide();
   };
   document.addEventListener("pointerdown", outside);
-  root.addEventListener("keydown", (e) => { if (e.key === "Escape") pop.classList.add("hidden"); });
+  root.addEventListener("keydown", (e) => { if (e.key === "Escape") hide(); });
 
   paint();
 }

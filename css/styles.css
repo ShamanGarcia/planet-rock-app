@@ -287,7 +287,9 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
 .wall-zone{ fill:#36454F; stroke:rgba(27,29,33,.35); stroke-width:.3; opacity:.92; cursor:pointer; }
 /* The rope area is a single section, so its walls aren't tap targets. */
 .floor-plan.rope .wall-zone{ cursor:default; }
-.map-canvas.switching{ opacity:.55; }
+.map-canvas{ transition:opacity .25s ease; }
+.map-canvas.fading, .route-list-view.fading{ opacity:0; }
+.route-list-view{ transition:opacity .25s ease; }
 
 /* Rope grade input: - toggle, base grade dropdown, + toggle (components/ropeGradePicker.js). */
 .rope-grade-picker{ display:flex; align-items:stretch; gap:8px; }
@@ -848,3 +850,14 @@ table.log-table tbody tr.row-removing{ transition:opacity var(--t-fast) var(--ea
 .sc-roll{ display:flex; flex-direction:column; }
 .sc-roll span{ display:block; height:1em; line-height:1em; text-align:center; }
 .sc-label{ margin-top:8px; font-size:12.5px; letter-spacing:.8px; text-transform:uppercase; color:rgba(255,255,255,.7); }
+
+/* Bouldering | Rope icons: a drawer under each label that unfolds downward after a click, then folds back up. */
+.discipline-toggle button{ flex-direction:column; justify-content:flex-start; gap:0; }
+.dt-icon{ display:block; height:0; overflow:hidden; transition:height .35s var(--ease-out); }
+.dt-icon img{ display:block; margin:6px auto 4px; width:40px; height:40px; image-rendering:pixelated; }
+.discipline-toggle.open .dt-icon{ height:50px; }
+.cp-close{
+  position:absolute; top:6px; right:8px; z-index:1; width:26px; height:26px; border:0; border-radius:50%;
+  background:rgba(255,255,255,.9); color:var(--pr-ink); font-size:18px; line-height:1; box-shadow:0 0 0 1px var(--pr-border);
+}
+.discipline-toggle{ position:relative; z-index:5; } /* the unfolding icon drawer sits over what is below it */

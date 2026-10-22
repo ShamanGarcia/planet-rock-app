@@ -5,6 +5,7 @@ import {
   findWallSectionAt,
 } from "../data/constants.js";
 import { getDiscipline, storeDiscipline } from "../data/discipline.js";
+import { disciplineButtonsHTML } from "../components/disciplineToggle.js";
 import { openRouteDetail } from "./routeDetail.js";
 import { openAddRouteForm } from "../components/addRoute.js";
 import { openResetWallModal } from "../components/resetWallModal.js";
@@ -206,7 +207,7 @@ export function renderGymMap(container, gymId) {
         <div class="map-topbar">
           <div class="discipline-bar">
             <div class="view-toggle discipline-toggle" role="group" aria-label="Climbing type">
-              ${DISCIPLINES.map((d) => `<button type="button" class="${d === discipline ? "active" : ""}" data-discipline="${d}" aria-pressed="${d === discipline}">${DISCIPLINE_LABELS[d]}</button>`).join("")}
+              ${disciplineButtonsHTML(discipline)}
             </div>
             <span class="result-count" id="result-count">Loading…</span>
           </div>
@@ -324,8 +325,18 @@ export function renderGymMap(container, gymId) {
     }
   }
 
-  function setDiscipline(next) {
-    if (next === discipline || !DISCIPLINES.includes(next)) return;
+  let switchingDiscipline = false;
+  async function setDiscipline(next) {
+    if (next === discipline || !DISCIPLINES.includes(next) || switchingDiscipline) return;
+    switchingDiscipline = true;
+    container.querySelectorAll("[data-discipline]").forEach((b) => {
+      const on = b.dataset.discipline === next;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-pressed", String(on));
+    });
+    const fadeEl = viewMode === "list" ? container.querySelector("#route-list-view") : canvas;
+    fadeEl.classList.add("fading"); // fade out, swap, fade back in
+    await new Promise((r) => setTimeout(r, 250));
     if (placementMode) exitPlacementMode();
     if (moveMode) exitMoveMode();
     closeListPopover();
@@ -341,16 +352,12 @@ export function renderGymMap(container, gymId) {
     selectedRouteId = null;
     newlyAddedRouteId = null;
     syncSingleSection();
-    container.querySelectorAll("[data-discipline]").forEach((b) => {
-      const on = b.dataset.discipline === next;
-      b.classList.toggle("active", on);
-      b.setAttribute("aria-pressed", String(on));
-    });
     container.querySelector("#heatmap-difficulty-btn").textContent = next === "rope" ? "5." : "V";
     updateHint();
-    canvas.classList.add("switching");
     fitToScreen();
-    renderCanvasContents().finally(() => canvas.classList.remove("switching"));
+    await renderCanvasContents();
+    fadeEl.classList.remove("fading");
+    switchingDiscipline = false;
   }
   container.querySelectorAll("[data-discipline]").forEach((b) => b.addEventListener("click", () => setDiscipline(b.dataset.discipline)));
 
@@ -407,7 +414,7 @@ export function renderGymMap(container, gymId) {
     if (mode === "list") {
       if (placementMode) exitPlacementMode();
       if (moveMode) exitMoveMode();
-      listSection = null; // always open on the grid of areas
+      listSection = zoomedSectionId; // list the area being viewed (null on the whole-gym map = the grid of areas)
     } else {
       closeListPopover();
     }
@@ -680,7 +687,7 @@ export function renderGymMap(container, gymId) {
       return;
     }
 
-    const visibleSections = zoomedSectionId ? sections().filter((s) => s.id === zoomedSectionId) : sections();
+    const visibleSections = sections(); // area view only zooms in; the other areas stay on the map
 
     const zonesHTML = `
       <svg class="floor-plan ${discipline}" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -708,7 +715,7 @@ export function renderGymMap(container, gymId) {
     // zoomed into one section, only its own routes show.
     visibleRoutes = visibleRoutes.filter((r) => {
       const sectionId = findWallSectionAt(r.mapX, r.mapY, discipline);
-      return sectionId && (!zoomedSectionId || sectionId === zoomedSectionId);
+      return !!sectionId;
     });
 
     const markersHTML = visibleRoutes
@@ -735,16 +742,17 @@ export function renderGymMap(container, gymId) {
     canvas.innerHTML = zonesHTML + labelsHTML + markersHTML + pendingHTML;
     canvas.querySelectorAll(".wall-zone").forEach((el) => {
       el.addEventListener("click", () => {
-        if (panMoved || placementMode || zoomedSectionId || singleSection()) return;
-        enterZoomedSection(el.getAttribute("data-section-id"));
+        if (panMoved || placementMode || singleSection()) return;
+        const id = el.getAttribute("data-section-id");
+        if (id !== zoomedSectionId) enterZoomedSection(id); // tapping another area from an area view moves there
       });
     });
     canvas.querySelectorAll(".route-marker[data-route-id]").forEach((el) => {
       el.addEventListener("click", () => {
         if (panMoved || placementMode || moveMode) return;
-        // From the whole-gym map a tap goes to that route's area first; a tap inside an area opens the route.
-        const sectionId = zoomedSectionId ? null : findWallSectionAt(parseFloat(el.style.left), parseFloat(el.style.top), discipline);
-        if (sectionId) { enterZoomedSection(sectionId); return; }
+        // A tap on a route outside the area you're viewing goes to that route's area first; a tap inside it opens the route.
+        const sectionId = findWallSectionAt(parseFloat(el.style.left), parseFloat(el.style.top), discipline);
+        if (sectionId && sectionId !== zoomedSectionId) { enterZoomedSection(sectionId); return; }
         showRoute(el);
       });
       el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); el.click(); } });
@@ -843,6 +851,8 @@ export function renderGymMap(container, gymId) {
   function wirePanZoom() {
     let dragging = false;
     let lastX = 0, lastY = 0;
+    const pointers = new Map(); // active touches/mouse; panning only runs with exactly one
+    let pinchMid = null;
     let pinchStartDist = null;
     let pinchStartScale = 1;
 
@@ -866,6 +876,8 @@ export function renderGymMap(container, gymId) {
 
     viewport.addEventListener("pointerdown", (e) => {
       if (e.pointerType === "mouse" && e.button !== 0) return;
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.size > 1) { dragging = false; panMoved = true; return; } // a second finger: the pinch handler owns the gesture
       dragging = true;
       panMoved = false;
       lastX = e.clientX; lastY = e.clientY;
@@ -875,7 +887,8 @@ export function renderGymMap(container, gymId) {
       // the finger, so nothing tappable on the map ever fired its handler.
     });
     viewport.addEventListener("pointermove", (e) => {
-      if (!dragging) return;
+      if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (!dragging || pointers.size > 1) return;
       const dx = e.clientX - lastX, dy = e.clientY - lastY;
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
         if (!panMoved) viewport.setPointerCapture(e.pointerId);
@@ -886,9 +899,13 @@ export function renderGymMap(container, gymId) {
       applyTransform();
     });
     ["pointerup", "pointercancel", "pointerleave"].forEach((ev) =>
-      viewport.addEventListener(ev, () => {
-        dragging = false;
-        setTimeout(() => { panMoved = false; }, 0);
+      viewport.addEventListener(ev, (e) => {
+        pointers.delete(e.pointerId);
+        if (pointers.size === 1) { // one finger of a pinch lifted: carry on panning from where the other one is
+          const [p] = pointers.values();
+          lastX = p.x; lastY = p.y; dragging = true;
+        } else dragging = false;
+        if (!pointers.size) setTimeout(() => { panMoved = false; }, 0);
       })
     );
 
@@ -898,13 +915,14 @@ export function renderGymMap(container, gymId) {
         e.preventDefault();
         const [a, b] = e.touches;
         const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+        const midX = (a.clientX + b.clientX) / 2;
+        const midY = (a.clientY + b.clientY) / 2;
         if (pinchStartDist === null) {
           pinchStartDist = dist;
           pinchStartScale = viewState.scale;
+          pinchMid = [midX, midY];
         } else {
           const factor = dist / pinchStartDist;
-          const midX = (a.clientX + b.clientX) / 2;
-          const midY = (a.clientY + b.clientY) / 2;
           const rect = viewport.getBoundingClientRect();
           const px = midX - rect.left, py = midY - rect.top;
           const newScale = clamp(pinchStartScale * factor, MIN_SCALE, MAX_SCALE);
@@ -912,6 +930,8 @@ export function renderGymMap(container, gymId) {
           viewState.tx = px - ratio * (px - viewState.tx);
           viewState.ty = py - ratio * (py - viewState.ty);
           viewState.scale = newScale;
+          viewState.tx += midX - pinchMid[0]; viewState.ty += midY - pinchMid[1]; // dragging both fingers pans
+          pinchMid = [midX, midY];
           applyTransform();
           dismissHint();
         }
