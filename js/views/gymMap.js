@@ -71,6 +71,7 @@ const PIXEL_CHECK_ICON = pixelIconSVG([[1, 2], [2, 3], [3, 4], [4, 3], [5, 2], [
 // of it on small phones.
 const viewState = { scale: 1, tx: 0, ty: 0 };
 let hasFitToScreen = false;
+let fitScale = 1; // the scale that fits the whole map; markers are sized relative to it
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 3.5;
 
@@ -545,6 +546,8 @@ export function renderGymMap(container, gymId) {
 
   function applyTransform() {
     canvas.style.transform = `translate(${viewState.tx}px, ${viewState.ty}px) scale(${viewState.scale})`;
+    // Markers shrink as you zoom in (they would otherwise grow with the map), so neighbours overlap less.
+    canvas.style.setProperty("--ms", clamp(Math.sqrt(fitScale / viewState.scale), 0.35, 1).toFixed(3));
   }
 
   // Eases an explicit, discrete view change (zoom into a wall, back to the
@@ -576,6 +579,8 @@ export function renderGymMap(container, gymId) {
   // Fits the whole gym canvas inside the viewport (see fitToBounds above).
   function fitToScreen() {
     fitToBounds({ minX: 0, maxX: CANVAS_W, minY: 0, maxY: CANVAS_H });
+    fitScale = viewState.scale;
+    applyTransform(); // again, now that the marker size has its reference scale
   }
 
   // Selects a marker and opens its route popup (shared by marker taps and Random Climb).
@@ -713,7 +718,7 @@ export function renderGymMap(container, gymId) {
         const { bg: markerBg, label: markerLabel, textStyle, holdAttr } = markerLook(r);
 
         return `
-          <div class="route-marker ${discipline === "rope" ? "rope" : ""} ${completed ? "completed" : "uncompleted"} ${isNew ? "just-added" : ""} ${r.id === selectedRouteId ? "selected" : ""} ${!r.active ? "retired" : ""} ${zoomedSectionId && !singleSection() ? "zoomed" : ""}"
+          <div class="route-marker ${discipline === "rope" ? "rope" : ""} ${completed ? "completed" : "uncompleted"} ${isNew ? "just-added" : ""} ${r.id === selectedRouteId ? "selected" : ""} ${!r.active ? "retired" : ""}"
                style="left:${r.mapX}%; top:${r.mapY}%; background:${markerBg};${textStyle}"
                data-route-id="${r.id}"${holdAttr}
                role="button" tabindex="0" aria-label="${escapeHtml(routeLabel(r))}, ${r.holdType}, ${completed ? "completed" : "not yet completed"}${r.mediaCount ? `, ${r.mediaCount} photo${r.mediaCount === 1 ? "" : "s"}/videos` : ""}">
