@@ -3,7 +3,7 @@ import { DISCIPLINES, DISCIPLINE_LABELS } from "../data/constants.js";
 // Buttons for the Bouldering | Rope toggle (map, stats and log pages share them).
 // Each button carries its 8-bit icon in a drawer that is collapsed until a click:
 // the toggle then grows downward to reveal both icons and collapses again.
-const ICONS = { boulder: "/assets/icons/rock.svg", rope: "/assets/icons/rock-stack.svg" };
+const ICONS = { boulder: "/assets/icons/rock.svg", rope: "/assets/icons/rock-stack.png" };
 const OPEN_MS = 1100;
 
 export function disciplineButtonsHTML(active = null) {
