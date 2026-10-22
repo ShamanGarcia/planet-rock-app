@@ -8,6 +8,17 @@ export const NEWS_ICON = "/assets/icons/news.svg";
 
 const NEWS = [
   {
+    id: "add-to-home-screen",
+    title: "Add to Home Screen!",
+    text: "Put MATCHBOOK on your iPhone like an app:",
+    steps: [
+      "Open thematchbook.org in Safari.",
+      "Tap the Share button (the square with an arrow) at the bottom of the screen.",
+      "Scroll down and tap Add to Home Screen.",
+      "Tap Add. MATCHBOOK now opens full screen from its own icon.",
+    ],
+  },
+  {
     id: "ropes",
     title: "Ropes Added!",
     text: "Flip the map to Rope to see the Rope wall, log your sends and view your stats.",
@@ -44,7 +55,8 @@ function itemHTML(n, unread) {
         ${unread ? `<button type="button" class="btn btn-outline btn-sm news-read">Mark read</button>` : ""}
       </div>
       <p>${escapeHtml(n.text)}</p>
-      <div class="news-shot"><img src="${n.image}" alt="" loading="lazy"/>${n.tag ? `<span class="news-tag">${escapeHtml(n.tag)}</span>` : ""}</div>
+      ${n.steps ? `<ol class="news-steps">${n.steps.map((t) => `<li>${escapeHtml(t)}</li>`).join("")}</ol>` : ""}
+      ${n.image ? `<div class="news-shot"><img src="${n.image}" alt="" loading="lazy"/>${n.tag ? `<span class="news-tag">${escapeHtml(n.tag)}</span>` : ""}</div>` : ""}
     </article>`;
 }
 

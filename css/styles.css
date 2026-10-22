@@ -910,3 +910,5 @@ table.log-table tbody tr.row-removing{ transition:opacity var(--t-fast) var(--ea
   position:absolute; left:8px; bottom:8px; padding:3px 8px; border-radius:999px; background:rgba(27,29,33,.85); color:#fff;
   font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.4px;
 }
+.news-steps{ margin:0 0 4px; padding-left:20px; font-size:13.5px; line-height:1.45; color:var(--pr-text-soft); }
+.news-steps li + li{ margin-top:4px; }
