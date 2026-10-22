@@ -15,12 +15,12 @@ const ICON_BOOK = `<img src="/assets/icons/nav-climbing-log.svg" alt="" width="3
 const ICON_SMILEY = `<img src="/assets/icons/nav-profile.svg" alt="" width="32" height="32"/>`;
 const ICON_FRIENDS = `<img src="/assets/icons/nav-friends.svg" alt="" width="32" height="32"/>`;
 const ICON_EYE = `<img src="/assets/icons/nav-admin.svg" alt="" width="32" height="32"/>`;
-const ICON_REEL = `<img src="/assets/icons/nav-reel.svg" alt="" width="32" height="32"/>`;
+const ICON_REEL = `<img src="/assets/icons/nav-clips.svg" alt="" width="32" height="32"/>`;
 
 const NAV_ITEMS = [
   { hash: "#/map", label: "Gym Map", icon: ICON_MOUNTAIN },
   { hash: "#/log", label: "Climbing Log", icon: ICON_BOOK },
-  { hash: "#/reel", label: "Reel", icon: ICON_REEL },
+  { hash: "#/reel", label: "Clips", icon: ICON_REEL },
   { hash: "#/friends", label: "Friends", icon: ICON_FRIENDS },
   { hash: "#/profile", label: "Profile", icon: ICON_SMILEY },
 ];

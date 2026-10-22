@@ -8,6 +8,11 @@ export const NEWS_ICON = "/assets/icons/news.svg";
 
 const NEWS = [
   {
+    id: "clips",
+    title: "Clips are here!",
+    text: "Upload your videos when logging a send, or from your climbing log.",
+  },
+  {
     id: "add-to-home-screen",
     title: "Add to Home Screen!",
     text: "Put MATCHBOOK on your iPhone like an app:",
