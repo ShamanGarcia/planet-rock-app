@@ -861,3 +861,9 @@ table.log-table tbody tr.row-removing{ transition:opacity var(--t-fast) var(--ea
   background:rgba(255,255,255,.9); color:var(--pr-ink); font-size:18px; line-height:1; box-shadow:0 0 0 1px var(--pr-border);
 }
 .discipline-toggle{ position:relative; z-index:5; } /* the unfolding icon drawer sits over what is below it */
+
+/* Area view: the areas you are not looking at recede a little. */
+.wall-zone, .wall-label{ transition:opacity var(--t-base) ease; }
+.wall-zone.dimmed{ opacity:.45; }
+.wall-label.dimmed{ opacity:.5; }
+.route-marker.dimmed{ opacity:.55; }

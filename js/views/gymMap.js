@@ -687,11 +687,12 @@ export function renderGymMap(container, gymId) {
       return;
     }
 
-    const visibleSections = sections(); // area view only zooms in; the other areas stay on the map
+    const visibleSections = sections(); // area view only zooms in; the other areas stay on the map, slightly dimmed
+    const dim = (id) => (zoomedSectionId && !singleSection() && id !== zoomedSectionId ? "dimmed" : "");
 
     const zonesHTML = `
       <svg class="floor-plan ${discipline}" viewBox="0 0 100 100" preserveAspectRatio="none">
-        ${visibleSections.map((s) => sectionPolygons(s).map((poly) => `<polygon class="wall-zone" data-section-id="${s.id}" points="${toSvgPoints(poly)}"></polygon>`).join("")).join("")}
+        ${visibleSections.map((s) => sectionPolygons(s).map((poly) => `<polygon class="wall-zone ${dim(s.id)}" data-section-id="${s.id}" points="${toSvgPoints(poly)}"></polygon>`).join("")).join("")}
       </svg>
     `;
 
@@ -708,7 +709,7 @@ export function renderGymMap(container, gymId) {
         left = bounds.maxX - margin; top = bounds.maxY - margin; anchor = "transform:translate(-100%,-100%);";
       }
       const isNewSet = resets[s.id] && Date.now() - new Date(resets[s.id]) < NEW_SET_MS;
-      return `<div class="wall-label" style="left:${left}%; top:${top}%; ${anchor}">${isNewSet ? '<span class="new-set">New Set</span>' : ""}${escapeHtml(s.name)}</div>`;
+      return `<div class="wall-label ${dim(s.id)}" style="left:${left}%; top:${top}%; ${anchor}">${isNewSet ? '<span class="new-set">New Set</span>' : ""}${escapeHtml(s.name)}</div>`;
     }).join("");
 
     // Only routes placed inside a wall section ever render as markers; when
@@ -725,7 +726,7 @@ export function renderGymMap(container, gymId) {
         const { bg: markerBg, label: markerLabel, textStyle, holdAttr } = markerLook(r);
 
         return `
-          <div class="route-marker ${discipline === "rope" ? "rope" : ""} ${completed ? "completed" : "uncompleted"} ${isNew ? "just-added" : ""} ${r.id === selectedRouteId ? "selected" : ""} ${!r.active ? "retired" : ""}"
+          <div class="route-marker ${dim(findWallSectionAt(r.mapX, r.mapY, discipline))} ${discipline === "rope" ? "rope" : ""} ${completed ? "completed" : "uncompleted"} ${isNew ? "just-added" : ""} ${r.id === selectedRouteId ? "selected" : ""} ${!r.active ? "retired" : ""}"
                style="left:${r.mapX}%; top:${r.mapY}%; background:${markerBg};${textStyle}"
                data-route-id="${r.id}"${holdAttr}
                role="button" tabindex="0" aria-label="${escapeHtml(routeLabel(r))}, ${r.holdType}, ${completed ? "completed" : "not yet completed"}${r.mediaCount ? `, ${r.mediaCount} photo${r.mediaCount === 1 ? "" : "s"}/videos` : ""}">
