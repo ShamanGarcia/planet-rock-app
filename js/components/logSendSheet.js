@@ -1,4 +1,5 @@
 import { logSend } from "../data/api.js";
+import { playSendCounter } from "./sendCounter.js";
 import { saveLocalMedia } from "../data/localMedia.js";
 import { SHARED_MEDIA_LIMIT_BYTES } from "../data/constants.js";
 import { escapeHtml, pickMedia, dataUrlByteSize, dismissOverlay } from "../utils.js";
@@ -90,6 +91,7 @@ export function openLogSendSheet(routeId, label, { onLogged } = {}) {
         }
         close();
         showToast(tooBigForSharing && mediaDataUrl ? "Send logged — photo/video saved privately" : "Send logged");
+        playSendCounter();
         onLogged?.();
       } catch (err) {
         submitting = false;

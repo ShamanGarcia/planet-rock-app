@@ -831,3 +831,20 @@ table.log-table tbody tr.row-removing{ transition:opacity var(--t-fast) var(--ea
 .nav-icon img{ width:32px; height:32px; image-rendering:pixelated; opacity:.55; }
 .bottom-nav a.active .nav-icon img, .sidebar a.active .nav-icon img{ opacity:1; }
 .heatmap-toggle-filters img{ image-rendering:pixelated; }
+
+/* Send counter (components/sendCounter.js): rolling digits that appear after a send is logged, then fade. */
+.send-counter{
+  position:fixed; inset:0; z-index:90; display:flex; align-items:center; justify-content:center;
+  pointer-events:none; opacity:0; transition:opacity .25s var(--ease-out);
+}
+.send-counter.show{ opacity:1; }
+.sc-card{
+  background:var(--pr-ink); color:#fff; border-radius:var(--pr-radius-lg); padding:18px 28px 14px;
+  text-align:center; box-shadow:var(--pr-shadow-lg); transform:scale(.92); transition:transform .25s var(--ease-out);
+}
+.send-counter.show .sc-card{ transform:scale(1); }
+.sc-number{ display:inline-flex; gap:4px; font-size:64px; line-height:1; font-weight:800; }
+.sc-digit{ display:block; height:1em; width:.62em; overflow:hidden; background:#2d3036; border-radius:8px; }
+.sc-roll{ display:flex; flex-direction:column; }
+.sc-roll span{ display:block; height:1em; line-height:1em; text-align:center; }
+.sc-label{ margin-top:8px; font-size:12.5px; letter-spacing:.8px; text-transform:uppercase; color:rgba(255,255,255,.7); }

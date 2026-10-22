@@ -1,4 +1,5 @@
 import { updateRoute, submitGradeEstimate, logSend } from "../data/api.js";
+import { playSendCounter } from "../components/sendCounter.js";
 import { maxGradeFor, gradeScaleLabel, formatGrade, formatEstimate, routeLabel } from "../data/constants.js";
 import { showToast } from "../components/toast.js";
 import { escapeHtml, clamp } from "../utils.js";
@@ -184,6 +185,7 @@ function wireRow(row, route, ctx) {
     try {
       await logSend(route.id, { flash });
       showToast(flash ? "Flash logged" : "Send logged");
+      playSendCounter();
       ctx.onChanged();
     } catch (err) { showToast(err.message); }
   }
