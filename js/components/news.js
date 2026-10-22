@@ -10,14 +10,13 @@ const NEWS = [
   {
     id: "ropes",
     title: "Ropes Added!",
-    text: "Flip the map to Rope to see the rope wall, log your sends and vote on grades from 5.7 to 5.13.",
+    text: "Flip the map to Rope to see the Rope wall, log your sends and view your stats.",
     image: "/assets/news/rope-map.png",
-    tag: "Route in progress",
   },
   {
     id: "color-picker",
     title: "Pick a Color!",
-    text: "Make the app yours: choose an accent color in Edit Profile and the buttons, charts and highlights follow it.",
+    text: "Don't like the look? Change it in Edit Profile and the buttons, charts and highlights follow it",
     image: "/assets/news/color-picker.png",
   },
 ];
