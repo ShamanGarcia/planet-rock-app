@@ -228,7 +228,6 @@ export function renderGymMap(container, gymId) {
             <button class="btn btn-ghost btn-sm hidden" id="clear-filters">Clear filters</button>
             <button class="btn btn-outline btn-sm random-btn" id="random-climb-btn"><span class="new-set">Random Climb</span></button>
             <button class="btn btn-outline btn-sm stats-btn" id="gym-stats-btn">${STATS_ICON}<span>Gym Stats</span></button>
-            <button class="btn btn-success btn-sm ${showMoveBtn ? "" : "hidden"}" id="move-route-btn">MOVE</button>
           </div>
         </div>
         <div class="map-viewport" id="map-viewport">
@@ -238,8 +237,9 @@ export function renderGymMap(container, gymId) {
             <button id="zoom-out" aria-label="Zoom out">−</button>
             <button id="zoom-reset" aria-label="Reset view" style="font-size:13px;">⤢</button>
           </div>
-          <button class="btn btn-danger btn-sm hidden" id="reset-wall-btn" style="position:absolute; left:12px; top:128px; z-index:25;">RESET</button>
           <div class="map-bottom-left">
+            <button class="btn btn-danger btn-sm hidden" id="reset-wall-btn">RESET</button>
+            <button class="btn btn-success btn-sm ${showMoveBtn ? "" : "hidden"}" id="move-route-btn">MOVE</button>
             <button class="btn btn-primary" id="add-route-btn">+ Add Route</button>
             <div class="map-hint" id="map-hint"></div>
           </div>
@@ -394,7 +394,7 @@ export function renderGymMap(container, gymId) {
     menuBtn.setAttribute("aria-expanded", String(open));
   }
   // Outlines the menu button while a mode it contains is on, so it's visible with the menu closed.
-  function syncMenuBtn() { menuBtn.classList.toggle("active", !!activeHeatmap || moveMode || isFilterActive()); }
+  function syncMenuBtn() { menuBtn.classList.toggle("active", !!activeHeatmap || isFilterActive()); }
   // Filters live in the menu now: outline the button and offer "Clear filters" while any are set.
   function syncFilterUI() {
     const on = isFilterActive();
