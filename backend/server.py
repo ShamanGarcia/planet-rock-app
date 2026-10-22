@@ -73,6 +73,7 @@ def load_db():
             db = json.load(f)
         db.setdefault("routeMedia", [])
         db.setdefault("routeArchive", [])
+        db.setdefault("messages", [])
         # ponytail: one-off — rebuild history for routes deleted before routeArchive
         # existed, from the snapshot each send kept. Only routes sent at least once
         # survive that way (no tags, estimate or position), and it assumes one gym.
@@ -105,6 +106,7 @@ def load_db():
         return db
     db = build_seed_data()
     db.setdefault("routeArchive", [])
+    db.setdefault("messages", [])
     _write_db_to_disk(db)
     return db
 
@@ -362,9 +364,12 @@ def relationship(user_id, other_id):
 IMAGE_EXT = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif"}
 VIDEO_EXT = {"video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov", "video/x-m4v": "m4v"}
 # The browser already compresses photos and keeps anything over
-# SHARED_MEDIA_LIMIT_BYTES (see constants.js) on-device instead of uploading
-# it, so these are just a defensive backstop against a direct API call.
+# SHARED_MEDIA_LIMIT_BYTES / SHARED_VIDEO_LIMIT_BYTES (see constants.js)
+# on-device instead of uploading it, so these are just a defensive backstop
+# against a direct API call.
 MAX_MEDIA_BYTES = 6 * 1024 * 1024
+MAX_VIDEO_BYTES = 15 * 1024 * 1024
+MAX_REQUEST_BYTES = 24 * 1024 * 1024  # a 15 MB video is ~20 MB as a base64 JSON body
 
 
 def route_dir(route_id):
@@ -387,8 +392,9 @@ def save_route_media_file(route_id, data_url):
     else:
         raise ValueError(f"Unsupported file type: {mime}")
     raw = base64.b64decode(b64)
-    if len(raw) > MAX_MEDIA_BYTES:
-        raise ValueError(f"{'Photo' if kind == 'photo' else 'Video'} too large (max {MAX_MEDIA_BYTES // (1024 * 1024)}MB).")
+    limit = MAX_VIDEO_BYTES if kind == "video" else MAX_MEDIA_BYTES
+    if len(raw) > limit:
+        raise ValueError(f"{'Photo' if kind == 'photo' else 'Video'} too large (max {limit // (1024 * 1024)}MB).")
     filename = f"{uuid.uuid4().hex}.{ext}"
     with open(route_dir(route_id) / filename, "wb") as f:
         f.write(raw)
@@ -420,8 +426,50 @@ def get_route_media(route_id, viewer_id=None):
     out = []
     for m in visible:
         uploader = find(DB["users"], id=m["uploadedBy"])
-        out.append({**m, "uploadedByName": uploader["name"] if uploader else "Unknown"})
+        # likes/comments belong to the Reel, not the gallery payload
+        out.append({**{k: v for k, v in m.items() if k not in ("likes", "comments")},
+                    "uploadedByName": uploader["name"] if uploader else "Unknown"})
     return out
+
+
+# ===================== Reel (public route videos) + messages =====================
+
+def is_reel_video(m):
+    return m["type"] == "video" and m.get("visibility", "public") == "public"
+
+
+def reel_media(media_id):
+    """A public video whose route still exists, or None."""
+    m = find(DB["routeMedia"], id=media_id) if isinstance(media_id, str) else None
+    return m if m and is_reel_video(m) and get_route(m["routeId"]) else None
+
+
+def reel_item(m, viewer_id):
+    route = get_route(m["routeId"])
+    uploader = find(DB["users"], id=m["uploadedBy"])
+    likes = m.get("likes", [])
+    return {
+        "id": m["id"], "routeId": m["routeId"], "url": m["url"], "createdAt": m["createdAt"],
+        # no avatar here: profile pictures are data URLs and would bloat every page of the feed
+        "uploader": {"id": m["uploadedBy"], "name": uploader["name"] if uploader else "Unknown"},
+        "route": {
+            "discipline": discipline_of(route), "officialGrade": route["officialGrade"],
+            "holdColor": route["holdColor"], "wallSection": route.get("wallSection"),
+            "routeTitle": route.get("routeTitle", ""),
+        },
+        "likeCount": len(likes), "liked": viewer_id in likes, "commentCount": len(m.get("comments", [])),
+    }
+
+
+def thread_between(a, b):
+    return [m for m in DB["messages"] if {m["fromUserId"], m["toUserId"]} == {a, b}]
+
+
+def qs_int(value, default, lo, hi):
+    try:
+        return min(hi, max(lo, int(value if value not in (None, "") else default)))
+    except ValueError:
+        raise ApiError(400, "Invalid number.")
 
 
 def purge_routes(route_ids):
@@ -501,10 +549,7 @@ class Handler(BaseHTTPRequestHandler):
             pass
 
     def _body(self):
-        length = int(self.headers.get("Content-Length") or 0)
-        if length == 0:
-            return {}
-        raw = self.rfile.read(length)
+        raw = self._raw  # read in _dispatch, before LOCK is taken
         if not raw:
             return {}
         try:
@@ -554,14 +599,41 @@ class Handler(BaseHTTPRequestHandler):
                 pass
             return
         ctype, _ = mimetypes.guess_type(str(file_path))
-        data = file_path.read_bytes()
+        size = stat.st_size
+        # Byte ranges: iOS Safari won't play <video> unless the server answers 206.
+        status, start, end = 200, 0, size - 1
+        rng = re.fullmatch(r"bytes=(\d*)-(\d*)", self.headers.get("Range") or "")
+        if rng and (rng.group(1) or rng.group(2)):
+            if rng.group(1):
+                start = int(rng.group(1))
+                end = min(int(rng.group(2)), size - 1) if rng.group(2) else size - 1
+            else:  # "-N": the last N bytes
+                start = max(0, size - int(rng.group(2)))
+            if start > end:
+                try:
+                    self.send_response(416)
+                    self.send_header("Content-Range", f"bytes */{size}")
+                    self.end_headers()
+                except ConnectionError:
+                    pass
+                return
+            status = 206
         compressed = False
-        if (ctype or "") in self._COMPRESSIBLE_TYPES:
-            data, compressed = self._maybe_gzip(data)
+        if status == 206:
+            with open(file_path, "rb") as f:
+                f.seek(start)
+                data = f.read(end - start + 1)
+        else:
+            data = file_path.read_bytes()
+            if (ctype or "") in self._COMPRESSIBLE_TYPES:
+                data, compressed = self._maybe_gzip(data)
         try:
-            self.send_response(200)
+            self.send_response(status)
             self._cors()
             self.send_header("Content-Type", ctype or "application/octet-stream")
+            self.send_header("Accept-Ranges", "bytes")
+            if status == 206:
+                self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
             if compressed:
                 self.send_header("Content-Encoding", "gzip")
             self.send_header("Content-Length", str(len(data)))
@@ -599,6 +671,12 @@ class Handler(BaseHTTPRequestHandler):
         qs = {k: v[0] for k, v in parse_qs(parsed.query).items()}
         try:
             if path.startswith("/api/"):
+                # Read the request body before taking LOCK: a slow 15 MB video
+                # upload must not freeze every other request while it streams in.
+                length = max(0, int(self.headers.get("Content-Length") or 0))
+                if length > MAX_REQUEST_BYTES:
+                    raise ApiError(413, "Upload too large.")
+                self._raw = self.rfile.read(length) if length else b""
                 with LOCK:
                     self._route_api(method, path, qs)
             elif path.startswith("/uploads/"):
@@ -720,6 +798,28 @@ class Handler(BaseHTTPRequestHandler):
             return self._friends_respond()
         if path == "/api/friends/remove" and method == "POST":
             return self._friends_remove()
+
+        if path == "/api/reel" and method == "GET":
+            return self._reel_list(qs)
+        m = re.match(r"^/api/reel/([^/]+)/(like|comments)$", path)
+        if m and (m.group(2), method) == ("like", "POST"):
+            return self._reel_like(m.group(1))
+        if m and m.group(2) == "comments" and method in ("GET", "POST"):
+            return self._reel_comments(m.group(1)) if method == "GET" else self._reel_comment_add(m.group(1))
+        m = re.match(r"^/api/reel/([^/]+)/comments/([^/]+)$", path)
+        if method == "DELETE" and m:
+            return self._reel_comment_delete(m.group(1), m.group(2))
+        m = re.match(r"^/api/reel/([^/]+)$", path)
+        if method == "GET" and m:
+            return self._reel_one(m.group(1))
+
+        if path == "/api/conversations" and method == "GET":
+            return self._conversations()
+        m = re.match(r"^/api/messages/([^/]+)$", path)
+        if m and method == "GET":
+            return self._thread(m.group(1))
+        if m and method == "POST":
+            return self._send_message(m.group(1))
 
         if path == "/api/admin/users" and method == "GET":
             return self._admin_list_users(qs.get("password", ""))
@@ -1204,6 +1304,132 @@ class Handler(BaseHTTPRequestHandler):
         save_db()
         self._json(200, {"ok": True})
 
+    # ---------- Reel ----------
+    def _reel_list(self, qs):
+        _, user = self._auth()
+        gym_id = qs.get("gymId")
+        route_ids = {r["id"] for r in DB["routes"] if not gym_id or r["gymId"] == gym_id}
+        items = [m for m in DB["routeMedia"] if is_reel_video(m) and m["routeId"] in route_ids]
+        if qs.get("sort") == "popular":
+            items.sort(key=lambda m: (len(m.get("likes", [])) + len(m.get("comments", [])), m["createdAt"]), reverse=True)
+        else:
+            items.sort(key=lambda m: m["createdAt"], reverse=True)
+        offset = qs_int(qs.get("offset"), 0, 0, len(items))
+        limit = qs_int(qs.get("limit"), 6, 1, 20)
+        page = items[offset:offset + limit]
+        self._json(200, {
+            "items": [reel_item(m, user["id"]) for m in page],
+            "next": offset + limit if offset + limit < len(items) else None,
+        })
+
+    def _reel_media_or_404(self, media_id):
+        m = reel_media(media_id)
+        if not m:
+            raise ApiError(404, "Video not found.")
+        return m
+
+    def _reel_one(self, media_id):
+        _, user = self._auth()
+        self._json(200, reel_item(self._reel_media_or_404(media_id), user["id"]))
+
+    def _reel_like(self, media_id):
+        _, user = self._auth()
+        m = self._reel_media_or_404(media_id)
+        likes = m.setdefault("likes", [])
+        if user["id"] in likes:
+            likes.remove(user["id"])
+        else:
+            likes.append(user["id"])
+        save_db()
+        self._json(200, {"liked": user["id"] in likes, "likeCount": len(likes)})
+
+    def _reel_comments(self, media_id):
+        _, user = self._auth()
+        m = self._reel_media_or_404(media_id)
+        out = []
+        for c in m.get("comments", []):
+            author = find(DB["users"], id=c["userId"])
+            out.append({"id": c["id"], "text": c["text"], "createdAt": c["createdAt"],
+                        "user": {"id": c["userId"], "name": author["name"] if author else "Unknown"},
+                        "mine": c["userId"] == user["id"]})
+        self._json(200, out)
+
+    def _reel_comment_add(self, media_id):
+        _, user = self._auth()
+        m = self._reel_media_or_404(media_id)
+        text = _clean_text(self._body().get("text"), 500)
+        if not text:
+            raise ApiError(400, "Comment is empty.")
+        m.setdefault("comments", []).append({"id": uid("cmt"), "userId": user["id"], "text": text, "createdAt": now_iso()})
+        save_db()
+        self._json(201, {"commentCount": len(m["comments"])})
+
+    def _reel_comment_delete(self, media_id, comment_id):
+        _, user = self._auth()
+        m = self._reel_media_or_404(media_id)
+        mine = [c for c in m.get("comments", []) if c["id"] == comment_id and c["userId"] == user["id"]]
+        if not mine:
+            raise ApiError(404, "Comment not found.")
+        m["comments"].remove(mine[0])
+        save_db()
+        self._json(200, {"commentCount": len(m["comments"])})
+
+    # ---------- Messages (friends only) ----------
+    def _friend_or_403(self, user, friend_id):
+        if friend_id not in get_accepted_friend_ids(user["id"]):
+            raise ApiError(403, "You can only message friends.")
+
+    def _conversations(self):
+        _, user = self._auth()
+        out = []
+        for fid in get_accepted_friend_ids(user["id"]):
+            friend = find(DB["users"], id=fid)
+            if not friend:
+                continue
+            thread = thread_between(user["id"], fid)  # appended in order, so the last is the newest
+            last = thread[-1] if thread else None
+            out.append({
+                "user": public_user(friend),
+                "last": {"text": last["text"], "isReel": bool(last.get("reelId")),
+                         "fromMe": last["fromUserId"] == user["id"], "createdAt": last["createdAt"]} if last else None,
+                "unread": sum(1 for m in thread if m["toUserId"] == user["id"] and not m.get("readAt")),
+            })
+        out.sort(key=lambda c: c["user"]["name"].lower())
+        out.sort(key=lambda c: c["last"]["createdAt"] if c["last"] else "", reverse=True)  # stable: chatted-with first
+        self._json(200, out)
+
+    def _thread(self, friend_id):
+        _, user = self._auth()
+        self._friend_or_403(user, friend_id)
+        thread = thread_between(user["id"], friend_id)
+        stamp = now_iso()
+        unread = [m for m in thread if m["toUserId"] == user["id"] and not m.get("readAt")]
+        for m in unread:
+            m["readAt"] = stamp
+        if unread:
+            save_db()
+        out = []
+        for m in thread[-100:]:
+            rm = reel_media(m.get("reelId"))
+            out.append({**m, "reel": reel_item(rm, user["id"]) if rm else None})
+        self._json(200, out)
+
+    def _send_message(self, friend_id):
+        _, user = self._auth()
+        self._friend_or_403(user, friend_id)
+        body = self._body()
+        text = _clean_text(body.get("text"), 1000)
+        reel_id = body.get("reelId") if isinstance(body.get("reelId"), str) else None
+        if reel_id and not reel_media(reel_id):
+            raise ApiError(404, "Video not found.")
+        if not text and not reel_id:
+            raise ApiError(400, "Message is empty.")
+        msg = {"id": uid("msg"), "fromUserId": user["id"], "toUserId": friend_id, "text": text,
+               "reelId": reel_id, "createdAt": now_iso(), "readAt": None}
+        DB["messages"].append(msg)
+        save_db()
+        self._json(201, msg)
+
     # ---------- Admin ----------
     def _admin_list_users(self, password):
         self._auth()
@@ -1239,6 +1465,7 @@ class Handler(BaseHTTPRequestHandler):
         DB["friendships"] = [f for f in DB["friendships"] if user_id not in (f["userId"], f["friendUserId"])]
         DB["gradeEstimates"] = [e for e in DB["gradeEstimates"] if e["userId"] != user_id]
         DB["tagVotes"] = [v for v in DB["tagVotes"] if v["userId"] != user_id]
+        DB["messages"] = [m for m in DB["messages"] if user_id not in (m["fromUserId"], m["toUserId"])]
         for token in [t for t, s in DB["sessions"].items() if s["userId"] == user_id]:
             del DB["sessions"][token]
         DB["users"] = [u for u in DB["users"] if u["id"] != user_id]

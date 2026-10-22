@@ -1,14 +1,14 @@
 import { logSend } from "../data/api.js";
 import { playSendCounter } from "./sendCounter.js";
 import { saveLocalMedia } from "../data/localMedia.js";
-import { SHARED_MEDIA_LIMIT_BYTES } from "../data/constants.js";
+import { SHARED_MEDIA_LIMIT_BYTES, SHARED_VIDEO_LIMIT_BYTES } from "../data/constants.js";
 import { escapeHtml, pickMedia, dataUrlByteSize, dismissOverlay } from "../utils.js";
 import { showToast } from "./toast.js";
 
 // Small confirm step before logging a send, with an optional photo/video
 // attachment that gets added to the route's own gallery. Photos are
-// compressed client-side; anything (photo or video) still over
-// SHARED_MEDIA_LIMIT_BYTES after that is kept private on this device rather
+// compressed client-side; a photo still over SHARED_MEDIA_LIMIT_BYTES (or a
+// video over SHARED_VIDEO_LIMIT_BYTES) is kept private on this device rather
 // than uploaded to the shared server.
 export function openLogSendSheet(routeId, label, { onLogged } = {}) {
   const backdrop = document.createElement("div");
@@ -67,7 +67,7 @@ export function openLogSendSheet(routeId, label, { onLogged } = {}) {
       render();
       try {
         ({ dataUrl: mediaDataUrl, kind: mediaKind } = await pickMedia(file));
-        tooBigForSharing = dataUrlByteSize(mediaDataUrl) > SHARED_MEDIA_LIMIT_BYTES;
+        tooBigForSharing = dataUrlByteSize(mediaDataUrl) > (mediaKind === "video" ? SHARED_VIDEO_LIMIT_BYTES : SHARED_MEDIA_LIMIT_BYTES);
       } catch {
         error = "Couldn't read that file — try another one.";
         mediaDataUrl = null;

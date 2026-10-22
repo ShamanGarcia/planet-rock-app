@@ -218,6 +218,47 @@ export function removeFriend(friendUserId) {
   return request("POST", "/api/friends/remove", { friendUserId });
 }
 
+// ===================== Messages =====================
+
+export function getConversations() {
+  return request("GET", "/api/conversations");
+}
+
+export function getThread(friendId) {
+  return request("GET", `/api/messages/${friendId}`);
+}
+
+export function sendMessage(friendId, { text, reelId } = {}) {
+  return request("POST", `/api/messages/${friendId}`, { text, reelId });
+}
+
+// ===================== Reel (public route videos) =====================
+
+export function getReel(gymId, { sort = "recent", offset = 0, limit = 6 } = {}) {
+  const qs = new URLSearchParams({ gymId, sort, offset, limit });
+  return request("GET", `/api/reel?${qs.toString()}`);
+}
+
+export function getReelItem(id) {
+  return request("GET", `/api/reel/${id}`);
+}
+
+export function toggleReelLike(id) {
+  return request("POST", `/api/reel/${id}/like`);
+}
+
+export function getReelComments(id) {
+  return request("GET", `/api/reel/${id}/comments`);
+}
+
+export function addReelComment(id, text) {
+  return request("POST", `/api/reel/${id}/comments`, { text });
+}
+
+export function deleteReelComment(id, commentId) {
+  return request("DELETE", `/api/reel/${id}/comments/${commentId}`);
+}
+
 // ===================== Relationship helper (small, so views don't each reimplement it) ====
 
 export async function relationshipWith(otherUserId) {

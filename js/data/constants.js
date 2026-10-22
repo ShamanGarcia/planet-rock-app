@@ -79,6 +79,9 @@ export function gradeScaleLabel(index, discipline = "boulder") {
 // bigger stays on the uploader's own device (IndexedDB) instead, private to
 // them — keeps the small shared disk from filling up with large videos.
 export const SHARED_MEDIA_LIMIT_BYTES = 4 * 1024 * 1024;
+// Videos can't be re-encoded in the browser, so they get a bigger allowance; the
+// public ones are what the Reel tab plays. Mirrored in backend MAX_VIDEO_BYTES.
+export const SHARED_VIDEO_LIMIT_BYTES = 15 * 1024 * 1024;
 
 export function formatGrade(grade, discipline = "boulder") {
   if (grade === null || grade === undefined) return "Ungraded";

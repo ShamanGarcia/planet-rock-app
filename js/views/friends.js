@@ -1,123 +1,19 @@
 import {
-  getUser, getAcceptedFriends, getIncomingRequests, getOutgoingRequests,
-  sendFriendRequest, respondToRequest, removeFriend, searchUsers, computeUserStats, relationshipWith,
+  getUser, getIncomingRequests,
+  sendFriendRequest, respondToRequest, removeFriend, computeUserStats, relationshipWith,
 } from "../data/api.js";
 import { formatGrade } from "../data/constants.js";
 import { escapeHtml, initials } from "../utils.js";
 import { renderClimbingLog } from "./climbingLog.js";
+import { renderChat } from "./chat.js";
 import { showToast } from "../components/toast.js";
 
-export function renderFriends(container, { friendId, showLog } = {}) {
+// The Friends tab itself is the two-pane chat (chat.js); this file keeps a friend's
+// profile page and their shared climbing log.
+export function renderFriends(container, { friendId, showLog, chatId } = {}) {
   if (friendId && showLog) return renderFriendLog(container, friendId);
   if (friendId) return renderFriendProfile(container, friendId);
-  return renderFriendsList(container);
-}
-
-async function friendCard(user, { actionsHTML }) {
-  let stats = { highestGrade: null, totalClimbs: 0 };
-  try { stats = await computeUserStats(user.id); } catch { /* private/unreachable, show minimal card */ }
-  return `
-    <div class="card friend-card">
-      <div class="avatar sm">${user.profilePicture ? `<img src="${user.profilePicture}" alt=""/>` : initials(user.name)}</div>
-      <div class="fc-body">
-        <div class="fc-name">${escapeHtml(user.name)}</div>
-        <div class="fc-meta">${stats.highestGrade === null && !stats.rope?.totalClimbs ? "No sends yet" : [stats.highestGrade === null ? "" : `Highest grade: ${formatGrade(stats.highestGrade)}`, stats.rope?.highestGrade == null ? "" : `Rope: ${formatGrade(stats.rope.highestGrade, "rope")}`].filter(Boolean).join(" · ")} · ${stats.totalClimbs + (stats.rope?.totalClimbs || 0)} climbs</div>
-      </div>
-      ${actionsHTML}
-    </div>
-  `;
-}
-
-function renderFriendsList(container) {
-  let query = "";
-  let loading = true;
-
-  async function render() {
-    container.innerHTML = `
-      <div class="page">
-        <div class="page-header"><h1>Friends</h1><div class="page-sub" id="friend-count"></div></div>
-        <div class="friend-search-row">
-          <input type="text" id="friend-search" placeholder="Find climbers by name or email…" value="${escapeHtml(query)}"/>
-        </div>
-        <div id="friends-content"><div class="empty-state card">Loading…</div></div>
-      </div>
-    `;
-    container.querySelector("#friend-search").addEventListener("input", (e) => { query = e.target.value; renderContent(); });
-
-    await renderContent();
-  }
-
-  async function renderContent() {
-    const content = container.querySelector("#friends-content");
-    const [friends, incoming, outgoing] = await Promise.all([getAcceptedFriends(), getIncomingRequests(), getOutgoingRequests()]);
-    const results = query ? await searchUsers(query) : [];
-    container.querySelector("#friend-count").textContent = `${friends.length} friend${friends.length === 1 ? "" : "s"}`;
-
-    function searchActionHTML(u) {
-      if (friends.some((f) => f.id === u.id)) return `<span class="chip">Friends</span>`;
-      if (outgoing.some((o) => o.user.id === u.id)) return `<span class="chip">Pending</span>`;
-      const inReq = incoming.find((i) => i.user.id === u.id);
-      if (inReq) return `<button class="btn btn-primary btn-sm" data-accept="${inReq.friendship.id}">Accept</button>`;
-      return `<button class="btn btn-outline btn-sm" data-add="${u.id}">Add Friend</button>`;
-    }
-
-    const resultsHTML = results.length ? (await Promise.all(results.map((u) => friendCard(u, { actionsHTML: searchActionHTML(u) })))).join("") : "";
-    const friendsHTML = friends.length === 0
-      ? `<div class="empty-state card"><div>Search above to add your first climbing friend.</div></div>`
-      : (await Promise.all(friends.map((f) => friendCard(f, {
-          actionsHTML: `<div style="display:flex;flex-direction:column;gap:6px;"><button class="btn btn-outline btn-sm" data-view="${f.id}">View Profile</button></div>`,
-        })))).join("");
-
-    content.innerHTML = `
-      ${results.length ? `<div class="section-block"><div class="section-title" style="margin-top:0;">Search Results</div>${resultsHTML}</div>` : ""}
-
-      <div class="section-block">
-        <div class="section-title" style="margin-top:0;">Your Friends</div>
-        ${friendsHTML}
-      </div>
-
-      ${incoming.length ? `
-        <div class="section-block">
-          <div class="section-title" style="margin-top:0;">Friend Requests</div>
-          ${incoming.map(({ friendship, user }) => `
-            <div class="card friend-card">
-              <div class="avatar sm">${initials(user.name)}</div>
-              <div class="fc-body"><div class="fc-name">${escapeHtml(user.name)}</div><div class="fc-meta">Wants to be your climbing friend</div></div>
-              <div style="display:flex;gap:6px;">
-                <button class="btn btn-primary btn-sm" data-accept="${friendship.id}">Accept</button>
-                <button class="btn btn-outline btn-sm" data-decline="${friendship.id}">Decline</button>
-              </div>
-            </div>
-          `).join("")}
-        </div>
-      ` : ""}
-
-      ${outgoing.length ? `
-        <div class="section-block">
-          <div class="section-title" style="margin-top:0;">Pending Requests You Sent</div>
-          ${outgoing.map(({ user }) => `<div class="card friend-card"><div class="avatar sm">${initials(user.name)}</div><div class="fc-body"><div class="fc-name">${escapeHtml(user.name)}</div><div class="fc-meta">Request pending</div></div></div>`).join("")}
-        </div>
-      ` : ""}
-    `;
-
-    content.querySelectorAll("[data-view]").forEach((btn) => btn.addEventListener("click", () => { location.hash = `#/friends/${btn.getAttribute("data-view")}`; }));
-    content.querySelectorAll("[data-add]").forEach((btn) => btn.addEventListener("click", async () => {
-      await sendFriendRequest(btn.getAttribute("data-add"));
-      showToast("Friend request sent");
-      renderContent();
-    }));
-    content.querySelectorAll("[data-accept]").forEach((btn) => btn.addEventListener("click", async () => {
-      await respondToRequest(btn.getAttribute("data-accept"), true);
-      showToast("Friend added");
-      renderContent();
-    }));
-    content.querySelectorAll("[data-decline]").forEach((btn) => btn.addEventListener("click", async () => {
-      await respondToRequest(btn.getAttribute("data-decline"), false);
-      renderContent();
-    }));
-  }
-
-  render();
+  return renderChat(container, chatId);
 }
 
 function renderFriendProfile(container, friendId) {
