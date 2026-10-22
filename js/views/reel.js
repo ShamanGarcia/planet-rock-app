@@ -2,9 +2,10 @@ import {
   getReel, getReelItem, toggleReelLike, getReelComments, addReelComment, deleteReelComment,
   getCurrentGymId, getAcceptedFriends, sendMessage,
 } from "../data/api.js";
-import { formatGrade, HOLD_COLOR_HEX, WALL_SECTIONS, ROPE_SECTIONS } from "../data/constants.js";
+import { formatGrade, HOLD_COLOR_HEX, WALL_SECTIONS, ROPE_SECTIONS, findWallSectionAt } from "../data/constants.js";
 import { escapeHtml, initials, formatDateTime, dismissOverlay } from "../utils.js";
 import { showToast } from "../components/toast.js";
+import { openRouteDetail } from "./routeDetail.js";
 
 const PAGE = 6;
 let muted = true; // autoplay needs muted; once the viewer unmutes it sticks for the session
@@ -15,6 +16,7 @@ function pix(rows) {
   return `<svg viewBox="0 0 ${rows[0].length} ${rows.length}" shape-rendering="crispEdges" fill="currentColor" aria-hidden="true"><path d="${d}"/></svg>`;
 }
 const ICONS = {
+  pin: pix(["0011100", "0111110", "1111111", "1110111", "1111111", "0111110", "0011100", "0001000"]),
   heart: pix(["01100110", "11111111", "11111111", "11111111", "01111110", "00111100", "00011000"]),
   chat: pix(["111111111", "111111111", "111111111", "111111111", "111111111", "011000000", "110000000"]),
   share: pix(["000010000", "000011000", "111111100", "111111110", "111111100", "000011000", "000010000"]),
@@ -30,7 +32,7 @@ export function reelRouteLabel({ route: r }) {
 function itemHTML(it) {
   return `
     <section class="reel-item" data-id="${it.id}">
-      <video class="reel-video" data-src="${it.url}" playsinline loop preload="none" ${muted ? "muted" : ""}></video>
+      <video class="reel-video" data-src="${it.url}" ${it.posterUrl ? `poster="${it.posterUrl}"` : ""} playsinline loop preload="none" ${muted ? "muted" : ""}></video>
       <div class="reel-paused" aria-hidden="true"></div>
       <div class="reel-fail">Couldn't play this video.</div>
       <div class="reel-caption">
@@ -38,6 +40,7 @@ function itemHTML(it) {
         <div class="reel-route"><span class="reel-dot" style="background:${HOLD_COLOR_HEX[it.route.holdColor] || "#888"}"></span>${escapeHtml(reelRouteLabel(it))}</div>
       </div>
       <div class="reel-rail">
+        <button type="button" class="reel-act" data-act="map" aria-label="Show this route on the map">${ICONS.pin}<span class="reel-n">Map</span></button>
         <button type="button" class="reel-act ${it.liked ? "on" : ""}" data-act="like" aria-label="Like" aria-pressed="${it.liked}">${ICONS.heart}<span class="reel-n">${it.likeCount}</span></button>
         <button type="button" class="reel-act" data-act="comments" aria-label="Comments">${ICONS.chat}<span class="reel-n">${it.commentCount}</span></button>
         <button type="button" class="reel-act" data-act="share" aria-label="Share">${ICONS.share}<span class="reel-n">Share</span></button>
@@ -168,7 +171,18 @@ export function renderReel(container, { mediaId } = {}) {
       if (v.paused) { v.play().catch(() => {}); el.classList.remove("paused"); } else { v.pause(); el.classList.add("paused"); }
       return;
     }
-    if (act === "like") {
+    if (act === "map") {
+      // On the map (active, this gym, inside a wall): jump there. Otherwise show the route's drawer
+      // right here, where the climb can still be logged and graded as usual.
+      const r = it.route;
+      if (r.active && r.gymId === gymId && r.mapX != null && findWallSectionAt(r.mapX, r.mapY, r.discipline)) {
+        location.hash = `#/map/${r.id}`;
+      } else {
+        const video = el.querySelector("video");
+        video.pause();
+        openRouteDetail(r.id, { onClose: () => { if (el.isConnected) video.play().catch(() => {}); } });
+      }
+    } else if (act === "like") {
       const btn = el.querySelector('[data-act="like"]');
       const setLike = (liked, count) => {
         it.liked = liked; it.likeCount = count;
@@ -241,7 +255,7 @@ function openComments(it, onCount) {
         ? comments.map((c) => `
             <div class="cm-row">
               <div class="cm-body"><b>${escapeHtml(c.user.name)}</b> <span class="cm-time">${formatDateTime(c.createdAt)}</span><div>${escapeHtml(c.text)}</div></div>
-              ${c.mine ? `<button type="button" class="btn btn-ghost btn-sm" data-del="${c.id}">Delete</button>` : ""}
+              ${c.mine ? `<button type="button" class="cm-del" data-del="${c.id}" aria-label="Delete my comment">Delete</button>` : ""}
             </div>`).join("")
         : `<div class="empty-state">No comments yet. Be the first.</div>`;
     } catch (err) {

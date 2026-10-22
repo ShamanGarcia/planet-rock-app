@@ -118,21 +118,9 @@ export function dismissOverlay(backdrop, duration = 280) {
   setTimeout(finish, duration + 80);
 }
 
-export function fileToDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-// Downscales + re-encodes an image file entirely client-side (native canvas
-// API, no server round-trip needed) so uploaded photos stay small — roughly
-// 720p-equivalent on the longest edge, re-saved as JPEG. Non-image files
-// (video) are returned untouched via fileToDataUrl; browsers have no native
-// way to re-encode video, so video size is instead handled by the
-// shared/private split at the call site (see SHARED_MEDIA_LIMIT_BYTES).
+// Downscales + re-encodes an image file to a small JPEG data URL. Only the profile
+// photo still uses this (it is stored inline on the user); route photos and videos go
+// through data/media.js and data/upload.js.
 export function compressImageFile(file, { maxDim = 1280, quality = 0.82 } = {}) {
   return new Promise((resolve, reject) => {
     const objectUrl = URL.createObjectURL(file);
@@ -154,22 +142,6 @@ export function compressImageFile(file, { maxDim = 1280, quality = 0.82 } = {}) 
     img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error("Couldn't read that image.")); };
     img.src = objectUrl;
   });
-}
-
-// Approximate decoded byte size of a base64 data URL (base64 is ~4/3 the
-// size of the raw bytes it encodes).
-// Reads a photo (compressed) or video (untouched — browsers have no native
-// way to re-encode video) file into a data URL. Shared by the log-send
-// sheet and the route gallery's "add your climb" form.
-export async function pickMedia(file) {
-  const isVideo = file.type.startsWith("video");
-  const dataUrl = isVideo ? await fileToDataUrl(file) : await compressImageFile(file);
-  return { dataUrl, kind: isVideo ? "video" : "photo" };
-}
-
-export function dataUrlByteSize(dataUrl) {
-  const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
-  return Math.round(base64.length * 0.75);
 }
 
 export function initials(name) {

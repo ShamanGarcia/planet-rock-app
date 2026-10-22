@@ -449,10 +449,12 @@ def reel_item(m, viewer_id):
     uploader = find(DB["users"], id=m["uploadedBy"])
     likes = m.get("likes", [])
     return {
-        "id": m["id"], "routeId": m["routeId"], "url": m["url"], "createdAt": m["createdAt"],
+        "id": m["id"], "routeId": m["routeId"], "url": m["url"], "posterUrl": m.get("posterUrl"), "createdAt": m["createdAt"],
         # no avatar here: profile pictures are data URLs and would bloat every page of the feed
         "uploader": {"id": m["uploadedBy"], "name": uploader["name"] if uploader else "Unknown"},
         "route": {
+            "id": route["id"], "gymId": route["gymId"], "active": bool(route.get("active", True)),
+            "mapX": route["mapX"], "mapY": route["mapY"],
             "discipline": discipline_of(route), "officialGrade": route["officialGrade"],
             "holdColor": route["holdColor"], "wallSection": route.get("wallSection"),
             "routeTitle": route.get("routeTitle", ""),
@@ -470,6 +472,52 @@ def qs_int(value, default, lo, hi):
         return min(hi, max(lo, int(value if value not in (None, "") else default)))
     except ValueError:
         raise ApiError(400, "Invalid number.")
+
+
+# ===================== Chunked uploads =====================
+# The browser compresses a photo/video, then sends it here in raw binary chunks
+# (no base64), each retryable, and finally "completes" the upload to attach the
+# file to a route. In-memory bookkeeping: a restart drops pending uploads and the
+# client simply starts that file over.
+UPLOAD_CHUNK_BYTES = 2 * 1024 * 1024
+UPLOAD_LIMITS = {"photo": 8 * 1024 * 1024, "video": 25 * 1024 * 1024}
+UPLOAD_MAX_PENDING = 6  # per user
+UPLOAD_STALE_SECONDS = 2 * 3600
+PART_DIR = DATA_DIR / "uploads_tmp"  # beside, not inside, uploads/: partial files must never be served
+UPLOADS = {}  # id -> {"userId", "kind", "size", "received", "path", "touched"}
+shutil.rmtree(PART_DIR, ignore_errors=True)  # leftovers of an earlier run are unfinishable
+PART_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def sniff_media(path):
+    """(kind, ext) from the file's own first bytes — the declared type is never trusted."""
+    with open(path, "rb") as f:
+        head = f.read(16)
+    if head[:3] == b"\xff\xd8\xff":
+        return "photo", "jpg"
+    if head[:8] == b"\x89PNG\r\n\x1a\n":
+        return "photo", "png"
+    if head[:4] == b"GIF8":
+        return "photo", "gif"
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return "photo", "webp"
+    if head[4:8] == b"ftyp":
+        return "video", "mov" if head[8:12] == b"qt  " else "mp4"
+    if head[:4] == b"\x1aE\xdf\xa3":
+        return "video", "webm"
+    return None, None
+
+
+def drop_upload(upload_id):
+    up = UPLOADS.pop(upload_id, None)
+    if up:
+        Path(up["path"]).unlink(missing_ok=True)
+
+
+def drop_stale_uploads():
+    cutoff = time.time() - UPLOAD_STALE_SECONDS
+    for upload_id in [i for i, u in UPLOADS.items() if u["touched"] < cutoff]:
+        drop_upload(upload_id)
 
 
 def purge_routes(route_ids):
@@ -520,7 +568,7 @@ class Handler(BaseHTTPRequestHandler):
     # ---------- low level helpers ----------
     def _cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type,Authorization")
 
     def _accepts_gzip(self):
@@ -577,7 +625,7 @@ class Handler(BaseHTTPRequestHandler):
     _COMPRESSIBLE_TYPES = {"text/html", "text/css", "text/javascript", "application/javascript",
                             "application/json", "image/svg+xml"}
 
-    def _serve_file(self, base_dir, rel_path):
+    def _serve_file(self, base_dir, rel_path, immutable=False):
         file_path = (base_dir / rel_path.lstrip("/")).resolve()
         try:
             file_path.relative_to(base_dir.resolve())
@@ -638,10 +686,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Encoding", "gzip")
             self.send_header("Content-Length", str(len(data)))
             self.send_header("ETag", etag)
-            # Always revalidate (no long-lived caching, since a redeploy can
-            # change these files at any time) — but revalidation itself is
-            # now a cheap 304 via ETag above instead of a full re-download.
-            self.send_header("Cache-Control", "no-cache")
+            # App files always revalidate (a redeploy can change them any time) — but
+            # revalidation is a cheap 304 via ETag above. Uploads never change under
+            # their random names, so browsers may keep them (Reel replays are instant).
+            self.send_header("Cache-Control", "public, max-age=31536000, immutable" if immutable else "no-cache")
             self.end_headers()
             self.wfile.write(data)
         except ConnectionError:
@@ -662,6 +710,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_PATCH(self):
         self._dispatch("PATCH")
 
+    def do_PUT(self):
+        self._dispatch("PUT")
+
     def do_DELETE(self):
         self._dispatch("DELETE")
 
@@ -680,7 +731,7 @@ class Handler(BaseHTTPRequestHandler):
                 with LOCK:
                     self._route_api(method, path, qs)
             elif path.startswith("/uploads/"):
-                self._serve_file(UPLOADS_DIR, path[len("/uploads/"):])
+                self._serve_file(UPLOADS_DIR, path[len("/uploads/"):], immutable=True)
             else:
                 self._serve_file(STATIC_DIR, "index.html" if path == "/" else path)
         except ApiError as e:
@@ -798,6 +849,19 @@ class Handler(BaseHTTPRequestHandler):
             return self._friends_respond()
         if path == "/api/friends/remove" and method == "POST":
             return self._friends_remove()
+
+        if path == "/api/uploads" and method == "POST":
+            return self._upload_start()
+        m = re.match(r"^/api/uploads/([^/]+)/complete$", path)
+        if m and method == "POST":
+            return self._upload_complete(m.group(1))
+        m = re.match(r"^/api/uploads/([^/]+)$", path)
+        if m and method == "PUT":
+            return self._upload_chunk(m.group(1), qs)
+        if m and method == "GET":
+            return self._upload_status(m.group(1))
+        if m and method == "DELETE":
+            return self._upload_abort(m.group(1))
 
         if path == "/api/reel" and method == "GET":
             return self._reel_list(qs)
@@ -1303,6 +1367,90 @@ class Handler(BaseHTTPRequestHandler):
         ]
         save_db()
         self._json(200, {"ok": True})
+
+    # ---------- Uploads ----------
+    def _upload_or_404(self, upload_id, user):
+        up = UPLOADS.get(upload_id)
+        if not up or up["userId"] != user["id"]:
+            raise ApiError(404, "Upload not found.")
+        up["touched"] = time.time()
+        return up
+
+    def _upload_start(self):
+        _, user = self._auth()
+        drop_stale_uploads()
+        body = self._body()
+        kind = "video" if body.get("kind") == "video" else "photo"
+        size = body.get("size")
+        if not isinstance(size, int) or size <= 0:
+            raise ApiError(400, "size is required.")
+        if size > UPLOAD_LIMITS[kind]:
+            raise ApiError(413, f"{kind.capitalize()} too large (max {UPLOAD_LIMITS[kind] // (1024 * 1024)}MB).")
+        if sum(1 for u in UPLOADS.values() if u["userId"] == user["id"]) >= UPLOAD_MAX_PENDING:
+            raise ApiError(429, "Too many uploads in progress.")
+        upload_id = uid("up")
+        path = PART_DIR / f"{upload_id}.part"
+        path.write_bytes(b"")
+        UPLOADS[upload_id] = {"userId": user["id"], "kind": kind, "size": size, "received": 0, "path": str(path), "touched": time.time()}
+        self._json(201, {"id": upload_id, "chunkSize": UPLOAD_CHUNK_BYTES})
+
+    def _upload_status(self, upload_id):
+        _, user = self._auth()
+        up = self._upload_or_404(upload_id, user)
+        self._json(200, {"received": up["received"], "size": up["size"]})
+
+    def _upload_chunk(self, upload_id, qs):
+        _, user = self._auth()
+        up = self._upload_or_404(upload_id, user)
+        offset = qs_int(qs.get("offset"), 0, 0, up["size"])
+        chunk = self._raw
+        if offset != up["received"]:  # a retry of a chunk that actually landed, or a gap: tell the client where we are
+            return self._json(409, {"error": "Offset mismatch.", "received": up["received"]})
+        if not chunk or up["received"] + len(chunk) > up["size"]:
+            raise ApiError(400, "Bad chunk size.")
+        with open(up["path"], "ab") as f:
+            f.write(chunk)
+        up["received"] += len(chunk)
+        self._json(200, {"received": up["received"]})
+
+    def _upload_abort(self, upload_id):
+        _, user = self._auth()
+        self._upload_or_404(upload_id, user)
+        drop_upload(upload_id)
+        self._json(200, {"ok": True})
+
+    def _upload_complete(self, upload_id):
+        _, user = self._auth()
+        up = self._upload_or_404(upload_id, user)
+        body = self._body()
+        route = get_route(body.get("routeId"))
+        if not route:
+            raise ApiError(404, "Route not found.")
+        if up["received"] != up["size"]:
+            raise ApiError(400, "Upload is incomplete.")
+        kind, ext = sniff_media(up["path"])
+        if kind != up["kind"]:
+            drop_upload(upload_id)
+            raise ApiError(400, "That file isn't a supported photo or video.")
+        log_entry_id = body.get("logEntryId")
+        if log_entry_id and not find(DB["climbingLog"], id=log_entry_id, userId=user["id"], routeId=route["id"]):
+            log_entry_id = None
+        visibility = "private" if body.get("visibility") == "private" else "public"
+        filename = f"{uuid.uuid4().hex}.{ext}"
+        shutil.move(up["path"], route_dir(route["id"]) / filename)
+        UPLOADS.pop(upload_id, None)
+        media = add_route_media(route["id"], user["id"], kind, f"/uploads/routes/{route['id']}/{filename}",
+                                log_entry_id=log_entry_id, visibility=visibility)
+        poster = body.get("posterDataUrl")
+        if kind == "video" and isinstance(poster, str):
+            try:
+                poster_kind, poster_url = save_route_media_file(route["id"], poster)
+                if poster_kind == "photo":
+                    media["posterUrl"] = poster_url
+            except ValueError:
+                pass  # a bad poster is not worth failing the upload for
+        save_db()
+        self._json(201, media)
 
     # ---------- Reel ----------
     def _reel_list(self, qs):

@@ -1,5 +1,5 @@
 // Private, on-device media store (IndexedDB) for photos/videos too large to
-// share to the server (see SHARED_MEDIA_LIMIT_BYTES in constants.js). Never
+// share to the server (see SHARED_PHOTO_LIMIT_BYTES in constants.js). Never
 // leaves this browser, so it never appears in anyone else's gallery.
 
 const DB_NAME = "planetRockLocalMedia";
@@ -17,11 +17,14 @@ function openDb() {
   });
 }
 
-export async function saveLocalMedia(routeId, type, dataUrl) {
+// `media` is a Blob (IndexedDB stores it as-is, no base64 round trip). Items saved
+// before that change hold a data URL in `url` and keep working.
+export async function saveLocalMedia(routeId, type, media) {
   const db = await openDb();
   const item = {
     id: `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    routeId, type, url: dataUrl, isLocal: true,
+    routeId, type, isLocal: true,
+    ...(typeof media === "string" ? { url: media } : { blob: media }),
     uploadedByName: "You (this device)", createdAt: new Date().toISOString(),
   };
   return new Promise((resolve, reject) => {
@@ -36,7 +39,7 @@ export async function getLocalMediaForRoute(routeId) {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const req = db.transaction(STORE, "readonly").objectStore(STORE).index("routeId").getAll(routeId);
-    req.onsuccess = () => resolve(req.result || []);
+    req.onsuccess = () => resolve((req.result || []).map((m) => (m.blob ? { ...m, url: URL.createObjectURL(m.blob) } : m)));
     req.onerror = () => reject(req.error);
   });
 }

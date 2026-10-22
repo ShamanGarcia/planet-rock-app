@@ -183,7 +183,8 @@ function wireRangeSlider(el, onCommit) {
 const NEW_SET_MS = 7 * 24 * 60 * 60 * 1000;
 const REFRESH_MS = 12000; // keeps the map in sync with routes/votes added from other devices
 
-export function renderGymMap(container, gymId) {
+// `focusRouteId` (from #/map/<routeId>, e.g. the Reel's Map button) opens the map on that route.
+export function renderGymMap(container, gymId, { focusRouteId } = {}) {
   let selectedRouteId = null;
   let placementMode = false;
   let panMoved = false;
@@ -374,6 +375,28 @@ export function renderGymMap(container, gymId) {
       minY: (pct.minY / 100) * CANVAS_H, maxY: (pct.maxY / 100) * CANVAS_H,
     }));
     renderCanvasContents();
+  }
+
+  // Brings a route into view: its discipline, then its area (area view) — or, on the
+  // single-area rope wall, a close zoom on the marker — with the marker ringed. A route
+  // that isn't on this map (retired, off every wall, another gym) opens its drawer instead.
+  async function focusRoute(routeId) {
+    const route = (await getRoutes(gymId).catch(() => [])).find((r) => r.id === routeId);
+    if (destroyed) return;
+    const target = route && disciplineOf(route);
+    const sectionId = route && findWallSectionAt(route.mapX, route.mapY, target);
+    if (!sectionId) { openRouteDetail(routeId, { onChanged: () => renderCanvasContents() }); return; }
+    if (target !== discipline) await setDiscipline(target);
+    if (isFilterActive()) { filters = filtersByDiscipline[discipline] = defaultFilters(discipline); syncFilterUI(); } // a filter must not hide the route we came for
+    newlyAddedRouteId = routeId; // the yellow ring marks it until any marker is tapped
+    if (singleSection()) {
+      const x = (route.mapX / 100) * CANVAS_W, y = (route.mapY / 100) * CANVAS_H;
+      const rx = CANVAS_W * 0.12, ry = CANVAS_H * 0.12;
+      animateNextTransform(() => fitToBounds({ minX: x - rx, maxX: x + rx, minY: y - ry, maxY: y + ry }));
+      renderCanvasContents();
+    } else {
+      enterZoomedSection(sectionId);
+    }
   }
 
   const pollTimer = setInterval(() => {
@@ -1105,6 +1128,11 @@ export function renderGymMap(container, gymId) {
     }
 
     renderDrawer();
+  }
+
+  if (focusRouteId) {
+    history.replaceState(null, "", "#/map"); // a reload or Back shouldn't re-run the jump
+    focusRoute(focusRouteId);
   }
 
   return function cleanup() {

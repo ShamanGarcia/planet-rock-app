@@ -74,14 +74,14 @@ export function gradeScaleLabel(index, discipline = "boulder") {
   return discipline === "rope" ? formatRopeGrade(index) : `V${index}`;
 }
 
-// Photos/videos at or under this size (after client-side photo compression)
-// upload to the shared server and appear in everyone's gallery. Anything
-// bigger stays on the uploader's own device (IndexedDB) instead, private to
-// them — keeps the small shared disk from filling up with large videos.
-export const SHARED_MEDIA_LIMIT_BYTES = 4 * 1024 * 1024;
-// Videos can't be re-encoded in the browser, so they get a bigger allowance; the
-// public ones are what the Reel tab plays. Mirrored in backend MAX_VIDEO_BYTES.
-export const SHARED_VIDEO_LIMIT_BYTES = 15 * 1024 * 1024;
+// Photos/videos at or under these sizes (after client-side compression, see
+// data/media.js) upload to the shared server. Anything bigger stays on the
+// uploader's own device (IndexedDB), private to them — keeps the small shared
+// disk from filling up. Mirrored in backend UPLOAD_LIMITS.
+export const SHARED_PHOTO_LIMIT_BYTES = 8 * 1024 * 1024;
+export const SHARED_VIDEO_LIMIT_BYTES = 25 * 1024 * 1024;
+// A video the browser couldn't compress is only shared as-is when it is this small.
+export const ORIGINAL_VIDEO_LIMIT_BYTES = 15 * 1024 * 1024;
 
 export function formatGrade(grade, discipline = "boulder") {
   if (grade === null || grade === undefined) return "Ungraded";

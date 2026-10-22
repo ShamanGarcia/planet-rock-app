@@ -150,16 +150,52 @@ export function submitGradeEstimate(routeId, grade) {
   return request("POST", `/api/routes/${routeId}/estimate`, { grade });
 }
 
-export function logSend(routeId, { mediaDataUrl, flash } = {}) {
-  return request("POST", `/api/routes/${routeId}/log`, { mediaDataUrl: mediaDataUrl || null, flash: !!flash });
+export function logSend(routeId, { flash } = {}) {
+  return request("POST", `/api/routes/${routeId}/log`, { flash: !!flash });
 }
 
 export function getRouteMedia(routeId) {
   return request("GET", `/api/routes/${routeId}/media`);
 }
 
-export function addRouteMedia(routeId, dataUrl, visibility = "public") {
-  return request("POST", `/api/routes/${routeId}/media`, { dataUrl, visibility });
+// ===================== Chunked uploads (see data/upload.js) =====================
+
+export function startUpload(kind, size) {
+  return request("POST", "/api/uploads", { kind, size });
+}
+
+export function getUploadStatus(uploadId) {
+  return request("GET", `/api/uploads/${uploadId}`);
+}
+
+export function abortUpload(uploadId) {
+  return request("DELETE", `/api/uploads/${uploadId}`);
+}
+
+export function completeUpload(uploadId, { routeId, visibility, logEntryId, posterDataUrl }) {
+  return request("POST", `/api/uploads/${uploadId}/complete`, { routeId, visibility, logEntryId, posterDataUrl });
+}
+
+// One raw-binary chunk. XHR (not fetch) because only XHR reports upload progress.
+// Resolves {status, data} for any HTTP answer; rejects only when the network failed.
+export function uploadChunk(uploadId, offset, blob, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", `/api/uploads/${uploadId}?offset=${offset}`);
+    const token = getToken();
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    xhr.setRequestHeader("Content-Type", "application/octet-stream");
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(e.loaded); };
+    xhr.onload = () => {
+      let data = null;
+      try { data = JSON.parse(xhr.responseText); } catch { /* empty body */ }
+      resolve({ status: xhr.status, data });
+    };
+    xhr.onerror = () => reject(new Error("network"));
+    xhr.ontimeout = () => reject(new Error("network"));
+    xhr.timeout = 60000;
+    xhr.send(blob);
+  });
 }
 
 // ===================== Users =====================

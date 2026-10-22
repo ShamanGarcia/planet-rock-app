@@ -1,46 +1,46 @@
 import { logSend } from "../data/api.js";
 import { playSendCounter } from "./sendCounter.js";
-import { saveLocalMedia } from "../data/localMedia.js";
-import { SHARED_MEDIA_LIMIT_BYTES, SHARED_VIDEO_LIMIT_BYTES } from "../data/constants.js";
-import { escapeHtml, pickMedia, dataUrlByteSize, dismissOverlay } from "../utils.js";
+import { enqueueUpload } from "../data/upload.js";
+import { isMediaFile } from "../data/media.js";
+import { escapeHtml, dismissOverlay } from "../utils.js";
 import { showToast } from "./toast.js";
 
 // Small confirm step before logging a send, with an optional photo/video
-// attachment that gets added to the route's own gallery. Photos are
-// compressed client-side; a photo still over SHARED_MEDIA_LIMIT_BYTES (or a
-// video over SHARED_VIDEO_LIMIT_BYTES) is kept private on this device rather
-// than uploaded to the shared server.
+// attachment for the route's gallery. The send is logged straight away; the media
+// is compressed and uploaded in the background (data/upload.js) and shows in the
+// gallery — and in the Reel, for a public video — once it lands.
 export function openLogSendSheet(routeId, label, { onLogged } = {}) {
   const backdrop = document.createElement("div");
   backdrop.className = "mini-popup-backdrop";
   document.body.appendChild(backdrop);
 
-  let mediaDataUrl = null;
-  let mediaKind = null; // "photo" | "video"
-  let tooBigForSharing = false;
-  let processingFile = false;
+  let file = null;
+  let previewUrl = null; // object URL of the picked file: instant, nothing is read or encoded yet
   let submitting = false;
   let flash = false;
   let error = "";
 
-  function close() { dismissOverlay(backdrop); }
+  function close() {
+    URL.revokeObjectURL(previewUrl);
+    dismissOverlay(backdrop);
+  }
 
   function render() {
     backdrop.innerHTML = `
       <div class="mini-popup" role="dialog" aria-modal="true" aria-label="Log send">
         <div class="mini-popup-title">Log Send — ${escapeHtml(label)}</div>
         ${error ? `<div class="auth-error">${escapeHtml(error)}</div>` : ""}
-        ${mediaDataUrl ? `
+        ${file ? `
           <div class="route-photo" style="max-height:160px;margin-bottom:6px;">
-            ${mediaKind === "video" ? `<video src="${mediaDataUrl}" style="width:100%;height:100%;object-fit:cover;" muted></video>` : `<img src="${mediaDataUrl}" alt="" style="width:100%;height:100%;object-fit:cover;"/>`}
+            ${file.type.startsWith("video") ? `<video src="${previewUrl}" style="width:100%;height:100%;object-fit:cover;" muted playsinline></video>` : `<img src="${previewUrl}" alt="" style="width:100%;height:100%;object-fit:cover;"/>`}
           </div>
-          ${tooBigForSharing ? `<div class="field-hint" style="margin-bottom:10px;">This file is large — it'll be saved privately on this device only, not shared with other climbers.</div>` : `<div class="field-hint" style="margin-bottom:10px;">Will be added to the shared gallery for everyone to see.</div>`}
+          <div class="field-hint" style="margin-bottom:10px;">Will be added to the shared gallery for everyone to see.</div>
         ` : ""}
         <input type="file" accept="image/*,video/*" id="ls-media-input" class="visually-hidden" />
-        <button type="button" class="btn btn-outline btn-sm btn-block" id="ls-media-btn" style="margin-bottom:10px;" ${processingFile ? "disabled" : ""}>
-          ${processingFile ? "Processing…" : mediaDataUrl ? "Change Photo/Video" : "Add a Photo or Video (optional)"}
+        <button type="button" class="btn btn-outline btn-sm btn-block" id="ls-media-btn" style="margin-bottom:10px;">
+          ${file ? "Change Photo/Video" : "Add a Photo or Video (optional)"}
         </button>
-        ${mediaDataUrl ? `<button type="button" class="btn btn-ghost btn-sm btn-block" id="ls-media-remove" style="margin-bottom:10px;">Remove Photo/Video</button>` : ""}
+        ${file ? `<button type="button" class="btn btn-ghost btn-sm btn-block" id="ls-media-remove" style="margin-bottom:10px;">Remove Photo/Video</button>` : ""}
         <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:13.5px;">
           <input type="checkbox" id="ls-flash" ${flash ? "checked" : ""} /> Flash
         </label>
@@ -55,24 +55,19 @@ export function openLogSendSheet(routeId, label, { onLogged } = {}) {
     const mediaInput = backdrop.querySelector("#ls-media-input");
     backdrop.querySelector("#ls-media-btn").addEventListener("click", () => mediaInput.click());
     backdrop.querySelector("#ls-media-remove")?.addEventListener("click", () => {
-      mediaDataUrl = null;
-      mediaKind = null;
-      tooBigForSharing = false;
+      URL.revokeObjectURL(previewUrl);
+      file = null;
+      previewUrl = null;
       render();
     });
-    mediaInput.addEventListener("change", async () => {
-      const file = mediaInput.files?.[0];
-      if (!file) return;
-      processingFile = true;
-      render();
-      try {
-        ({ dataUrl: mediaDataUrl, kind: mediaKind } = await pickMedia(file));
-        tooBigForSharing = dataUrlByteSize(mediaDataUrl) > (mediaKind === "video" ? SHARED_VIDEO_LIMIT_BYTES : SHARED_MEDIA_LIMIT_BYTES);
-      } catch {
-        error = "Couldn't read that file — try another one.";
-        mediaDataUrl = null;
-      }
-      processingFile = false;
+    mediaInput.addEventListener("change", () => {
+      const picked = mediaInput.files?.[0];
+      if (!picked) return;
+      if (!isMediaFile(picked)) { error = "Choose a photo or a video."; render(); return; }
+      URL.revokeObjectURL(previewUrl);
+      file = picked;
+      previewUrl = URL.createObjectURL(picked);
+      error = "";
       render();
     });
 
@@ -84,13 +79,10 @@ export function openLogSendSheet(routeId, label, { onLogged } = {}) {
       error = "";
       render();
       try {
-        const shareable = mediaDataUrl && !tooBigForSharing;
-        await logSend(routeId, { mediaDataUrl: shareable ? mediaDataUrl : null, flash });
-        if (mediaDataUrl && tooBigForSharing) {
-          await saveLocalMedia(routeId, mediaKind, mediaDataUrl);
-        }
+        const { entry } = await logSend(routeId, { flash });
+        if (file) enqueueUpload({ routeId, file, logEntryId: entry.id }); // the bubble takes it from here
         close();
-        showToast(tooBigForSharing && mediaDataUrl ? "Send logged — photo/video saved privately" : "Send logged");
+        showToast("Send logged");
         playSendCounter();
         onLogged?.();
       } catch (err) {

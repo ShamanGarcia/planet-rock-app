@@ -975,6 +975,34 @@ table.log-table tbody tr.row-removing{ transition:opacity var(--t-fast) var(--ea
 .cm-row{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--pr-border); }
 .cm-body{ flex:1; min-width:0; overflow-wrap:anywhere; font-size:14px; }
 .cm-time{ color:var(--pr-text-soft); font-size:11px; }
+.cm-del{
+  flex-shrink:0; min-height:34px; padding:0 12px; border:1.5px solid var(--pr-danger); border-radius:999px;
+  background:transparent; color:var(--pr-danger); font-size:12.5px; font-weight:800; text-transform:uppercase; letter-spacing:.3px;
+}
+.cm-del:active{ background:var(--pr-danger); color:#fff; }
+
+/* Upload bubble (data/upload.js): one pill at the top of the screen for every background upload. */
+.upload-bubble{
+  position:fixed; z-index:90; left:50%; top:calc(env(safe-area-inset-top, 0px) + 8px);
+  width:min(92vw, 400px); padding:10px 14px 12px; border-radius:16px;
+  background:var(--pr-ink); color:#fff; box-shadow:var(--pr-shadow-lg);
+  transform:translate(-50%, -140%); opacity:0; pointer-events:none;
+  transition:transform var(--t-base) var(--ease-out), opacity var(--t-base) var(--ease-out);
+}
+.upload-bubble.show{ transform:translate(-50%, 0); opacity:1; pointer-events:auto; }
+.ub-row{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; font-weight:800; font-size:14px; }
+.ub-pct{ font-variant-numeric:tabular-nums; color:rgba(255,255,255,.75); }
+.ub-bar{ height:6px; margin-top:8px; border-radius:99px; background:rgba(255,255,255,.2); overflow:hidden; }
+.ub-fill{ width:0; height:100%; border-radius:99px; background:var(--pr-orange); transition:width .25s linear; }
+.upload-bubble[data-state="done"] .ub-fill{ background:var(--pr-success); }
+.upload-bubble[data-state="error"] .ub-fill{ background:var(--pr-danger); }
+.ub-sub{ margin-top:7px; font-size:12px; color:rgba(255,255,255,.7); }
+.ub-actions{ display:flex; gap:8px; margin-top:10px; }
+.ub-actions button{
+  flex:1; min-height:34px; border:0; border-radius:999px; font-size:12.5px; font-weight:800; text-transform:uppercase;
+  background:rgba(255,255,255,.15); color:#fff;
+}
+.ub-actions button[data-ub="retry"]{ background:var(--pr-orange); }
 .reel-comment-form, .chat-form{ display:flex; gap:8px; }
 .reel-comment-form input, .chat-form input, .chat-side input{
   min-width:0; min-height:44px; padding:10px 14px; font-size:16px; border:1.5px solid var(--pr-border); border-radius:12px; background:#fff;

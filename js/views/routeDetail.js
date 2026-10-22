@@ -151,7 +151,7 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
             ${media.slice(0, 4).map((m) => `
               <div class="gallery-preview-thumb">
                 ${m.isLocal ? `<span class="gallery-lock" title="Private — only on this device">PRIVATE</span>` : ""}
-                ${m.type === "video" ? `<video src="${m.url}" muted></video><span class="gallery-play">PLAY</span>` : `<img src="${m.url}" alt=""/>`}
+                ${m.type === "video" ? `${m.posterUrl ? `<img src="${m.posterUrl}" alt="" loading="lazy"/>` : `<video src="${m.url}" muted preload="metadata"></video>`}<span class="gallery-play">PLAY</span>` : `<img src="${m.url}" alt="" loading="lazy"/>`}
               </div>
             `).join("")}
           </div>
@@ -176,7 +176,7 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
     backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
     backdrop.querySelector("#rd-close").addEventListener("click", close);
     backdrop.querySelector("#rd-view-gallery")?.addEventListener("click", () => openFullGallery(routeId, label));
-    backdrop.querySelector("#rd-add-media").addEventListener("click", () => openAddMediaForm(routeId, label, { onAdded: render }));
+    backdrop.querySelector("#rd-add-media").addEventListener("click", () => openAddMediaForm(routeId, label, { onAdded: () => { if (backdrop.isConnected) render(); } })); // runs when the background upload lands
     backdrop.querySelector("#rd-community-badge").addEventListener("click", () => openGradeDistributionPopup(hasEstimates, gradeDistribution, discipline));
 
     // Rope grades come from the -/dropdown/+ picker, boulder grades from a plain select.

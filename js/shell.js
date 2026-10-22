@@ -134,7 +134,7 @@ export async function renderShell(root) {
     } else if (hash.startsWith("#/stats")) {
       result = renderGymStats(contentArea, activeGymId); // async; nothing to clean up
     } else {
-      result = renderGymMap(contentArea, activeGymId);
+      result = renderGymMap(contentArea, activeGymId, { focusRouteId: hash.startsWith("#/map/") ? hash.split("/")[2] : null });
     }
     if (typeof result === "function") activeCleanup = result;
   }
