@@ -432,6 +432,20 @@ def get_route_media(route_id, viewer_id=None):
     return out
 
 
+def route_known(route_id, user_id):
+    """Media can still be attached to / listed for a climb that left the map (retired,
+    or its wall was reset) as long as the viewer has it in their climbing log."""
+    return bool(get_route(route_id)) or any(l["routeId"] == route_id and l["userId"] == user_id for l in DB["climbingLog"])
+
+
+def drop_media(m):
+    """Removes one upload: the record (with its likes and comments), the file and the poster."""
+    for url in (m.get("url"), m.get("posterUrl")):
+        if url and url.startswith("/uploads/"):
+            (UPLOADS_DIR / url[len("/uploads/"):]).unlink(missing_ok=True)
+    DB["routeMedia"].remove(m)
+
+
 # ===================== Reel (public route videos) + messages =====================
 
 def is_reel_video(m):
@@ -444,14 +458,15 @@ def reel_media(media_id):
     return m if m and is_reel_video(m) and get_route(m["routeId"]) else None
 
 
-def reel_item(m, viewer_id):
+def reel_item(m, viewer_id, with_pic=False):
     route = get_route(m["routeId"])
     uploader = find(DB["users"], id=m["uploadedBy"])
     likes = m.get("likes", [])
     return {
         "id": m["id"], "routeId": m["routeId"], "url": m["url"], "posterUrl": m.get("posterUrl"), "createdAt": m["createdAt"],
-        # no avatar here: profile pictures are data URLs and would bloat every page of the feed
-        "uploader": {"id": m["uploadedBy"], "name": uploader["name"] if uploader else "Unknown"},
+        # profile pictures are data URLs: a feed page sends each one once (see _reel_list), not per video
+        "uploader": {"id": m["uploadedBy"], "name": uploader["name"] if uploader else "Unknown",
+                     **({"profilePicture": uploader.get("profilePicture")} if with_pic and uploader else {})},
         "route": {
             "id": route["id"], "gymId": route["gymId"], "active": bool(route.get("active", True)),
             "mapX": route["mapX"], "mapY": route["mapY"],
@@ -766,6 +781,9 @@ class Handler(BaseHTTPRequestHandler):
         m = re.match(r"^/api/routes/([^/]+)/detail$", path)
         if method == "GET" and m:
             return self._route_detail(m.group(1))
+        m = re.match(r"^/api/media/([^/]+)$", path)
+        if method == "DELETE" and m:
+            return self._delete_media(m.group(1))
         m = re.match(r"^/api/routes/([^/]+)/media$", path)
         if method == "GET" and m:
             return self._get_media(m.group(1))
@@ -996,9 +1014,21 @@ class Handler(BaseHTTPRequestHandler):
 
     def _get_media(self, route_id):
         _, user = self._auth(required=False)
-        if not get_route(route_id):
+        uid_ = user["id"] if user else None
+        if not route_known(route_id, uid_):
             raise ApiError(404, "Route not found.")
-        self._json(200, get_route_media(route_id, user["id"] if user else None))
+        self._json(200, get_route_media(route_id, uid_))
+
+    def _delete_media(self, media_id):
+        _, user = self._auth()
+        m = find(DB["routeMedia"], id=media_id)
+        if not m:
+            raise ApiError(404, "Media not found.")
+        if m["uploadedBy"] != user["id"] and self._body().get("adminPassword") != ADMIN_PASSWORD:
+            raise ApiError(403, "You can only remove your own media.")
+        drop_media(m)
+        save_db()
+        self._json(200, {"ok": True})
 
     def _post_media(self, route_id):
         _, user = self._auth()
@@ -1423,8 +1453,8 @@ class Handler(BaseHTTPRequestHandler):
         _, user = self._auth()
         up = self._upload_or_404(upload_id, user)
         body = self._body()
-        route = get_route(body.get("routeId"))
-        if not route:
+        route_id = body.get("routeId")
+        if not isinstance(route_id, str) or not route_known(route_id, user["id"]):
             raise ApiError(404, "Route not found.")
         if up["received"] != up["size"]:
             raise ApiError(400, "Upload is incomplete.")
@@ -1433,18 +1463,18 @@ class Handler(BaseHTTPRequestHandler):
             drop_upload(upload_id)
             raise ApiError(400, "That file isn't a supported photo or video.")
         log_entry_id = body.get("logEntryId")
-        if log_entry_id and not find(DB["climbingLog"], id=log_entry_id, userId=user["id"], routeId=route["id"]):
+        if log_entry_id and not find(DB["climbingLog"], id=log_entry_id, userId=user["id"], routeId=route_id):
             log_entry_id = None
         visibility = "private" if body.get("visibility") == "private" else "public"
         filename = f"{uuid.uuid4().hex}.{ext}"
-        shutil.move(up["path"], route_dir(route["id"]) / filename)
+        shutil.move(up["path"], route_dir(route_id) / filename)
         UPLOADS.pop(upload_id, None)
-        media = add_route_media(route["id"], user["id"], kind, f"/uploads/routes/{route['id']}/{filename}",
+        media = add_route_media(route_id, user["id"], kind, f"/uploads/routes/{route_id}/{filename}",
                                 log_entry_id=log_entry_id, visibility=visibility)
-        poster = body.get("posterDataUrl")
+        poster =body.get("posterDataUrl")
         if kind == "video" and isinstance(poster, str):
             try:
-                poster_kind, poster_url = save_route_media_file(route["id"], poster)
+                poster_kind, poster_url = save_route_media_file(route_id, poster)
                 if poster_kind == "photo":
                     media["posterUrl"] = poster_url
             except ValueError:
@@ -1465,8 +1495,14 @@ class Handler(BaseHTTPRequestHandler):
         offset = qs_int(qs.get("offset"), 0, 0, len(items))
         limit = qs_int(qs.get("limit"), 6, 1, 20)
         page = items[offset:offset + limit]
+        pics = {}
+        for m in page:
+            u = find(DB["users"], id=m["uploadedBy"])
+            if u and u.get("profilePicture"):
+                pics[u["id"]] = u["profilePicture"]
         self._json(200, {
             "items": [reel_item(m, user["id"]) for m in page],
+            "pics": pics,
             "next": offset + limit if offset + limit < len(items) else None,
         })
 
@@ -1478,7 +1514,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _reel_one(self, media_id):
         _, user = self._auth()
-        self._json(200, reel_item(self._reel_media_or_404(media_id), user["id"]))
+        self._json(200, reel_item(self._reel_media_or_404(media_id), user["id"], with_pic=True))
 
     def _reel_like(self, media_id):
         _, user = self._auth()

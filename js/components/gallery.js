@@ -1,7 +1,9 @@
-import { getRouteMedia } from "../data/api.js";
-import { getLocalMediaForRoute } from "../data/localMedia.js";
+import { getRouteMedia, deleteMedia, getCurrentUser } from "../data/api.js";
+import { getLocalMediaForRoute, deleteLocalMedia } from "../data/localMedia.js";
 import { enqueueUpload } from "../data/upload.js";
 import { isMediaFile } from "../data/media.js";
+import { isAdminUnlocked } from "../adminAuth.js";
+import { showToast } from "./toast.js";
 import { escapeHtml, formatDateTime, dismissOverlay } from "../utils.js";
 
 // Merges the shared (server) gallery with anything this device kept private
@@ -21,6 +23,80 @@ export async function getCombinedMedia(routeId) {
 
 function isPrivate(m) {
   return m.isLocal || m.visibility === "private";
+}
+
+export const isMine = (m) => m.isLocal || m.uploadedBy === getCurrentUser()?.id;
+// Uploaders remove their own; an unlocked admin can remove anyone's.
+export const canRemove = (m) => isMine(m) || isAdminUnlocked();
+
+// Small square used for a route's media in the drawer, the log prompt and the removal list.
+export function previewThumbHTML(m) {
+  return `<div class="gallery-preview-thumb">
+    ${isPrivate(m) ? `<span class="gallery-lock" title="Private — only you can see this">PRIVATE</span>` : ""}
+    ${m.type === "video" ? `${m.posterUrl ? `<img src="${m.posterUrl}" alt="" loading="lazy"/>` : `<video src="${m.url}" muted preload="metadata"></video>`}<span class="gallery-play">PLAY</span>` : `<img src="${m.url}" alt="" loading="lazy"/>`}
+  </div>`;
+}
+
+// Asks first. The server drops the file together with its likes and comments.
+export function confirmDeleteMedia(m, onDone) {
+  const backdrop = document.createElement("div");
+  backdrop.className = "mini-popup-backdrop";
+  document.body.appendChild(backdrop);
+  const what = m.type === "video" ? "clip" : "photo";
+  backdrop.innerHTML = `
+    <div class="mini-popup" role="dialog" aria-modal="true" aria-label="Delete ${what}">
+      <div class="mini-popup-title">Delete this ${what}?</div>
+      <div class="page-sub" style="text-align:center;">${m.type === "video" && !isPrivate(m) ? "Its likes and comments are deleted too. " : ""}This can't be undone.</div>
+      <button class="btn btn-danger btn-block" id="dm-ok">Delete</button>
+      <button class="btn btn-ghost btn-block" id="dm-cancel">Cancel</button>
+    </div>`;
+  const close = () => dismissOverlay(backdrop);
+  backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
+  backdrop.querySelector("#dm-cancel").addEventListener("click", close);
+  const ok = backdrop.querySelector("#dm-ok");
+  ok.addEventListener("click", async () => {
+    ok.disabled = true;
+    try {
+      await (m.isLocal ? deleteLocalMedia(m.id) : deleteMedia(m.id));
+    } catch (err) {
+      ok.disabled = false;
+      showToast(err.message);
+      return;
+    }
+    close();
+    showToast(`Deleted the ${what}`);
+    onDone?.();
+  });
+}
+
+// Everything on this route the viewer may delete (their own, or all of it for an unlocked admin).
+export async function openRemoveMedia(routeId, label, { onChanged } = {}) {
+  const backdrop = document.createElement("div");
+  backdrop.className = "mini-popup-backdrop";
+  document.body.appendChild(backdrop);
+  const close = () => dismissOverlay(backdrop);
+  backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
+
+  async function render() {
+    const list = (await getCombinedMedia(routeId).catch(() => [])).filter(canRemove);
+    backdrop.innerHTML = `
+      <div class="mini-popup" role="dialog" aria-modal="true" aria-label="Remove media">
+        <div class="mini-popup-title">Remove Media</div>
+        <div class="page-sub" style="text-align:center;">${escapeHtml(label)}</div>
+        <div class="media-remove-list">${list.length ? list.map((m) => `
+          <div class="cm-row">
+            ${previewThumbHTML(m)}
+            <div class="cm-body">${m.type === "video" ? "Clip" : "Photo"}<div class="cm-time">${escapeHtml(m.isLocal ? "On this device" : m.uploadedByName || "")} · ${formatDateTime(m.createdAt)}</div></div>
+            <button type="button" class="cm-del" data-del="${m.id}">Delete</button>
+          </div>`).join("") : `<div class="empty-state">Nothing to remove.</div>`}</div>
+        <button class="btn btn-ghost btn-block" id="rm-close">Close</button>
+      </div>`;
+    backdrop.querySelector("#rm-close").addEventListener("click", close);
+    backdrop.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", () => {
+      confirmDeleteMedia(list.find((m) => m.id === b.dataset.del), () => { onChanged?.(); render(); });
+    }));
+  }
+  render();
 }
 
 function mediaThumbHTML(m, idx) {
@@ -176,16 +252,21 @@ export function openAddMediaForm(routeId, label, { onAdded } = {}) {
 }
 
 // Small "show gallery" prompt, opened from a tap on a route elsewhere in the
-// app (e.g. a climbing log row) before committing to the full viewer.
-export function openGalleryPrompt(routeId, label) {
+// app (e.g. a climbing log row) before committing to the full viewer. The viewer's
+// own media shows above the buttons, and "Add Your Climb" turns into "Delete Media".
+export async function openGalleryPrompt(routeId, label) {
+  const mine = (await getCombinedMedia(routeId).catch(() => [])).filter(isMine);
   const backdrop = document.createElement("div");
   backdrop.className = "mini-popup-backdrop";
   document.body.appendChild(backdrop);
   backdrop.innerHTML = `
     <div class="mini-popup" role="dialog" aria-modal="true">
       <div class="mini-popup-title">${escapeHtml(label)}</div>
+      ${mine.length ? `<div class="gallery-preview-row" style="justify-content:center;flex-wrap:wrap;">${mine.map(previewThumbHTML).join("")}</div>` : ""}
       <button class="btn btn-primary btn-sm btn-block" id="mp-gallery">Show Gallery</button>
-      <button class="btn btn-outline btn-sm btn-block" id="mp-add">Add Your Climb</button>
+      ${mine.length
+        ? `<button class="btn btn-outline btn-sm btn-block" id="mp-delete">Delete Media</button>`
+        : `<button class="btn btn-outline btn-sm btn-block" id="mp-add">Add Your Climb</button>`}
       <button class="btn btn-ghost btn-sm btn-block" id="mp-close">Close</button>
     </div>
   `;
@@ -196,8 +277,12 @@ export function openGalleryPrompt(routeId, label) {
     close();
     openFullGallery(routeId, label);
   });
-  backdrop.querySelector("#mp-add").addEventListener("click", () => {
+  backdrop.querySelector("#mp-add")?.addEventListener("click", () => {
     close();
     openAddMediaForm(routeId, label);
+  });
+  backdrop.querySelector("#mp-delete")?.addEventListener("click", () => {
+    close();
+    openRemoveMedia(routeId, label);
   });
 }

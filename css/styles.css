@@ -960,6 +960,8 @@ table.log-table tbody tr.row-removing{ transition:opacity var(--t-fast) var(--ea
 }
 .reel-who{ display:flex; align-items:center; gap:8px; font-weight:800; }
 .reel-who .avatar{ width:32px; height:32px; font-size:13px; background:var(--pr-orange); }
+.media-remove-list{ max-height:46vh; overflow-y:auto; }
+.media-remove-list .cm-row{ align-items:center; }
 .reel-route{ display:flex; align-items:center; gap:7px; margin-top:8px; font-size:13px; }
 .reel-dot{ width:12px; height:12px; border:1.5px solid #fff; border-radius:3px; flex-shrink:0; }
 .reel-rail{ position:absolute; right:8px; bottom:84px; z-index:3; display:flex; flex-direction:column; gap:16px; }

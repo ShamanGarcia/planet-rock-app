@@ -35,6 +35,16 @@ export async function saveLocalMedia(routeId, type, media) {
   });
 }
 
+export async function deleteLocalMedia(id) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 export async function getLocalMediaForRoute(routeId) {
   const db = await openDb();
   return new Promise((resolve, reject) => {

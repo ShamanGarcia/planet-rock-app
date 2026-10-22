@@ -1,7 +1,9 @@
 import {
   getReel, getReelItem, toggleReelLike, getReelComments, addReelComment, deleteReelComment,
-  getCurrentGymId, getAcceptedFriends, sendMessage,
+  getCurrentGymId, getAcceptedFriends, sendMessage, getCurrentUser,
 } from "../data/api.js";
+import { isAdminUnlocked } from "../adminAuth.js";
+import { confirmDeleteMedia } from "../components/gallery.js";
 import { formatGrade, HOLD_COLOR_HEX, WALL_SECTIONS, ROPE_SECTIONS, findWallSectionAt } from "../data/constants.js";
 import { escapeHtml, initials, formatDateTime, dismissOverlay } from "../utils.js";
 import { showToast } from "../components/toast.js";
@@ -19,6 +21,7 @@ const ICONS = {
   pin: pix(["0011100", "0111110", "1111111", "1110111", "1111111", "0111110", "0011100", "0001000"]),
   heart: pix(["01100110", "11111111", "11111111", "11111111", "01111110", "00111100", "00011000"]),
   chat: pix(["111111111", "111111111", "111111111", "111111111", "111111111", "011000000", "110000000"]),
+  trash: pix(["0011100", "1111111", "0111110", "0101010", "0101010", "0101010", "0111110"]),
   share: pix(["000010000", "000011000", "111111100", "111111110", "111111100", "000011000", "000010000"]),
 };
 
@@ -36,7 +39,7 @@ function itemHTML(it) {
       <div class="reel-paused" aria-hidden="true"></div>
       <div class="reel-fail">Couldn't play this video.</div>
       <div class="reel-caption">
-        <div class="reel-who"><span class="avatar sm">${escapeHtml(initials(it.uploader.name))}</span><span>${escapeHtml(it.uploader.name)}</span></div>
+        <div class="reel-who"><span class="avatar sm">${it.uploader.profilePicture ? `<img src="${it.uploader.profilePicture}" alt=""/>` : escapeHtml(initials(it.uploader.name))}</span><span>${escapeHtml(it.uploader.name)}</span></div>
         <div class="reel-route"><span class="reel-dot" style="background:${HOLD_COLOR_HEX[it.route.holdColor] || "#888"}"></span>${escapeHtml(reelRouteLabel(it))}</div>
       </div>
       <div class="reel-rail">
@@ -44,6 +47,7 @@ function itemHTML(it) {
         <button type="button" class="reel-act ${it.liked ? "on" : ""}" data-act="like" aria-label="Like" aria-pressed="${it.liked}">${ICONS.heart}<span class="reel-n">${it.likeCount}</span></button>
         <button type="button" class="reel-act" data-act="comments" aria-label="Comments">${ICONS.chat}<span class="reel-n">${it.commentCount}</span></button>
         <button type="button" class="reel-act" data-act="share" aria-label="Share">${ICONS.share}<span class="reel-n">Share</span></button>
+        ${it.uploader.id === getCurrentUser()?.id || isAdminUnlocked() ? `<button type="button" class="reel-act" data-act="delete" aria-label="Delete this clip">${ICONS.trash}<span class="reel-n">Delete</span></button>` : ""}
       </div>
     </section>`;
 }
@@ -125,6 +129,7 @@ export function renderReel(container, { mediaId } = {}) {
     try {
       const page = await getReel(gymId, { sort, offset: next, limit: PAGE });
       if (myGen !== gen) return;
+      for (const i of page.items) i.uploader.profilePicture = page.pics?.[i.uploader.id];
       const fresh = page.items.filter((i) => !items.some((x) => x.id === i.id));
       items.push(...fresh);
       next = page.next;
@@ -203,6 +208,13 @@ export function renderReel(container, { mediaId } = {}) {
       openComments(it, (n) => { it.commentCount = n; el.querySelector('[data-act="comments"] .reel-n').textContent = n; });
     } else if (act === "share") {
       openShare(it);
+    } else if (act === "delete") {
+      confirmDeleteMedia({ id: it.id, type: "video" }, () => {
+        el.querySelector("video").pause();
+        el.remove();
+        items = items.filter((x) => x !== it);
+        if (!items.length) feed.innerHTML = `<div class="reel-empty"><b>No videos yet</b><span>Log a send with a video, or add one to a route's gallery as Public, and it shows up here.</span></div>`;
+      });
     }
   });
 

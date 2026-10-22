@@ -9,7 +9,7 @@ import {
 import { renderRadarChart } from "../components/charts.js";
 import { ropeGradePickerHTML, wireRopeGradePicker } from "../components/ropeGradePicker.js";
 import { openLogSendSheet } from "../components/logSendSheet.js";
-import { openFullGallery, getCombinedMedia, openAddMediaForm } from "../components/gallery.js";
+import { openFullGallery, getCombinedMedia, openAddMediaForm, openRemoveMedia, previewThumbHTML, canRemove } from "../components/gallery.js";
 import { openPasswordPromptModal } from "../components/passwordPromptModal.js";
 import { showToast } from "../components/toast.js";
 import { escapeHtml, dismissOverlay } from "../utils.js";
@@ -144,16 +144,14 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
 
         <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
           Gallery
-          <button class="btn btn-outline btn-sm" id="rd-add-media">Add</button>
+          <span style="display:flex;gap:6px;">
+            ${media.some(canRemove) ? `<button class="btn btn-outline btn-sm" id="rd-remove-media">Remove Media</button>` : ""}
+            <button class="btn btn-outline btn-sm" id="rd-add-media">Add</button>
+          </span>
         </div>
         ${media.length ? `
           <div class="gallery-preview-row">
-            ${media.slice(0, 4).map((m) => `
-              <div class="gallery-preview-thumb">
-                ${m.isLocal ? `<span class="gallery-lock" title="Private — only on this device">PRIVATE</span>` : ""}
-                ${m.type === "video" ? `${m.posterUrl ? `<img src="${m.posterUrl}" alt="" loading="lazy"/>` : `<video src="${m.url}" muted preload="metadata"></video>`}<span class="gallery-play">PLAY</span>` : `<img src="${m.url}" alt="" loading="lazy"/>`}
-              </div>
-            `).join("")}
+            ${media.slice(0, 4).map(previewThumbHTML).join("")}
           </div>
           <button class="btn btn-outline btn-sm btn-block" id="rd-view-gallery" style="margin-top:8px;">View Gallery (${media.length})</button>
         ` : `<div class="page-sub">No photos or videos yet.</div>`}
@@ -177,6 +175,7 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
     backdrop.querySelector("#rd-close").addEventListener("click", close);
     backdrop.querySelector("#rd-view-gallery")?.addEventListener("click", () => openFullGallery(routeId, label));
     backdrop.querySelector("#rd-add-media").addEventListener("click", () => openAddMediaForm(routeId, label, { onAdded: () => { if (backdrop.isConnected) render(); } })); // runs when the background upload lands
+    backdrop.querySelector("#rd-remove-media")?.addEventListener("click", () => openRemoveMedia(routeId, label, { onChanged: () => { if (backdrop.isConnected) render(); } }));
     backdrop.querySelector("#rd-community-badge").addEventListener("click", () => openGradeDistributionPopup(hasEstimates, gradeDistribution, discipline));
 
     // Rope grades come from the -/dropdown/+ picker, boulder grades from a plain select.

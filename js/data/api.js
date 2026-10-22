@@ -8,6 +8,8 @@
 // everything that reads/writes shared data (routes, log, friends, ...) is
 // async and goes over the network.
 
+import { ADMIN_PASSWORD, isAdminUnlocked } from "../adminAuth.js";
+
 const TOKEN_KEY = "planetRockToken";
 let session = null; // { user, gymId }
 
@@ -156,6 +158,11 @@ export function logSend(routeId, { flash } = {}) {
 
 export function getRouteMedia(routeId) {
   return request("GET", `/api/routes/${routeId}/media`);
+}
+
+// The uploader can always remove their own; an unlocked admin can remove anyone's.
+export function deleteMedia(mediaId) {
+  return request("DELETE", `/api/media/${mediaId}`, isAdminUnlocked() ? { adminPassword: ADMIN_PASSWORD } : {});
 }
 
 // ===================== Chunked uploads (see data/upload.js) =====================
