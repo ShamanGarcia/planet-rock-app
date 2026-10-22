@@ -135,7 +135,7 @@ export const WALL_SECTIONS = [
   },
   {
     id: "long-wall", name: "Long Wall",
-    points: [[17.17, 0], [58.31, 0], [57.54, 18.59], [57.49, 19.87], [17.17, 10.9]], // shares its edges with Arch and Competition
+    points: [[17.17, 0], [58.31, 0], [57.54, 18.59], [17.17, 10.9]], // shares its edges with Arch and Competition
   },
   {
     id: "competition", name: "Competition",
