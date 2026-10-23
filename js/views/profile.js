@@ -66,28 +66,22 @@ export function renderProfile(container) {
 
           <div class="card card-pad">
             <div class="section-title" style="margin-top:0;">Settings</div>
-            <div class="settings-group" style="margin-top:0;">Privacy</div>
-            <div class="field" style="display:flex;align-items:center;justify-content:space-between;">
-              <label style="margin:0;">Public Profile</label>
-              <input type="checkbox" id="p-public" ${user.privacy.profilePublic ? "checked" : ""}/>
+            <div class="settings-group" style="margin-top:0;">Accent Color</div>
+            <div id="accent-picker"></div>
+
+            <div class="settings-group">Privacy</div>
+            <div class="set-row">
+              <button type="button" class="chip set-toggle ${user.privacy.profilePublic ? "active" : ""}" id="p-public" aria-pressed="${!!user.privacy.profilePublic}">Public Profile</button>
+              <button type="button" class="chip set-toggle ${user.privacy.logPublic ? "active" : ""}" id="p-logpublic" aria-pressed="${!!user.privacy.logPublic}">Friends Can View My Log</button>
             </div>
-            <div class="field" style="display:flex;align-items:center;justify-content:space-between;">
-              <label style="margin:0;">Friends Can View My Log</label>
-              <input type="checkbox" id="p-logpublic" ${user.privacy.logPublic ? "checked" : ""}/>
-            </div>
-            <div class="page-sub">When off, friends will see your profile but not your climbing log.</div>
 
             <div class="settings-group">Navigation Bar</div>
-            ${[["reel", "Show Clips"], ["friends", "Show Friends"]].map(([tab, label]) => `
-            <div class="field" style="display:flex;align-items:center;justify-content:space-between;">
-              <label style="margin:0;">${label}</label>
-              <input type="checkbox" id="p-nav-${tab}" ${(user.hiddenTabs || []).includes(tab) ? "" : "checked"}/>
-            </div>`).join("")}
-            <div class="page-sub">The Map and Climbing Log tabs are always shown.</div>
-
-            <div class="settings-group">Accent Color</div>
-            <div id="accent-picker"></div>
-            <div class="page-sub">Also the ring around your photo, which everyone can see.</div>
+            <div class="set-row">
+              ${[["reel", "Clips", "clips"], ["friends", "Friends", "friends"]].map(([tab, label, icon]) => {
+                const on = !(user.hiddenTabs || []).includes(tab);
+                return `<button type="button" class="chip set-toggle big ${on ? "active" : ""}" id="p-nav-${tab}" aria-pressed="${on}"><img src="/assets/icons/nav-${icon}.svg" alt="" width="32" height="32"/>${label}</button>`;
+              }).join("")}
+            </div>
           </div>
         </div>
 
@@ -140,9 +134,12 @@ export function renderProfile(container) {
         saveTimer = setTimeout(() => updateUser(user.id, { accentColor: color }), 400);
       },
     });
+    // Settings toggles are buttons: flip the look first, then read the new state back from it.
+    const flip = (btn) => btn.setAttribute("aria-pressed", String(btn.classList.toggle("active")));
     for (const tab of ["reel", "friends"]) {
-      container.querySelector(`#p-nav-${tab}`).addEventListener("change", async () => {
-        const hiddenTabs = ["reel", "friends"].filter((t) => !container.querySelector(`#p-nav-${t}`).checked);
+      container.querySelector(`#p-nav-${tab}`).addEventListener("click", async (e) => {
+        flip(e.currentTarget);
+        const hiddenTabs = ["reel", "friends"].filter((t) => !container.querySelector(`#p-nav-${t}`).classList.contains("active"));
         await updateUser(user.id, { hiddenTabs });
         window.dispatchEvent(new Event("navprefs")); // shell.js rebuilds the nav
       });
@@ -155,11 +152,13 @@ export function renderProfile(container) {
       render();
     });
     container.querySelector("#p-photo-remove")?.addEventListener("click", () => { photoDataUrl = ""; render(); });
-    container.querySelector("#p-public")?.addEventListener("change", (e) => {
-      updateUser(user.id, { privacy: { ...user.privacy, profilePublic: e.target.checked } });
+    container.querySelector("#p-public").addEventListener("click", (e) => {
+      flip(e.currentTarget);
+      updateUser(user.id, { privacy: { ...getCurrentUser().privacy, profilePublic: e.currentTarget.classList.contains("active") } });
     });
-    container.querySelector("#p-logpublic")?.addEventListener("change", (e) => {
-      updateUser(user.id, { privacy: { ...user.privacy, logPublic: e.target.checked } });
+    container.querySelector("#p-logpublic").addEventListener("click", (e) => {
+      flip(e.currentTarget);
+      updateUser(user.id, { privacy: { ...getCurrentUser().privacy, logPublic: e.currentTarget.classList.contains("active") } });
     });
   }
 
