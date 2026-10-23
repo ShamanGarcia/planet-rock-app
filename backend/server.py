@@ -466,6 +466,7 @@ def reel_item(m, viewer_id, with_pic=False):
         "id": m["id"], "routeId": m["routeId"], "url": m["url"], "posterUrl": m.get("posterUrl"), "createdAt": m["createdAt"],
         # profile pictures are data URLs: a feed page sends each one once (see _reel_list), not per video
         "uploader": {"id": m["uploadedBy"], "name": uploader["name"] if uploader else "Unknown",
+                     "accentColor": uploader.get("accentColor") if uploader else None,
                      **({"profilePicture": uploader.get("profilePicture")} if with_pic and uploader else {})},
         "route": {
             "id": route["id"], "gymId": route["gymId"], "active": bool(route.get("active", True)),
@@ -1250,7 +1251,7 @@ class Handler(BaseHTTPRequestHandler):
             return public_user(target)
         if target["privacy"]["profilePublic"]:
             return public_user(target)
-        return {"id": target["id"], "name": target["name"], "privacy": target["privacy"]}
+        return {"id": target["id"], "name": target["name"], "privacy": target["privacy"], "accentColor": target.get("accentColor")}
 
     def _get_user(self, user_id):
         _, viewer = self._auth(required=False)
@@ -1267,8 +1268,11 @@ class Handler(BaseHTTPRequestHandler):
         color = body.get("accentColor")
         if color is not None and not re.fullmatch(r"#[0-9a-fA-F]{6}", str(color)):
             raise ApiError(400, "accentColor must be a hex color like #7f56d9.")
+        tabs = body.get("hiddenTabs")
+        if tabs is not None and not (isinstance(tabs, list) and set(tabs) <= {"reel", "friends"}):
+            raise ApiError(400, "hiddenTabs may only list reel and friends.")
         for field in ["name", "age", "hometown", "climbingStartDate", "favoriteHoldType",
-                      "selfReportedHighestGrade", "profilePicture", "privacy", "accentColor"]:
+                      "selfReportedHighestGrade", "profilePicture", "privacy", "accentColor", "hiddenTabs"]:
             if field in body:
                 user[field] = body[field]
         save_db()

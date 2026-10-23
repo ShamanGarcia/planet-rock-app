@@ -2,7 +2,7 @@ import {
   getCurrentUser, getConversations, getThread, sendMessage, getIncomingRequests, getOutgoingRequests,
   sendFriendRequest, respondToRequest, removeFriend, searchUsers,
 } from "../data/api.js";
-import { escapeHtml, initials, dismissOverlay } from "../utils.js";
+import { escapeHtml, initials, dismissOverlay, ringStyle } from "../utils.js";
 import { showToast } from "../components/toast.js";
 import { reelRouteLabel } from "./reel.js";
 
@@ -10,7 +10,7 @@ import { reelRouteLabel } from "./reel.js";
 const THREAD_POLL_MS = 4000;
 const LIST_POLL_MS = 10000;
 
-const avatar = (u) => `<div class="avatar sm">${u.profilePicture ? `<img src="${escapeHtml(u.profilePicture)}" alt=""/>` : escapeHtml(initials(u.name))}</div>`;
+const avatar = (u) => `<div class="avatar sm"${ringStyle(u)}>${u.profilePicture ? `<img src="${escapeHtml(u.profilePicture)}" alt=""/>` : escapeHtml(initials(u.name))}</div>`;
 const when = (iso) => new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 function messageHTML(m, me) {

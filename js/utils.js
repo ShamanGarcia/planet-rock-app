@@ -144,6 +144,11 @@ export function compressImageFile(file, { maxDim = 1280, quality = 0.82 } = {}) 
   });
 }
 
+// Inline style that colors an avatar's ring with that user's accent (public, so everyone sees it).
+export function ringStyle(user) {
+  return /^#[0-9a-f]{6}$/i.test(user?.accentColor || "") ? ` style="--ring:${user.accentColor}"` : "";
+}
+
 export function initials(name) {
   return name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
 }

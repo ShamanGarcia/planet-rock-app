@@ -1,6 +1,6 @@
 import { getCurrentUser, updateUser, computeUserStats, logOut } from "../data/api.js";
 import { formatGrade, HOLD_TYPES, MAX_GRADE } from "../data/constants.js";
-import { escapeHtml, compressImageFile, initials } from "../utils.js";
+import { escapeHtml, compressImageFile, initials, ringStyle } from "../utils.js";
 import { showToast } from "../components/toast.js";
 import { openPasswordPromptModal } from "../components/passwordPromptModal.js";
 import { unlockAdmin, ADMIN_PASSWORD } from "../adminAuth.js";
@@ -21,7 +21,6 @@ export function renderProfile(container) {
   let editing = false;
   let stats = null;
   let photoDataUrl = null; // null = keep existing user.profilePicture
-  let accentChoice = null; // null = keep the saved accent; a swatch is previewed live and saved with the form
 
   async function render() {
     const user = getCurrentUser();
@@ -39,7 +38,7 @@ export function renderProfile(container) {
 
         <div class="card card-pad section-block">
           <div class="profile-header">
-            <div class="avatar">${pic ? `<img src="${pic}" alt=""/>` : initials(user.name)}</div>
+            <div class="avatar"${ringStyle(user)}>${pic ? `<img src="${pic}" alt=""/>` : initials(user.name)}</div>
             <div>
               <h1>${escapeHtml(user.name)}</h1>
               <div class="sub">${escapeHtml(user.hometown || "Hometown not set")}${exp ? ` · ${exp}` : ""}</div>
@@ -66,7 +65,8 @@ export function renderProfile(container) {
           </div>
 
           <div class="card card-pad">
-            <div class="section-title" style="margin-top:0;">Privacy</div>
+            <div class="section-title" style="margin-top:0;">Settings</div>
+            <div class="settings-group" style="margin-top:0;">Privacy</div>
             <div class="field" style="display:flex;align-items:center;justify-content:space-between;">
               <label style="margin:0;">Public Profile</label>
               <input type="checkbox" id="p-public" ${user.privacy.profilePublic ? "checked" : ""}/>
@@ -76,6 +76,18 @@ export function renderProfile(container) {
               <input type="checkbox" id="p-logpublic" ${user.privacy.logPublic ? "checked" : ""}/>
             </div>
             <div class="page-sub">When off, friends will see your profile but not your climbing log.</div>
+
+            <div class="settings-group">Navigation Bar</div>
+            ${[["reel", "Show Clips"], ["friends", "Show Friends"]].map(([tab, label]) => `
+            <div class="field" style="display:flex;align-items:center;justify-content:space-between;">
+              <label style="margin:0;">${label}</label>
+              <input type="checkbox" id="p-nav-${tab}" ${(user.hiddenTabs || []).includes(tab) ? "" : "checked"}/>
+            </div>`).join("")}
+            <div class="page-sub">The Map and Climbing Log tabs are always shown.</div>
+
+            <div class="settings-group">Accent Color</div>
+            <div id="accent-picker"></div>
+            <div class="page-sub">Also the ring around your photo, which everyone can see.</div>
           </div>
         </div>
 
@@ -98,7 +110,7 @@ export function renderProfile(container) {
       location.reload();
     });
     container.querySelector("#edit-btn")?.addEventListener("click", () => { editing = true; render(); });
-    container.querySelector("#cancel-btn")?.addEventListener("click", () => { editing = false; photoDataUrl = null; accentChoice = null; applyAccent(user.accentColor); render(); });
+    container.querySelector("#cancel-btn")?.addEventListener("click", () => { editing = false; photoDataUrl = null; render(); });
     container.querySelector("#profile-form")?.addEventListener("submit", async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
@@ -110,20 +122,31 @@ export function renderProfile(container) {
         favoriteHoldType: fd.get("favoriteHoldType") || null,
         selfReportedHighestGrade: fd.get("selfReportedHighestGrade") !== "" ? Number(fd.get("selfReportedHighestGrade")) : null,
         profilePicture: photoDataUrl === "" ? null : photoDataUrl ?? user.profilePicture ?? null,
-        accentColor: accentChoice ?? user.accentColor ?? null,
       });
       editing = false;
       photoDataUrl = null;
-      accentChoice = null;
       showToast("Profile updated");
       render();
     });
-    const accentRoot = container.querySelector("#accent-picker");
-    if (accentRoot) mountColorPicker(accentRoot, {
-      color: accentChoice ?? user.accentColor ?? getAccent(),
+    // The picker previews live (app colors and the avatar rings) and saves itself shortly after the last change.
+    let saveTimer;
+    mountColorPicker(container.querySelector("#accent-picker"), {
+      color: user.accentColor ?? getAccent(),
       swatches: ACCENT_SWATCHES,
-      onChange: (hex) => { accentChoice = applyAccent(hex); }, // previews live; saved with the form
+      onChange: (hex) => {
+        const color = applyAccent(hex);
+        document.querySelectorAll(".profile-header .avatar, .topbar .avatar").forEach((a) => a.style.setProperty("--ring", color));
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => updateUser(user.id, { accentColor: color }), 400);
+      },
     });
+    for (const tab of ["reel", "friends"]) {
+      container.querySelector(`#p-nav-${tab}`).addEventListener("change", async () => {
+        const hiddenTabs = ["reel", "friends"].filter((t) => !container.querySelector(`#p-nav-${t}`).checked);
+        await updateUser(user.id, { hiddenTabs });
+        window.dispatchEvent(new Event("navprefs")); // shell.js rebuilds the nav
+      });
+    }
     container.querySelector("#p-photo-btn")?.addEventListener("click", () => container.querySelector("#p-photo-input").click());
     container.querySelector("#p-photo-input")?.addEventListener("change", async (e) => {
       const file = e.target.files?.[0];
@@ -183,7 +206,6 @@ export function renderProfile(container) {
             </select>
           </div>
         </div>
-        <div class="field"><label>Accent Color</label><div id="accent-picker"></div></div>
         <div class="field-hint">All fields are optional.</div>
         <div style="display:flex; gap:8px;">
           <button class="btn btn-primary" type="submit">Save</button>

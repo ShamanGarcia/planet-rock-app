@@ -3,7 +3,7 @@ import {
   sendFriendRequest, respondToRequest, removeFriend, computeUserStats, relationshipWith,
 } from "../data/api.js";
 import { formatGrade } from "../data/constants.js";
-import { escapeHtml, initials } from "../utils.js";
+import { escapeHtml, initials, ringStyle } from "../utils.js";
 import { renderClimbingLog } from "./climbingLog.js";
 import { renderChat } from "./chat.js";
 import { showToast } from "../components/toast.js";
@@ -41,7 +41,7 @@ function renderFriendProfile(container, friendId) {
         <a href="#/friends" class="btn btn-ghost btn-sm" style="padding-left:0;">Back to Friends</a>
         <div class="card card-pad section-block">
           <div class="profile-header">
-            <div class="avatar">${user.profilePicture ? `<img src="${user.profilePicture}" alt=""/>` : initials(user.name)}</div>
+            <div class="avatar"${ringStyle(user)}>${user.profilePicture ? `<img src="${user.profilePicture}" alt=""/>` : initials(user.name)}</div>
             <div>
               <h1>${escapeHtml(user.name)}</h1>
               <div class="sub">${canSeeFull ? escapeHtml(user.hometown || "Hometown not set") : "Profile is private"}</div>

@@ -39,8 +39,13 @@ function currentBase(hash) {
   return "#/map";
 }
 
+// Clips and Friends can be hidden from the nav in Profile > Settings (user.hiddenTabs holds "reel" / "friends").
+const hiddenTabs = () => getCurrentUser()?.hiddenTabs || [];
+const tabsKey = () => hiddenTabs().join();
+
 function navLinksHTML(active) {
-  const items = isAdminUnlocked() ? [...NAV_ITEMS, ADMIN_ITEM] : NAV_ITEMS;
+  const shown = NAV_ITEMS.filter((item) => !hiddenTabs().includes(item.hash.slice(2)));
+  const items = isAdminUnlocked() ? [...shown, ADMIN_ITEM] : shown;
   return items.map((item) => {
     const cls = [active === item.hash && "active", item.admin && "nav-admin", item.admin && adminNavOpen && "open"].filter(Boolean).join(" ");
     return `<a href="${item.hash}" class="${cls}">
@@ -64,14 +69,14 @@ export async function renderShell(root) {
           ${gyms.map((g) => `<option value="${g.id}" ${g.id === gymId ? "selected" : ""}>${g.name}</option>`).join("")}
         </select>
         <div class="topbar-actions">
-          <a href="#/profile" class="avatar sm" style="text-decoration:none;" aria-label="Profile">${user.profilePicture ? `<img src="${user.profilePicture}" alt=""/>` : initials(user.name)}</a>
+          <a href="#/profile" class="avatar sm" style="text-decoration:none;${/^#[0-9a-f]{6}$/i.test(user.accentColor || "") ? `--ring:${user.accentColor}` : ""}" aria-label="Profile">${user.profilePicture ? `<img src="${user.profilePicture}" alt=""/>` : initials(user.name)}</a>
         </div>
       </div>
       <div class="desktop-shell">
-        <nav class="sidebar" id="sidebar" data-admin="${isAdminUnlocked()}">${navLinksHTML(currentBase(location.hash))}</nav>
+        <nav class="sidebar" id="sidebar" data-admin="${isAdminUnlocked()}" data-tabs="${tabsKey()}">${navLinksHTML(currentBase(location.hash))}</nav>
         <div class="content-area" id="content-area"></div>
       </div>
-      <nav class="bottom-nav" id="bottom-nav" data-admin="${isAdminUnlocked()}">${navLinksHTML(currentBase(location.hash))}</nav>
+      <nav class="bottom-nav" id="bottom-nav" data-admin="${isAdminUnlocked()}" data-tabs="${tabsKey()}">${navLinksHTML(currentBase(location.hash))}</nav>
     </div>
   `;
 
@@ -80,13 +85,16 @@ export async function renderShell(root) {
   function syncNav(hash) {
     const base = currentBase(hash);
     for (const nav of root.querySelectorAll("#sidebar, #bottom-nav")) {
-      if (nav.dataset.admin !== String(isAdminUnlocked())) {
+      if (nav.dataset.admin !== String(isAdminUnlocked()) || nav.dataset.tabs !== tabsKey()) {
         nav.innerHTML = navLinksHTML(base);
         nav.dataset.admin = String(isAdminUnlocked());
+        nav.dataset.tabs = tabsKey();
       }
       nav.querySelectorAll("a").forEach((a) => a.classList.toggle("active", a.getAttribute("href") === base));
     }
   }
+
+  window.addEventListener("navprefs", () => syncNav(location.hash || "#/map")); // fired by Profile > Settings
 
   root.querySelector(".app-shell").addEventListener("click", (e) => {
     const link = e.target.closest(".sidebar a, .bottom-nav a");

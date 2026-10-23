@@ -5,7 +5,7 @@ import {
 import { isAdminUnlocked } from "../adminAuth.js";
 import { confirmDeleteMedia } from "../components/gallery.js";
 import { formatGrade, HOLD_COLOR_HEX, WALL_SECTIONS, ROPE_SECTIONS, findWallSectionAt } from "../data/constants.js";
-import { escapeHtml, initials, formatDateTime, dismissOverlay } from "../utils.js";
+import { escapeHtml, initials, formatDateTime, dismissOverlay, ringStyle } from "../utils.js";
 import { showToast } from "../components/toast.js";
 import { openRouteDetail } from "./routeDetail.js";
 
@@ -39,7 +39,7 @@ function itemHTML(it) {
       <div class="reel-paused" aria-hidden="true"></div>
       <div class="reel-fail">Couldn't play this video.</div>
       <div class="reel-caption">
-        <div class="reel-who"><span class="avatar sm">${it.uploader.profilePicture ? `<img src="${it.uploader.profilePicture}" alt=""/>` : escapeHtml(initials(it.uploader.name))}</span><span>${escapeHtml(it.uploader.name)}</span></div>
+        <div class="reel-who"><span class="avatar sm"${ringStyle(it.uploader)}>${it.uploader.profilePicture ? `<img src="${it.uploader.profilePicture}" alt=""/>` : escapeHtml(initials(it.uploader.name))}</span><span>${escapeHtml(it.uploader.name)}</span></div>
         <div class="reel-route"><span class="reel-dot" style="background:${HOLD_COLOR_HEX[it.route.holdColor] || "#888"}"></span>${escapeHtml(reelRouteLabel(it))}</div>
       </div>
       <div class="reel-rail">
