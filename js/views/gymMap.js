@@ -2,7 +2,7 @@ import { getRoutes, getAllTags, getCurrentUser, getLogEntries, updateRoute, getG
 import {
   HOLD_COLORS, HOLD_COLOR_HEX, HOLD_COLOR_TEXT, HOLD_TYPES, ROPE_BASE_GRADES, CLIMB_TYPES, DISCIPLINES, DISCIPLINE_LABELS,
   aspectRatioFor, sectionsFor, sectionPolygons, maxGradeFor, disciplineOf, gradeScaleLabel, formatRopeGrade, routeLabel,
-  findWallSectionAt,
+  findWallSectionAt, mapOf, CAVE_ID,
 } from "../data/constants.js";
 import { getDiscipline, storeDiscipline } from "../data/discipline.js";
 import { disciplineButtonsHTML } from "../components/disciplineToggle.js";
@@ -114,14 +114,15 @@ function isFilterActive() {
 function routeMatches(route, completedRouteIds) {
   const MAX_GRADE = maxGradeFor(discipline);
   if (filters.climbTypes.size > 0 && !(route.climbTypes || []).some((t) => filters.climbTypes.has(t))) return false;
-  if (filters.gradeMin !== 0 || filters.gradeMax !== MAX_GRADE) {
+  const sameScale = disciplineOf(route) === discipline; // Cave boulders on the rope map skip the rope grade sliders
+  if (sameScale && (filters.gradeMin !== 0 || filters.gradeMax !== MAX_GRADE)) {
     const g = route.officialGrade;
     if (g === null || g < filters.gradeMin || g > filters.gradeMax) return false;
   }
   if (filters.completion.size > 0) {
     if (!filters.completion.has(completedRouteIds.has(route.id) ? "completed" : "uncompleted")) return false;
   }
-  if (filters.estMin !== 0 || filters.estMax !== MAX_GRADE) {
+  if (sameScale && (filters.estMin !== 0 || filters.estMax !== MAX_GRADE)) {
     const est = route.communityGrade;
     if (est === null || est === undefined || est < filters.estMin || est > filters.estMax) return false;
   }
@@ -383,7 +384,7 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
   async function focusRoute(routeId) {
     const route = (await getRoutes(gymId).catch(() => [])).find((r) => r.id === routeId);
     if (destroyed) return;
-    const target = route && disciplineOf(route);
+    const target = route && mapOf(route);
     const sectionId = route && findWallSectionAt(route.mapX, route.mapY, target);
     if (!sectionId) { openRouteDetail(routeId, { onChanged: () => renderCanvasContents() }); return; }
     if (target !== discipline) await setDiscipline(target);
@@ -626,7 +627,9 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
 
   // Fits the whole gym canvas inside the viewport (see fitToBounds above).
   function fitToScreen() {
-    fitToBounds({ minX: 0, maxX: CANVAS_W, minY: 0, maxY: CANVAS_H });
+    // The rope plan's wall names sit beside it (see labelAt), so its fit leaves room for them.
+    if (discipline === "rope") fitToBounds({ minX: -0.2 * CANVAS_W, maxX: 1.28 * CANVAS_W, minY: -0.2 * CANVAS_H, maxY: CANVAS_H });
+    else fitToBounds({ minX: 0, maxX: CANVAS_W, minY: 0, maxY: CANVAS_H });
     fitScale = viewState.scale;
     applyTransform(); // again, now that the marker size has its reference scale
   }
@@ -648,7 +651,7 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
   function markerLook(r) {
     let bg = HOLD_COLOR_HEX[r.holdColor];
     const rope = disciplineOf(r) === "rope";
-    let label = r.officialGrade !== null ? gradeScaleLabel(r.officialGrade, discipline)
+    let label = r.officialGrade !== null ? gradeScaleLabel(r.officialGrade, disciplineOf(r))
       : r.communityGrade != null ? (rope ? `${formatRopeGrade(Math.round(r.communityGrade))}?` : `${r.communityGrade.toFixed(1)}?`)
       : "?";
     let textStyle = "";
@@ -692,7 +695,7 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
       completedRouteIds = new Set(myLog.map((e) => e.routeId));
       flashedRouteIds = new Set(myLog.filter((e) => e.flash).map((e) => e.routeId));
       resets = gyms.find((g) => g.id === gymId)?.resets || {};
-      visibleRoutes = allRoutes.filter((r) => disciplineOf(r) === discipline && routeMatches(r, completedRouteIds));
+      visibleRoutes = allRoutes.filter((r) => mapOf(r) === discipline && routeMatches(r, completedRouteIds));
     } catch (err) {
       if (!quiet) container.querySelector("#result-count").textContent = "Couldn't load routes";
       return;
@@ -733,12 +736,19 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
 
     const zonesHTML = `
       <svg class="floor-plan ${discipline}" viewBox="0 0 100 100" preserveAspectRatio="none">
-        ${visibleSections.map((s) => sectionPolygons(s).map((poly) => `<polygon class="wall-zone ${dim(s.id)}" data-section-id="${s.id}" points="${toSvgPoints(poly)}"></polygon>`).join("")).join("")}
+        ${visibleSections.map((s) => sectionPolygons(s).map((poly) => `<polygon class="wall-zone ${s.boulder ? "cave" : ""} ${dim(s.id)}" data-section-id="${s.id}" points="${toSvgPoints(poly)}"></polygon>`).join("")).join("")}
       </svg>
     `;
 
     // A map with one section needs no area name printed across it.
-    const labelsHTML = singleSection() ? "" : visibleSections.map((s) => {
+    const labelsHTML = singleSection() ? "" : visibleSections.filter((s) => !s.hideLabel).map((s) => {
+      const isNewSet = resets[s.id] && Date.now() - new Date(resets[s.id]) < NEW_SET_MS;
+      const newSet = isNewSet ? '<span class="new-set">New Set</span>' : "";
+      if (s.labelAt) { // placed beside the wall, as on the rope floor plan
+        const shift = s.labelAlign === "left" ? "-100%" : s.labelAlign === "right" ? "0" : "-50%";
+        const text = s.labelWrap ? escapeHtml(s.name).replace(/ /g, "<br>") : escapeHtml(s.name);
+        return `<div class="wall-label ${s.labelSmall ? "sm" : ""} ${s.boulder ? "cave" : ""} ${dim(s.id)}" style="left:${s.labelAt[0]}%; top:${s.labelAt[1]}%; transform:translate(${shift},-50%); text-align:${s.labelAlign === "left" ? "right" : s.labelAlign || "center"};">${newSet}${text}</div>`;
+      }
       const [cx, cy] = polygonCentroid(s.points);
       const bounds = polygonBounds(s.points);
       const margin = 3;
@@ -749,16 +759,12 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
         // right edge and bottom corner, instead of centering on a point.
         left = bounds.maxX - margin; top = bounds.maxY - margin; anchor = "transform:translate(-100%,-100%);";
       }
-      const isNewSet = resets[s.id] && Date.now() - new Date(resets[s.id]) < NEW_SET_MS;
-      return `<div class="wall-label ${dim(s.id)}" style="left:${left}%; top:${top}%; ${anchor}">${isNewSet ? '<span class="new-set">New Set</span>' : ""}${escapeHtml(s.name)}</div>`;
+      return `<div class="wall-label ${dim(s.id)}" style="left:${left}%; top:${top}%; ${anchor}">${newSet}${escapeHtml(s.name)}</div>`;
     }).join("");
 
-    // Only routes placed inside a wall section ever render as markers; when
-    // zoomed into one section, only its own routes show.
-    visibleRoutes = visibleRoutes.filter((r) => {
-      const sectionId = findWallSectionAt(r.mapX, r.mapY, discipline);
-      return !!sectionId;
-    });
+    // Only routes placed inside a wall section render as markers. Rope routes left
+    // off the walls when the rope plan was redrawn still show, so they can be moved back.
+    visibleRoutes = visibleRoutes.filter((r) => discipline === "rope" || !!findWallSectionAt(r.mapX, r.mapY, discipline));
 
     const markersHTML = visibleRoutes
       .map((r) => {
@@ -769,7 +775,7 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
         return `
           <div class="route-marker ${dim(findWallSectionAt(r.mapX, r.mapY, discipline))} ${discipline === "rope" ? "rope" : ""} ${completed ? "completed" : "uncompleted"} ${isNew ? "just-added" : ""} ${r.id === selectedRouteId ? "selected" : ""} ${!r.active ? "retired" : ""}"
                style="left:${r.mapX}%; top:${r.mapY}%; background:${markerBg};${textStyle}"
-               data-route-id="${r.id}"${holdAttr}
+               data-route-id="${r.id}" data-kind="${disciplineOf(r)}"${holdAttr}
                role="button" tabindex="0" aria-label="${escapeHtml(routeLabel(r))}, ${r.holdType}, ${completed ? "completed" : "not yet completed"}${r.mediaCount ? `, ${r.mediaCount} photo${r.mediaCount === 1 ? "" : "s"}/videos` : ""}">
             <span class="marker-grade">${markerLabel}</span>
           </div>
@@ -863,8 +869,14 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
       if (!moved) { el.classList.remove("selected"); return; }
       const newMapX = clamp(parseFloat(el.style.left), 0, 100);
       const newMapY = clamp(parseFloat(el.style.top), 0, 100);
+      const wallSection = findWallSectionAt(newMapX, newMapY, discipline);
+      if (discipline === "rope" && (wallSection === CAVE_ID) !== (el.dataset.kind === "boulder")) {
+        showToast(el.dataset.kind === "boulder" ? "Cave problems stay in the Cave" : "Rope routes can't go in the Cave");
+        renderCanvasContents();
+        return;
+      }
       try {
-        await updateRoute(routeId, { mapX: newMapX, mapY: newMapY });
+        await updateRoute(routeId, { mapX: newMapX, mapY: newMapY, ...(wallSection ? { wallSection } : {}) });
         showToast("Route moved");
         renderCanvasContents();
       } catch {
@@ -999,7 +1011,7 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
       getAllTags().then((tags) => {
         openAddRouteForm({
           gymId,
-          discipline,
+          discipline: sections().find((s) => s.id === wallSection)?.boulder ? "boulder" : discipline, // the Cave is bouldering
           mapX, mapY,
           wallSection: pendingPoint.wallSection,
           allTags: tags,

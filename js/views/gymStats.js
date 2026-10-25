@@ -1,6 +1,6 @@
 import { getRoutes, getRouteHistory, getAllTags } from "../data/api.js";
 import {
-  HOLD_TYPES, DISCIPLINES, DISCIPLINE_LABELS, maxGradeFor, sectionsFor, disciplineOf, gradeScaleLabel, findWallSectionAt, formatGrade,
+  HOLD_TYPES, DISCIPLINES, DISCIPLINE_LABELS, maxGradeFor, areasFor, areaOf, disciplineOf, gradeScaleLabel, formatGrade,
 } from "../data/constants.js";
 import { getDiscipline, storeDiscipline } from "../data/discipline.js";
 import { disciplineButtonsHTML } from "../components/disciplineToggle.js";
@@ -44,10 +44,10 @@ function holdSeries(routes, kind, tagNames, discipline) {
     return { labels: [...c.keys()], data: [...c.values()] };
   }
   if (kind === "area") {
-    const sections = sectionsFor(discipline);
+    const sections = areasFor(discipline); // bouldering includes the Cave in the rope room
     const names = new Map(sections.map((s) => [s.id, s.name]));
     // Backfilled history has no map position, only the wall section its sends recorded.
-    const c = tally(sections.map((s) => s.name), (r) => [names.get(r.mapX == null ? r.wallSection : findWallSectionAt(r.mapX, r.mapY, discipline))]);
+    const c = tally(sections.map((s) => s.name), (r) => [names.get(r.mapX == null ? r.wallSection : areaOf(r))]);
     return { labels: [...c.keys()], data: [...c.values()] };
   }
   // Live routes carry tag ids; archived ones carry the names they had when retired.

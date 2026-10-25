@@ -92,6 +92,8 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
           ${(route.climbTypes || []).length ? `<div class="chip-row">${route.climbTypes.map((t) => `<span class="chip">${escapeHtml(CLIMB_TYPE_LABELS[t] || t)}</span>`).join("")}</div>` : ""}
         </div>` : ""}
 
+        ${rope ? `<button class="btn btn-outline btn-sm" id="rd-name" style="align-self:flex-start;">${route.routeTitle || route.setterInitials ? "Edit" : "Add"} Name / Initials</button>` : ""}
+
         ${mySends ? `<div class="page-sub">You've sent this ${mySends}×</div>` : ""}
 
         <div class="grade-badges">
@@ -176,6 +178,7 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
     backdrop.querySelector("#rd-view-gallery")?.addEventListener("click", () => openFullGallery(routeId, label));
     backdrop.querySelector("#rd-add-media").addEventListener("click", () => openAddMediaForm(routeId, label, { onAdded: () => { if (backdrop.isConnected) render(); } })); // runs when the background upload lands
     backdrop.querySelector("#rd-remove-media")?.addEventListener("click", () => openRemoveMedia(routeId, label, { onChanged: () => { if (backdrop.isConnected) render(); } }));
+    backdrop.querySelector("#rd-name")?.addEventListener("click", () => openNamePopup(route));
     backdrop.querySelector("#rd-community-badge").addEventListener("click", () => openGradeDistributionPopup(hasEstimates, gradeDistribution, discipline));
 
     // Rope grades come from the -/dropdown/+ picker, boulder grades from a plain select.
@@ -248,6 +251,36 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
       openLogSendSheet(routeId, label, {
         onLogged: () => { onChanged?.(); close(); }, // logging a send also closes the route drawer
       });
+    });
+  }
+
+  // Rope routes: name the route and/or credit its setter after it was posted.
+  function openNamePopup(route) {
+    const popup = document.createElement("div");
+    popup.className = "mini-popup-backdrop";
+    document.body.appendChild(popup);
+    const closePopup = () => dismissOverlay(popup);
+    popup.innerHTML = `
+      <form class="mini-popup" role="dialog" aria-modal="true" aria-label="Route name and setter initials">
+        <div class="mini-popup-title">Name / Initials</div>
+        <div class="field"><label for="rn-title">Route Name</label><input id="rn-title" maxlength="60" value="${escapeHtml(route.routeTitle || "")}" autocomplete="off"/></div>
+        <div class="field"><label for="rn-initials">Setter Initials</label><input id="rn-initials" maxlength="4" value="${escapeHtml(route.setterInitials || "")}" autocomplete="off" style="text-transform:uppercase;"/></div>
+        <button class="btn btn-primary btn-block" type="submit">Save</button>
+        <button class="btn btn-ghost btn-block" type="button" id="rn-cancel">Cancel</button>
+      </form>`;
+    popup.addEventListener("click", (e) => { if (e.target === popup) closePopup(); });
+    popup.querySelector("#rn-cancel").addEventListener("click", closePopup);
+    popup.querySelector("form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      try {
+        await updateRoute(routeId, {
+          routeTitle: popup.querySelector("#rn-title").value.trim(),
+          setterInitials: popup.querySelector("#rn-initials").value.trim(),
+        });
+      } catch (err) { showToast(err.message); return; }
+      closePopup();
+      onChanged?.();
+      render();
     });
   }
 

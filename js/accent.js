@@ -55,6 +55,10 @@ export function applyAccent(hex) {
   root.setProperty("--pr-orange", color);
   root.setProperty("--pr-orange-dark", darken(color));
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", color);
+  // The app icon's background follows the accent (server draws it, see /icon.svg and /icon.png).
+  // iOS copies the home-screen icon when it is added, so a later change needs a re-add there.
+  document.querySelector('link[rel="icon"]')?.setAttribute("href", `/icon.svg?c=${color.slice(1)}`);
+  document.querySelector('link[rel="apple-touch-icon"]')?.setAttribute("href", `/icon.png?c=${color.slice(1)}`);
   try { localStorage.setItem(KEY, color); } catch { /* storage blocked — just not remembered */ }
   return color;
 }

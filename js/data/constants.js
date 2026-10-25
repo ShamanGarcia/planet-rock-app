@@ -127,6 +127,23 @@ export function sectionsFor(discipline) {
   return discipline === "rope" ? ROPE_SECTIONS : WALL_SECTIONS;
 }
 
+// Which floor plan a route is drawn on: Cave problems are boulders on the rope map.
+export function mapOf(route) {
+  return route?.wallSection === CAVE_ID ? "rope" : disciplineOf(route);
+}
+
+// The areas a discipline is climbed in (Cave counts as bouldering, not rope).
+export function areasFor(discipline) {
+  return discipline === "rope"
+    ? ROPE_SECTIONS.filter((s) => !s.boulder)
+    : [...WALL_SECTIONS, ...ROPE_SECTIONS.filter((s) => s.boulder)];
+}
+
+// The area a route sits in, looked up on the floor plan it is drawn on.
+export function areaOf(route) {
+  return findWallSectionAt(route.mapX, route.mapY, mapOf(route));
+}
+
 export function aspectRatioFor(discipline) {
   return discipline === "rope" ? ROPE_ASPECT_RATIO : MAP_ASPECT_RATIO;
 }
@@ -163,20 +180,83 @@ export const WALL_SECTIONS = [
   },
 ];
 
-// The rope area, traced from the gym's floor-plan PDF (grey = climbable wall,
-// everything else is open floor). Same 0-100 percent convention as above. The
-// whole area is one section: the frame along the top and sides, the central
-// block and the small pillar are all "Rope Wall".
-export const ROPE_ASPECT_RATIO = 585 / 695;
+// The rope area, traced from the gym's rope floor plan (rope.png): one polygon per
+// named wall, sharing edges like the boulder walls. Same 0-100 percent convention.
+// Labels sit beside the walls as on the plan: `labelAt` is the anchor point and
+// `labelAlign` says which side of it the text runs ("left" ends at it, "right"
+// starts at it, default centers on it). The Cave is a bouldering area inside the
+// rope room (`boulder: true`): routes set there are boulder problems.
+export const ROPE_ASPECT_RATIO = 516 / 612;
+
+export const CAVE_ID = "cave";
 
 export const ROPE_SECTIONS = [
   {
-    id: "rope-wall", name: "Rope Wall",
-    points: [[0, 0], [100, 0], [100, 100], [0, 100]], // bounding box, for fitting the view
-    shapes: [
-      [[0.0, 0.0], [100.0, 0.0], [100.0, 100.0], [88.38, 100.0], [88.38, 33.38], [90.09, 32.23], [91.62, 14.53], [84.79, 8.35], [63.59, 8.35], [60.17, 11.37], [39.83, 11.37], [37.44, 8.35], [14.02, 8.35], [11.79, 11.22], [8.03, 13.38], [8.03, 27.05], [11.62, 29.21], [11.62, 86.91], [0.0, 86.91]],
-      [[46.32, 32.23], [52.99, 33.67], [62.05, 36.55], [66.15, 42.3], [66.15, 50.07], [64.1, 56.69], [62.91, 66.76], [59.83, 69.06], [56.92, 74.24], [53.33, 78.71], [49.91, 77.7], [43.42, 68.49], [38.97, 66.47], [37.26, 62.45], [35.9, 44.6], [38.63, 35.4], [39.49, 33.53]],
-      [[77.78, 15.11], [81.2, 18.56], [78.12, 22.3], [74.7, 18.99]],
-    ],
+    id: "whale-fin", name: "Whale Fin", labelAt: [2.5, -5.9],
+    points: [[0.0, 0.0], [16.47, 0.0], [16.86, 10.13], [14.15, 9.97], [12.4, 12.42], [11.24, 12.91], [11.24, 14.87], [0.0, 14.87]],
+  },
+  {
+    id: "bottle", name: "Bottle", labelAt: [27.1, -5.9],
+    points: [[16.47, 0.0], [39.34, 0.0], [39.34, 9.31], [39.73, 11.44], [36.63, 12.58], [29.46, 12.75], [25.97, 10.29], [16.86, 10.13]],
+  },
+  {
+    id: "zeus-wall", name: "Zeus Wall", labelAt: [55.2, -5.9],
+    points: [[39.34, 0.0], [70.54, 0.0], [71.32, 14.22], [42.64, 12.58], [39.53, 11.6]],
+  },
+  {
+    id: "amphitheater", name: "Amphitheater", labelAt: [90.1, -5.9],
+    points: [[70.54, 0.0], [99.81, 0.0], [100.0, 24.35], [86.24, 24.18], [86.24, 22.71], [75.58, 14.38], [71.32, 14.22]],
+  },
+  {
+    id: "slab-wall", name: "Slab Wall", labelAt: [-4.3, 21.7], labelAlign: "left", labelWrap: true,
+    points: [[0.0, 14.87], [11.24, 14.87], [11.24, 20.75], [12.6, 22.22], [14.92, 29.08], [0.0, 29.08]],
+  },
+  {
+    id: "rope-left", name: "Unnamed Wall", hideLabel: true,
+    points: [[0.0, 29.08], [14.92, 29.08], [11.82, 43.3], [14.15, 55.07], [0.0, 54.9]],
+  },
+  {
+    id: "auto-belays", name: "Auto Belays", labelAt: [-1.7, 63.7], labelAlign: "left", labelWrap: true,
+    points: [[0.0, 54.9], [14.15, 55.07], [11.24, 74.02], [0.0, 74.02]],
+  },
+  {
+    id: "endless-wall", name: "Endless Wall", labelAt: [105.6, 37.9], labelAlign: "right", labelWrap: true,
+    points: [[86.24, 24.18], [100.0, 24.35], [100.0, 70.92], [84.3, 70.75], [86.05, 63.56], [87.02, 48.04]],
+  },
+  {
+    id: "speed-wall", name: "Speed Wall", labelAt: [105.4, 75.0], labelAlign: "right", labelWrap: true,
+    points: [[84.3, 70.75], [100.0, 70.92], [100.0, 79.9], [84.11, 79.58]],
+  },
+  {
+    id: "chimney", name: "Chimney", labelAt: [105.4, 83.5], labelAlign: "right",
+    points: [[79.26, 81.37], [83.72, 80.07], [84.11, 79.58], [100.0, 79.9], [100.0, 87.91], [78.88, 87.58], [78.88, 85.78], [82.75, 85.78]],
+  },
+  {
+    id: "crack-corner", name: "Crack Corner", labelAt: [105.2, 93.8], labelAlign: "right", labelWrap: true,
+    points: [[78.88, 87.58], [100.0, 87.91], [100.0, 99.84], [78.68, 99.84], [81.4, 94.28], [81.2, 93.3], [78.88, 91.01]],
+  },
+  {
+    id: "tower", name: "Tower", labelAt: [49.8, 24.0], labelSmall: true,
+    points: [[33.14, 30.39], [41.47, 25.65], [55.04, 27.29], [60.47, 29.25], [65.7, 35.13], [59.69, 37.58], [59.69, 37.09], [53.49, 32.35], [42.44, 31.21], [39.92, 32.68], [39.15, 33.66], [33.72, 31.05]],
+  },
+  {
+    id: "rainbow-wall", name: "Rainbow Wall", labelAt: [66.9, 39.1], labelAlign: "right", labelSmall: true, labelWrap: true,
+    points: [[60.08, 37.42], [65.7, 35.13], [66.28, 45.26], [63.37, 51.8], [63.76, 52.45], [58.33, 50.49], [58.53, 46.57]],
+  },
+  {
+    id: "ships-row", name: "Ships Row", labelAt: [64.5, 57.2], labelAlign: "right", labelSmall: true, labelWrap: true,
+    points: [[58.14, 50.65], [58.91, 50.49], [63.57, 52.45], [63.57, 52.78], [63.18, 52.61], [63.57, 64.71], [57.56, 62.91], [57.36, 58.82]],
+  },
+  {
+    id: "arete", name: "Arete", labelAt: [59.7, 75.0], labelAlign: "right", labelSmall: true,
+    points: [[57.75, 62.91], [63.37, 64.54], [63.57, 65.69], [62.21, 70.26], [57.95, 74.51], [56.98, 78.1], [53.49, 80.56]],
+  },
+  {
+    id: "yosemite-wall", name: "Yosemite Wall", labelAt: [31.6, 44.6], labelAlign: "left", labelSmall: true, labelWrap: true,
+    points: [[32.95, 30.56], [38.95, 33.5], [41.28, 62.91], [34.3, 62.42], [31.4, 57.52], [32.75, 43.14]],
+  },
+  {
+    id: "cave", name: "Cave", boulder: true, labelAt: [47.9, 39.2],
+    points: [[38.95, 33.5], [39.34, 33.66], [39.92, 32.68], [42.44, 31.21], [53.49, 32.35], [58.53, 36.11], [59.69, 37.09], [59.69, 37.58], [60.08, 37.42], [58.33, 48.2], [58.53, 50.65], [58.14, 50.65], [57.36, 58.82], [57.56, 63.24], [56.4, 62.91], [41.28, 62.75]],
   },
 ];

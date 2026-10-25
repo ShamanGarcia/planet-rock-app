@@ -1,7 +1,7 @@
 import { getLogEntries, computeUserStats, deleteLogEntry, getCurrentUser } from "../data/api.js";
 import {
-  formatGrade, formatEstimate, HOLD_COLORS, HOLD_TYPES, DISCIPLINES, DISCIPLINE_LABELS,
-  maxGradeFor, sectionsFor, disciplineOf, gradeScaleLabel,
+  formatGrade, formatEstimate, HOLD_COLORS, HOLD_COLOR_HEX, HOLD_COLOR_TEXT, HOLD_TYPES, DISCIPLINE_LABELS,
+  maxGradeFor, sectionsFor, areasFor, disciplineOf, gradeScaleLabel,
 } from "../data/constants.js";
 import { getDiscipline, storeDiscipline } from "../data/discipline.js";
 import { disciplineButtonsHTML } from "../components/disciplineToggle.js";
@@ -12,7 +12,7 @@ import { renderBarChart, renderRadarChart, renderPieChart, renderLineChart, shad
 const NEXT_CHART_MODE = { bar: "radar", radar: "pie", pie: "bar" };
 const CHART_MODE_LABEL = { bar: "Bar", radar: "Radar", pie: "Pie" };
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-const LOG_WEEK_START = 2; // the log's weeks run Tuesday to Monday (Sunday = 0)
+const BOLT_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>`;
 import { openGalleryPrompt } from "../components/gallery.js";
 import { showToast } from "../components/toast.js";
 
@@ -50,17 +50,9 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
   let allEntries = [];
   let loaded = false;
   let loadError = null;
-  let weekOffset = 0; // table view: weeks back from the current week (0 = this week)
-  const filterState = { officialGrade: "", holdType: "", holdColor: "", tag: "", area: "" };
-
-  // The week on screen, Tuesday to Monday, local time.
-  function logWeek() {
-    const start = weekStart(new Date(), LOG_WEEK_START);
-    start.setDate(start.getDate() - 7 * weekOffset);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 7);
-    return { start, end };
-  }
+  // from/to are "YYYY-MM-DD" from the date pickers, compared with each send's local date.
+  const filterState = { officialGrade: "", holdType: "", holdColor: "", tag: "", area: "", from: "", to: "" };
+  const localDay = (iso) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 
   function getFiltered() {
     let entries = allEntries.filter((e) => disciplineOf(routeData(e)) === discipline);
@@ -69,6 +61,8 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
     if (filterState.holdColor) entries = entries.filter((e) => routeData(e).holdColor === filterState.holdColor);
     if (filterState.tag) entries = entries.filter((e) => e.topTags.some((t) => t.name === filterState.tag));
     if (filterState.area) entries = entries.filter((e) => routeData(e).wallSection === filterState.area);
+    if (filterState.from) entries = entries.filter((e) => localDay(e.completedAt) >= filterState.from);
+    if (filterState.to) entries = entries.filter((e) => localDay(e.completedAt) <= filterState.to);
 
     entries = [...entries].sort((a, b) => {
       let av, bv;
@@ -167,79 +161,64 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
     else renderStats(body);
   }
 
-  function renderTable(body, matching) {
+  function renderTable(body, entries) {
     const tags = allTagNames();
-    const week = logWeek();
-    const entries = matching.filter((e) => { const t = new Date(e.completedAt); return t >= week.start && t < week.end; });
-    const earliest = allEntries.length
-      ? weekStart(allEntries.reduce((m, e) => (e.completedAt < m ? e.completedAt : m), allEntries[0].completedAt), LOG_WEEK_START)
-      : null;
+    const rope = discipline === "rope";
     body.innerHTML = `
-      <div class="week-nav">
-        <button class="btn btn-outline btn-sm" id="week-prev" aria-label="Previous week" ${!earliest || week.start <= earliest ? "disabled" : ""}>‹</button>
-        <div class="week-label"><strong>${weekWindowLabel([week.start])}</strong><span>${entries.length} climb${entries.length === 1 ? "" : "s"}</span></div>
-        <button class="btn btn-outline btn-sm" id="week-next" aria-label="Next week" ${weekOffset === 0 ? "disabled" : ""}>›</button>
-      </div>
       <div class="filters-bar">
         <select id="f-grade"><option value="">Any Grade</option>${Array.from({ length: maxGradeFor(discipline) + 1 }, (_, g) => `<option value="${g}" ${filterState.officialGrade === String(g) ? "selected" : ""}>${gradeScaleLabel(g, discipline)}</option>`).join("")}</select>
         <select id="f-holdtype"><option value="">Any Hold Type</option>${HOLD_TYPES.map((h) => `<option ${filterState.holdType === h ? "selected" : ""}>${h}</option>`).join("")}</select>
         <select id="f-holdcolor"><option value="">Any Hold Color</option>${HOLD_COLORS.map((c) => `<option ${filterState.holdColor === c ? "selected" : ""}>${c}</option>`).join("")}</select>
         <select id="f-tag"><option value="">Any Style</option>${tags.map((t) => `<option ${filterState.tag === t ? "selected" : ""}>${escapeHtml(t)}</option>`).join("")}</select>
-        <select id="f-area"><option value="">Any Area</option>${sectionsFor(discipline).map((s) => `<option value="${s.id}" ${filterState.area === s.id ? "selected" : ""}>${escapeHtml(s.name)}</option>`).join("")}</select>
+        <select id="f-area"><option value="">Any Area</option>${areasFor(discipline).map((s) => `<option value="${s.id}" ${filterState.area === s.id ? "selected" : ""}>${escapeHtml(s.name)}</option>`).join("")}</select>
+        <label class="date-filter">From <input type="date" id="f-from" value="${filterState.from}" max="${filterState.to}"/></label>
+        <label class="date-filter">To <input type="date" id="f-to" value="${filterState.to}" min="${filterState.from}"/></label>
         <button class="btn btn-ghost btn-sm" id="f-clear">Clear</button>
       </div>
-      ${entries.length === 0 ? emptyState() : `
-      <div class="table-wrap log-table-wrap">
-        <table class="log-table">
-          <thead><tr>
-            ${headerCell("Date", "completedAt")}
-            ${headerCell("Area", "area")}
-            ${headerCell("Official Grade", "officialGrade")}
-            ${headerCell("Community Est.", "estimatedGrade")}
-            ${headerCell("Hold Type", "holdType")}
-            <th>Style / Tags</th>
-            ${isOwn ? "<th></th>" : ""}
-          </tr></thead>
-          <tbody>
-            ${entries.map((e) => `
-              <tr data-route-id="${e.routeId}" data-label="${escapeHtml(snapshotLabel(e))}" tabindex="0">
-                <td>${formatDate(e.completedAt)}</td>
-                <td><span class="hold-dot" style="background:var(--hold-${routeData(e).holdColor.toLowerCase()})"></span> ${escapeHtml(areaLabel(e))}${!e.route ? ' <span class="badge-soft">retired</span>' : ""}</td>
-                <td>${formatGrade(routeData(e).officialGrade, discipline)}</td>
-                <td>${e.estimatedGrade === null ? "—" : formatEstimate(e.estimatedGrade, discipline)}</td>
-                <td>${routeData(e).holdType || "—"}</td>
-                <td>${[
-                  e.flash ? `<span class="chip flash-chip" style="margin:2px;">FLASH</span>` : "",
-                  ...e.topTags.map((t) => `<span class="chip" style="margin:2px;">${escapeHtml(t.name)}</span>`),
-                ].join("") || "—"}</td>
-                ${isOwn ? `<td><button class="btn btn-ghost btn-sm" data-delete-id="${e.id}" style="color:var(--pr-danger);">Delete</button></td>` : ""}
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>
-      </div>
-      <div class="log-card-list">
-        ${entries.map((e) => `
-          <div class="swipe-row" data-entry-id="${e.id}">
-            ${isOwn ? `<button class="swipe-delete-btn" aria-label="Delete this send">Delete</button>` : ""}
-            <button class="log-card" data-route-id="${e.routeId}" data-label="${escapeHtml(snapshotLabel(e))}">
-              <div class="log-card-top">
-                <span class="hold-dot" style="background:var(--hold-${routeData(e).holdColor.toLowerCase()})"></span>
-                <strong>${escapeHtml(areaLabel(e))}</strong>
-                ${!e.route ? '<span class="badge-soft">retired</span>' : ""}
-                <span class="log-card-date">${formatDate(e.completedAt)}</span>
+      <section class="card list-box full log-list">
+        <div class="list-box-head">
+          <h2>${DISCIPLINE_LABELS[discipline]}</h2>
+          <div class="list-box-meta"><span>${entries.length} climb${entries.length === 1 ? "" : "s"}</span></div>
+        </div>
+        <div class="list-cols">
+          ${headerCell("Date", "completedAt")}
+          ${headerCell("Route", "holdColor")}
+          ${headerCell("Area", "area")}
+          ${headerCell("Official Grade", "officialGrade", "lg-wide")}
+          ${headerCell("Community Est.", "estimatedGrade")}
+          ${headerCell("Hold Type", "holdType", "lg-wide")}
+          <span class="list-tags">Style / Tags</span>
+          ${isOwn ? `<span class="lg-wide"></span>` : ""}
+        </div>
+        <div class="list-box-body">
+          ${entries.length === 0 ? emptyState() : entries.map((e) => {
+            const d = routeData(e);
+            return `
+            <div class="swipe-row" data-entry-id="${e.id}">
+              ${isOwn ? `<button class="swipe-delete-btn" aria-label="Delete this send">Delete</button>` : ""}
+              <div class="log-card list-row" role="button" tabindex="0" data-route-id="${e.routeId}" data-label="${escapeHtml(snapshotLabel(e))}">
+                <span class="lg-date">${formatDate(e.completedAt)}</span>
+                <span class="list-route-cell">
+                  <span class="list-bubble${rope ? " rope" : ""}" style="background:${HOLD_COLOR_HEX[d.holdColor]};color:${HOLD_COLOR_TEXT[d.holdColor]};" data-hold="${d.holdColor}">${formatGrade(d.officialGrade, discipline)}</span>
+                  <span class="list-color">${escapeHtml(d.holdColor)}</span>
+                  ${e.flash ? `<span class="list-flashed" title="Flashed">${BOLT_ICON}</span>` : ""}
+                </span>
+                <span class="list-hold">${escapeHtml(areaLabel(e))}${!e.route ? ' <span class="badge-soft">retired</span>' : ""}</span>
+                <span class="lg-wide">${formatGrade(d.officialGrade, discipline)}</span>
+                <span>${e.estimatedGrade === null ? "—" : formatEstimate(e.estimatedGrade, discipline)}</span>
+                <span class="list-hold lg-wide">${escapeHtml(d.holdType || "—")}</span>
+                <span class="list-tags">${e.topTags.map((t) => `<span class="chip">${escapeHtml(t.name)}</span>`).join("")}</span>
+                ${isOwn ? `<span class="lg-wide lg-del" role="button" tabindex="0" data-delete-id="${e.id}">Delete</span>` : ""}
               </div>
-              <div class="log-card-meta">${formatGrade(routeData(e).officialGrade, discipline)} · ${routeData(e).holdType || "—"} · Community Est. ${e.estimatedGrade === null ? "—" : formatEstimate(e.estimatedGrade, discipline)}</div>
-              ${e.flash || e.topTags.length ? `<div class="log-card-tags">${e.flash ? `<span class="chip flash-chip">FLASH</span>` : ""}${e.topTags.map((t) => `<span class="chip">${escapeHtml(t.name)}</span>`).join("")}</div>` : ""}
-            </button>
-          </div>
-        `).join("")}
-      </div>`}
+            </div>`;
+          }).join("")}
+        </div>
+      </section>
     `;
 
-    function headerCell(label, field) {
+    function headerCell(label, field, cls = "") {
       const arrow = sortField === field ? (sortDir === "asc" ? "▲" : "▼") : "";
-      return `<th data-sort="${field}">${label}<span class="sort-arrow">${arrow}</span></th>`;
+      return `<button type="button" class="list-sort ${cls}" data-sort="${field}">${label}<span class="sort-arrow">${arrow}</span></button>`;
     }
 
     body.querySelectorAll("[data-sort]").forEach((th) =>
@@ -250,22 +229,19 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
         render();
       })
     );
-    body.querySelectorAll("tr[data-route-id]").forEach((el) =>
-      el.addEventListener("click", () => openGalleryPrompt(el.getAttribute("data-route-id"), el.getAttribute("data-label")))
-    );
     body.querySelectorAll("[data-delete-id]").forEach((btn) =>
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const entry = entries.find((x) => x.id === btn.getAttribute("data-delete-id"));
-        if (entry) handleDelete(entry, btn.closest("tr"));
+        if (entry) handleDelete(entry, btn.closest(".swipe-row"));
       })
     );
     body.querySelectorAll(".swipe-row").forEach((row) => {
       const entry = entries.find((x) => x.id === row.getAttribute("data-entry-id"));
       wireLogCard(row, () => entry && handleDelete(entry, row));
     });
-    body.querySelector("#week-prev").addEventListener("click", () => { weekOffset++; render(); });
-    body.querySelector("#week-next").addEventListener("click", () => { weekOffset--; render(); });
+    body.querySelector("#f-from").addEventListener("change", (e) => { filterState.from = e.target.value; render(); });
+    body.querySelector("#f-to").addEventListener("change", (e) => { filterState.to = e.target.value; render(); });
     body.querySelector("#f-grade").addEventListener("change", (e) => { filterState.officialGrade = e.target.value; render(); });
     body.querySelector("#f-holdtype").addEventListener("change", (e) => { filterState.holdType = e.target.value; render(); });
     body.querySelector("#f-holdcolor").addEventListener("change", (e) => { filterState.holdColor = e.target.value; render(); });
@@ -315,7 +291,9 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
       deleteBtn.addEventListener("click", (e) => { e.stopPropagation(); onDelete(); });
     }
 
+    card.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); card.click(); } });
     card.addEventListener("click", (e) => {
+      if (e.target.closest("[data-delete-id]")) return; // the desktop Delete inside the row
       if (moved) { e.preventDefault(); e.stopImmediatePropagation(); return; }
       if (open) {
         e.preventDefault(); e.stopImmediatePropagation();
@@ -328,7 +306,7 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
   }
 
   function emptyState() {
-    return `<div class="empty-state card"><div>No climbs match these filters in this week.</div></div>`;
+    return `<div class="list-empty">No climbs match these filters.</div>`;
   }
 
   async function renderStats(body) {

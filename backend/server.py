@@ -21,9 +21,11 @@ import re
 import secrets
 import shutil
 import signal
+import struct
 import threading
 import time
 import uuid
+import zlib
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -568,6 +570,39 @@ def purge_routes(route_ids):
     DB["routes"] = [r for r in DB["routes"] if r["id"] not in route_ids]
 
 
+# ===================== App icon in the user's accent color =====================
+# assets/icons/app-icon.svg (the rock on a background rect) is the one source: the
+# favicon swaps its background fill, the home-screen PNG rasterizes its 64-grid rects.
+ICON_SVG = STATIC_DIR / "assets" / "icons" / "app-icon.svg"
+ICON_DEFAULT = "bf2c37"
+
+
+def icon_color(value):
+    c = (value or "").lower().lstrip("#")
+    return c if re.fullmatch(r"[0-9a-f]{6}", c) else ICON_DEFAULT
+
+
+def icon_svg(color):
+    return ICON_SVG.read_text(encoding="utf-8").replace(f'fill="#{ICON_DEFAULT}"', f'fill="#{color}"', 1).encode()
+
+
+def icon_png(color, scale=3):
+    n = 64 * scale
+    rows = [bytearray(bytes.fromhex(color) * n) for _ in range(n)]
+    for fill, d in re.findall(r'<path fill="#([0-9a-f]{6})" d="([^"]+)"', ICON_SVG.read_text(encoding="utf-8")):
+        rgb = bytes.fromhex(fill)
+        for x, y, w, h in re.findall(r"M(\d+) (-?\d+)h(\d+)v(\d+)", d):
+            x, y, w, h = (int(v) * scale for v in (x, y, w, h))
+            for yy in range(max(y, 0), min(y + h, n)):
+                rows[yy][x * 3:(x + w) * 3] = rgb * w
+    raw = b"".join(b"\x00" + bytes(r) for r in rows)
+
+    def chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", n, n, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
+
+
 class ApiError(Exception):
     def __init__(self, status, message):
         super().__init__(message)
@@ -746,6 +781,15 @@ class Handler(BaseHTTPRequestHandler):
                 self._raw = self.rfile.read(length) if length else b""
                 with LOCK:
                     self._route_api(method, path, qs)
+            elif path in ("/icon.svg", "/icon.png"):
+                color = icon_color(qs.get("c"))
+                body = icon_svg(color) if path == "/icon.svg" else icon_png(color)
+                self.send_response(200)
+                self.send_header("Content-Type", "image/svg+xml" if path == "/icon.svg" else "image/png")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "public, max-age=86400")  # keyed by ?c=, so a new color is a new URL
+                self.end_headers()
+                self.wfile.write(body)
             elif path.startswith("/uploads/"):
                 self._serve_file(UPLOADS_DIR, path[len("/uploads/"):], immutable=True)
             else:

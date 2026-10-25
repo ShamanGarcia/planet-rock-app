@@ -285,8 +285,8 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
 .map-canvas.animating{ transition:transform var(--t-base) var(--ease-out); }
 .floor-plan{ position:absolute; inset:0; width:100%; height:100%; display:block; }
 .wall-zone{ fill:#36454F; stroke:rgba(27,29,33,.35); stroke-width:.3; opacity:.92; cursor:pointer; }
-/* The rope area is a single section, so its walls aren't tap targets. */
-.floor-plan.rope .wall-zone{ cursor:default; }
+/* The Cave: a bouldering area inside the rope room, a lighter grey than the walls. */
+.wall-zone.cave{ fill:#8d979f; }
 .map-canvas{ transition:opacity .25s ease; }
 .map-canvas.fading, .route-list-view.fading{ opacity:0; }
 .route-list-view{ transition:opacity .25s ease; }
@@ -393,6 +393,8 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
   -webkit-background-clip:text; background-clip:text; color:transparent; text-shadow:none;
   animation:rainbow-slide 3s linear infinite;
 }
+.wall-label.sm{ font-size:11px; letter-spacing:.4px; }
+.wall-label.cave{ color:#1b1d21; text-shadow:none; font-size:18px; }
 .wall-label .new-set{
   position:absolute; bottom:100%; left:50%; transform:translateX(-50%); font-size:12px;
 }
@@ -487,23 +489,7 @@ button.grade-badge{ border:none; }
 .mode-toggle button{ flex:1; border:none; background:transparent; padding:8px 14px; border-radius:999px; font-weight:700; font-size:13px; color:var(--pr-text-soft); }
 .mode-toggle button.active{ background:#fff; color:var(--pr-ink); box-shadow:var(--pr-shadow); }
 
-/* Mobile-first: a wide table forces sideways scrolling to read a climbing
-   log entry, which feels broken on a phone. Below the breakpoint we show a
-   vertical, tap-friendly card list instead (scroll down, never sideways);
-   the table returns once there's room for it. */
-.log-table-wrap{ display:none; }
-.log-card-list{ display:flex; flex-direction:column; gap:10px; }
-@media (min-width:720px){
-  .log-table-wrap{ display:block; }
-  .log-card-list{ display:none; }
-}
-
 .table-wrap{ overflow-x:auto; border-radius:var(--pr-radius); border:1px solid var(--pr-border); background:#fff; }
-table.log-table{ width:100%; border-collapse:collapse; font-size:13px; min-width:640px; }
-table.log-table th{ text-align:left; padding:10px 12px; background:#f7f6f2; font-size:11px; text-transform:uppercase; letter-spacing:.3px; color:var(--pr-text-soft); position:sticky; top:0; cursor:pointer; user-select:none; white-space:nowrap; }
-table.log-table td{ padding:10px 12px; border-top:1px solid var(--pr-border); white-space:nowrap; }
-table.log-table tbody tr{ cursor:pointer; }
-table.log-table tbody tr:hover{ background:#faf9f6; }
 .sort-arrow{ font-size:10px; margin-left:3px; opacity:.6; }
 
 .swipe-row{ position:relative; border-radius:var(--pr-radius); overflow:hidden; max-height:400px; }
@@ -511,7 +497,6 @@ table.log-table tbody tr:hover{ background:#faf9f6; }
   transition:opacity var(--t-fast) var(--ease-out), max-height var(--t-fast) var(--ease-out), margin-bottom var(--t-fast) var(--ease-out);
   opacity:0; max-height:0; margin-bottom:0;
 }
-table.log-table tbody tr.row-removing{ transition:opacity var(--t-fast) var(--ease-out); opacity:0; }
 .swipe-delete-btn{
   position:absolute; top:0; right:0; bottom:0; width:84px; border:none;
   background:var(--pr-danger); color:#fff; font-weight:700; font-size:13px;
@@ -521,12 +506,19 @@ table.log-table tbody tr.row-removing{ transition:opacity var(--t-fast) var(--ea
   border-radius:var(--pr-radius); padding:12px 14px; font:inherit; color:inherit;
 }
 .log-card:active{ background:#faf9f6; }
-.log-card-top{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
-.log-card-top strong{ font-size:14px; }
-.log-card-date{ margin-left:auto; font-size:12px; color:var(--pr-text-soft); font-weight:600; }
-.log-card-meta{ font-size:12.5px; color:var(--pr-text-soft); margin-top:4px; }
-.log-card-tags{ display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
-.log-card-tags .chip{ font-size:11px; padding:3px 9px; }
+/* Climbing log: the route list's card/list-box look, with Date and Area columns.
+   Phones show Date, Route, Area and Community Est. (swipe a row to delete);
+   wider screens add the official grade, hold type, tags and a Delete button. */
+.log-list .list-cols, .log-list .list-row{ grid-template-columns:44px minmax(0,1.3fr) minmax(0,1fr) 52px; }
+.log-list .lg-wide{ display:none; }
+.log-list .lg-date{ font-size:12px; font-weight:600; color:var(--pr-text-soft); }
+.list-sort{ all:unset; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lg-del{ color:var(--pr-danger); font-size:12.5px; font-weight:700; cursor:pointer; text-align:right; }
+.date-filter{ display:flex; align-items:center; gap:5px; font-size:12px; font-weight:600; color:var(--pr-text-soft); }
+@media (min-width:720px){
+  .log-list .list-cols, .log-list .list-row{ grid-template-columns:84px minmax(0,1.3fr) minmax(0,1fr) 92px 104px minmax(0,.9fr) minmax(0,1.2fr) 56px; }
+  .log-list .lg-wide{ display:block; }
+}
 
 /* ---- Route list view (map -> List) ---- */
 .route-list-view{ display:flex; flex-direction:column; gap:14px; padding:12px; max-width:1080px; margin:0 auto; }
@@ -665,11 +657,6 @@ table.log-table tbody tr.row-removing{ transition:opacity var(--t-fast) var(--ea
 .gs-toggle button{ padding:6px 12px; font-size:12px; }
 .gs-select{ padding:7px 10px; border-radius:9px; border:1.5px solid var(--pr-border); font-size:12.5px; background:#fff; }
 
-.week-nav{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
-.week-nav .btn{ width:40px; padding:6px 0; font-size:18px; line-height:1; }
-.week-label{ display:flex; flex-direction:column; align-items:center; text-align:center; }
-.week-label strong{ font-size:14px; }
-.week-label span{ font-size:12px; color:var(--pr-text-soft); }
 .filters-bar{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
 .filters-bar select, .filters-bar input{ padding:7px 10px; border-radius:9px; border:1.5px solid var(--pr-border); font-size:12.5px; background:#fff; }
 

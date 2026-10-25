@@ -1,6 +1,6 @@
 import { createRoute } from "../data/api.js";
 import { enqueueUpload } from "../data/upload.js";
-import { HOLD_COLORS, HOLD_COLOR_HEX, HOLD_COLOR_TEXT, HOLD_TYPES, MAX_GRADE, CLIMB_TYPES, formatGrade } from "../data/constants.js";
+import { HOLD_COLORS, HOLD_COLOR_HEX, HOLD_COLOR_TEXT, HOLD_TYPES, MAX_GRADE, CLIMB_TYPES, WALL_SECTIONS, ROPE_SECTIONS, formatGrade } from "../data/constants.js";
 import { ropeGradePickerHTML, wireRopeGradePicker } from "./ropeGradePicker.js";
 import { escapeHtml, dismissOverlay } from "../utils.js";
 import { showToast } from "./toast.js";
@@ -57,7 +57,7 @@ export function openAddRouteForm({ gymId, discipline = "boulder", mapX, mapY, wa
           <h2>${escapeHtml(previewLabel())}</h2>
           <button class="icon-btn" style="background:#efece5;color:#1b1d21" id="ar-close" aria-label="Cancel">X</button>
         </div>
-        <div class="page-sub" style="margin-bottom:12px;">Placed on ${wallSection ? escapeHtml(wallSection.replace(/-/g, " ")) : "the gym floor plan"} · you can drag the map before placing next time to fine-tune position.</div>
+        <div class="page-sub" style="margin-bottom:12px;">Placed on ${wallSection ? escapeHtml([...WALL_SECTIONS, ...ROPE_SECTIONS].find((x) => x.id === wallSection)?.name || wallSection) : "the gym floor plan"} · you can drag the map before placing next time to fine-tune position.</div>
 
         ${error ? `<div class="auth-error">${escapeHtml(error)}</div>` : ""}
 
