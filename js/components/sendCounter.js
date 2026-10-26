@@ -4,6 +4,7 @@ import { computeUserStats, getCurrentUser } from "../data/api.js";
 // ticks from the previous send total to the new one, holds a beat, then fades away.
 // Fire-and-forget; if the stats call fails the counter just doesn't show.
 const ROLL_MS = 700;
+const HOLD_MS = 650; // how long the new total stays up before fading
 
 function digitsHTML(from, to) {
   const a = String(from).padStart(String(to).length, "0");
@@ -14,6 +15,7 @@ function digitsHTML(from, to) {
 }
 
 export async function playSendCounter() {
+  navigator.vibrate?.([40, 70, 40]); // two quick buzzes for a logged send
   let total;
   try {
     const user = getCurrentUser();
@@ -32,6 +34,6 @@ export async function playSendCounter() {
     r.style.transition = `transform ${ROLL_MS}ms cubic-bezier(.2,.8,.2,1)`;
     r.style.transform = `translateY(${-r.dataset.to}em)`;
   }), 350);
-  setTimeout(() => el.classList.remove("show"), 350 + ROLL_MS + 900);
-  setTimeout(() => el.remove(), 350 + ROLL_MS + 900 + 400);
+  setTimeout(() => el.classList.remove("show"), 350 + ROLL_MS + HOLD_MS);
+  setTimeout(() => el.remove(), 350 + ROLL_MS + HOLD_MS + 400);
 }

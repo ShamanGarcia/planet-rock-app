@@ -1,6 +1,6 @@
 import { getCurrentUser, updateUser, computeUserStats, logOut } from "../data/api.js";
 import { formatGrade, HOLD_TYPES, MAX_GRADE } from "../data/constants.js";
-import { escapeHtml, compressImageFile, initials, ringStyle } from "../utils.js";
+import { escapeHtml, compressImageFile, initials, ringStyle, dismissOverlay } from "../utils.js";
 import { showToast } from "../components/toast.js";
 import { openPasswordPromptModal } from "../components/passwordPromptModal.js";
 import { unlockAdmin, ADMIN_PASSWORD } from "../adminAuth.js";
@@ -15,6 +15,37 @@ function climbingExperience(startDate) {
   const years = Math.floor(months / 12);
   const rem = months % 12;
   return `${years} yr${years === 1 ? "" : "s"}${rem ? ` ${rem} mo` : ""} climbing`;
+}
+
+// The suggestion box: Send opens the person's own mail app with the note filled in,
+// addressed to the developer, and they send it from there.
+const SUGGESTION_EMAIL = "shamangarc@gmail.com";
+
+function openSuggestion(user) {
+  const backdrop = document.createElement("div");
+  backdrop.className = "mini-popup-backdrop";
+  document.body.appendChild(backdrop);
+  backdrop.innerHTML = `
+    <form class="mini-popup" role="dialog" aria-modal="true" aria-label="Send a suggestion">
+      <div class="mini-popup-title">Help Improve MATCHBOOK</div>
+      <div class="page-sub" style="text-align:center;">Comments, ideas, or something that's not working right.</div>
+      <textarea id="sg-text" rows="6" maxlength="2000" placeholder="Your suggestion…" required style="width:100%;resize:vertical;"></textarea>
+      <button class="btn btn-primary btn-block" type="submit">Send</button>
+      <button class="btn btn-ghost btn-block" type="button" id="sg-cancel">Cancel</button>
+    </form>`;
+  const close = () => dismissOverlay(backdrop);
+  backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
+  backdrop.querySelector("#sg-cancel").addEventListener("click", close);
+  backdrop.querySelector("textarea").focus();
+  backdrop.querySelector("form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const text = backdrop.querySelector("#sg-text").value.trim();
+    if (!text) return;
+    const subject = encodeURIComponent("MATCHBOOK suggestion");
+    const body = encodeURIComponent(`${text}\n\n— ${user.name}`);
+    location.href = `mailto:${SUGGESTION_EMAIL}?subject=${subject}&body=${body}`;
+    close();
+  });
 }
 
 export function renderProfile(container) {
@@ -82,6 +113,9 @@ export function renderProfile(container) {
                 return `<button type="button" class="chip set-toggle big ${on ? "active" : ""}" id="p-nav-${tab}" aria-pressed="${on}"><img src="/assets/icons/nav-${icon}.svg" alt="" width="32" height="32"/>${label}</button>`;
               }).join("")}
             </div>
+
+            <div class="settings-group">Suggestions</div>
+            <button type="button" class="btn btn-outline btn-block" id="p-suggest">Send a Suggestion</button>
           </div>
         </div>
 
@@ -99,6 +133,7 @@ export function renderProfile(container) {
         onConfirm: () => { unlockAdmin(); location.hash = "#/admin"; },
       });
     });
+    container.querySelector("#p-suggest").addEventListener("click", () => openSuggestion(user));
     container.querySelector("#logout-btn").addEventListener("click", async () => {
       await logOut();
       location.reload();

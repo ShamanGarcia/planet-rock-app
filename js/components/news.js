@@ -1,5 +1,6 @@
 import { getCurrentUser } from "../data/api.js";
 import { dismissOverlay, escapeHtml } from "../utils.js";
+import { getAccent } from "../accent.js";
 
 // What's new in the app. Newest first. Add an item here to announce a change; each
 // person's "mark read" choices live in localStorage under their user id, so an item
@@ -8,26 +9,34 @@ export const NEWS_ICON = "/assets/icons/news.svg";
 
 const NEWS = [
   {
-    id: "clips",
-    title: "Clips are here!",
-    text: "Upload your videos when logging a send, or from your climbing log.",
+    id: "suggestions",
+    title: "Send Us Suggestions!",
+    text: "Got an idea or found something off? Go to Profile, scroll to Settings and tap Send a Suggestion.",
+    image: "/assets/news/suggestions.png",
   },
   {
-    id: "add-to-home-screen",
-    title: "Add to Home Screen!",
-    text: "Put MATCHBOOK on your iPhone like an app:",
+    id: "rope-walls",
+    title: "New Rope Map!",
+    text: "Every rope wall now has its own name: tap one to zoom in, just like the boulder walls. The Cave is bouldering, tap it to see and log its problems.",
+    image: "/assets/news/rope-walls.png",
+  },
+  {
+    id: "home-screen-icon",
+    title: "Add MATCHBOOK to Your Home Screen!",
+    text: "The new app icon picks up your accent color. To put it on your iPhone:",
+    icon: "accent",
     steps: [
       "Open thematchbook.org in Safari.",
       "Tap the Share button (the square with an arrow) at the bottom of the screen.",
-      "Scroll down and tap Add to Home Screen.",
-      "Tap Add. MATCHBOOK now opens full screen from its own icon.",
+      "Scroll down and tap Add to Home Screen, then tap Add.",
+      "Changed your color? Remove the icon and add it again to update it.",
     ],
   },
   {
-    id: "ropes",
-    title: "Ropes Added!",
-    text: "Flip the map to Rope to see the Rope wall, log your sends and view your stats.",
-    image: "/assets/news/rope-map.png",
+    id: "clips-nav", // re-issued so everyone sees the nav bar tip
+    title: "Clips are here!",
+    text: "Upload your videos when logging a send, or from your climbing log. Rather not see Clips? Turn it off under Navigation Bar in Profile settings to remove it from your nav bar.",
+    icon: "/assets/icons/nav-clips.svg",
   },
   {
     id: "color-picker",
@@ -59,6 +68,7 @@ function itemHTML(n, unread) {
         <h3>${escapeHtml(n.title)}</h3>
         ${unread ? `<button type="button" class="btn btn-outline btn-sm news-read">Mark read</button>` : ""}
       </div>
+      ${n.icon ? `<img class="news-icon-art" src="${n.icon === "accent" ? `/icon.svg?c=${getAccent().slice(1)}` : n.icon}" alt="" width="64" height="64"/>` : ""}
       <p>${escapeHtml(n.text)}</p>
       ${n.steps ? `<ol class="news-steps">${n.steps.map((t) => `<li>${escapeHtml(t)}</li>`).join("")}</ol>` : ""}
       ${n.image ? `<div class="news-shot"><img src="${n.image}" alt="" loading="lazy"/>${n.tag ? `<span class="news-tag">${escapeHtml(n.tag)}</span>` : ""}</div>` : ""}

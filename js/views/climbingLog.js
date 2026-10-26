@@ -5,7 +5,7 @@ import {
 } from "../data/constants.js";
 import { getDiscipline, storeDiscipline } from "../data/discipline.js";
 import { disciplineButtonsHTML } from "../components/disciplineToggle.js";
-import { formatDate, escapeHtml, clamp, weekStart, weekWindow, weekWindowLabel, WEEKS_PER_WINDOW } from "../utils.js";
+import { formatDate, escapeHtml, clamp, dismissOverlay,weekStart, weekWindow, weekWindowLabel, WEEKS_PER_WINDOW } from "../utils.js";
 import { getAccent } from "../accent.js";
 import { renderBarChart, renderRadarChart, renderPieChart, renderLineChart, shadesOf } from "../components/charts.js";
 
@@ -14,6 +14,7 @@ const CHART_MODE_LABEL = { bar: "Bar", radar: "Radar", pie: "Pie" };
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const BOLT_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>`;
 import { openGalleryPrompt } from "../components/gallery.js";
+import { openRouteDetail } from "./routeDetail.js";
 import { showToast } from "../components/toast.js";
 
 // Looks across both areas' sections: an entry's wall section belongs to
@@ -52,6 +53,7 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
   let loadError = null;
   // from/to are "YYYY-MM-DD" from the date pickers, compared with each send's local date.
   const filterState = { officialGrade: "", holdType: "", holdColor: "", tag: "", area: "", from: "", to: "" };
+  let expanded = false; // the list-box's Expand button: second line per row for cut-off columns
   const localDay = (iso) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 
   function getFiltered() {
@@ -175,8 +177,9 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
         <label class="date-filter">To <input type="date" id="f-to" value="${filterState.to}" min="${filterState.from}"/></label>
         <button class="btn btn-ghost btn-sm" id="f-clear">Clear</button>
       </div>
-      <section class="card list-box full log-list">
+      <section class="card list-box full log-list ${expanded ? "expanded" : ""}">
         <div class="list-box-head">
+          <button type="button" class="btn btn-outline btn-sm lg-expand" aria-pressed="${expanded}">${expanded ? "Collapse" : "Expand"}</button>
           <h2>${DISCIPLINE_LABELS[discipline]}</h2>
           <div class="list-box-meta"><span>${entries.length} climb${entries.length === 1 ? "" : "s"}</span></div>
         </div>
@@ -199,8 +202,8 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
               <div class="log-card list-row" role="button" tabindex="0" data-route-id="${e.routeId}" data-label="${escapeHtml(snapshotLabel(e))}">
                 <span class="lg-date">${formatDate(e.completedAt)}</span>
                 <span class="list-route-cell">
-                  <span class="list-bubble${rope ? " rope" : ""}" style="background:${HOLD_COLOR_HEX[d.holdColor]};color:${HOLD_COLOR_TEXT[d.holdColor]};" data-hold="${d.holdColor}">${formatGrade(d.officialGrade, discipline)}</span>
-                  <span class="list-color">${escapeHtml(d.holdColor)}</span>
+                  <span class="list-bubble rope" style="background:${HOLD_COLOR_HEX[d.holdColor]};color:${HOLD_COLOR_TEXT[d.holdColor]};" data-hold="${d.holdColor}" title="${escapeHtml(d.holdColor)}">${formatGrade(d.officialGrade, discipline)}</span>
+                  ${rope ? `<span class="list-color">${escapeHtml(d.holdColor)}</span>` : ""}
                   ${e.flash ? `<span class="list-flashed" title="Flashed">${BOLT_ICON}</span>` : ""}
                 </span>
                 <span class="list-hold">${escapeHtml(areaLabel(e))}${!e.route ? ' <span class="badge-soft">retired</span>' : ""}</span>
@@ -209,6 +212,7 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
                 <span class="list-hold lg-wide">${escapeHtml(d.holdType || "—")}</span>
                 <span class="list-tags">${e.topTags.map((t) => `<span class="chip">${escapeHtml(t.name)}</span>`).join("")}</span>
                 ${isOwn ? `<span class="lg-wide lg-del" role="button" tabindex="0" data-delete-id="${e.id}">Delete</span>` : ""}
+                <span class="lg-extra">${escapeHtml(d.holdType || "No hold type")}${e.topTags.map((t) => `<span class="chip">${escapeHtml(t.name)}</span>`).join("")}</span>
               </div>
             </div>`;
           }).join("")}
@@ -229,16 +233,23 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
         render();
       })
     );
+    // Expand adds a second line per row with what the narrow columns cut off (hold type, tags).
+    body.querySelector(".lg-expand").addEventListener("click", (e) => {
+      expanded = !expanded;
+      body.querySelector(".log-list").classList.toggle("expanded", expanded);
+      e.currentTarget.textContent = expanded ? "Collapse" : "Expand";
+      e.currentTarget.setAttribute("aria-pressed", String(expanded));
+    });
     body.querySelectorAll("[data-delete-id]").forEach((btn) =>
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const entry = entries.find((x) => x.id === btn.getAttribute("data-delete-id"));
-        if (entry) handleDelete(entry, btn.closest(".swipe-row"));
+        if (entry) confirmDelete(entry, btn.closest(".swipe-row"));
       })
     );
     body.querySelectorAll(".swipe-row").forEach((row) => {
       const entry = entries.find((x) => x.id === row.getAttribute("data-entry-id"));
-      wireLogCard(row, () => entry && handleDelete(entry, row));
+      if (entry) wireLogCard(row, entry);
     });
     body.querySelector("#f-from").addEventListener("change", (e) => { filterState.from = e.target.value; render(); });
     body.querySelector("#f-to").addEventListener("change", (e) => { filterState.to = e.target.value; render(); });
@@ -253,55 +264,90 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
     });
   }
 
-  // Wires a mobile log card: tap opens the gallery prompt; if a delete
-  // button is present (own log only), swiping the card left with native
-  // pointer events (no gesture library) reveals it underneath.
-  function wireLogCard(rowEl, onDelete) {
+  // Asks first; a confirmed delete buzzes the phone once.
+  function confirmDelete(entry, rowEl) {
+    const backdrop = document.createElement("div");
+    backdrop.className = "mini-popup-backdrop";
+    document.body.appendChild(backdrop);
+    backdrop.innerHTML = `
+      <div class="mini-popup" role="dialog" aria-modal="true" aria-label="Delete send">
+        <div class="mini-popup-title">Delete this send?</div>
+        <div class="page-sub" style="text-align:center;">${escapeHtml(snapshotLabel(entry))} · ${formatDate(entry.completedAt)}</div>
+        <button class="btn btn-danger btn-block" id="ld-ok">Delete</button>
+        <button class="btn btn-ghost btn-block" id="ld-cancel">Cancel</button>
+      </div>`;
+    const close = () => {
+      dismissOverlay(backdrop);
+      const card = rowEl?.querySelector(".log-card");
+      if (card) card.style.transform = "translateX(0)"; // a swiped-open row slides back
+    };
+    backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
+    backdrop.querySelector("#ld-cancel").addEventListener("click", close);
+    backdrop.querySelector("#ld-ok").addEventListener("click", () => {
+      dismissOverlay(backdrop);
+      navigator.vibrate?.(60);
+      handleDelete(entry, rowEl);
+    });
+  }
+
+  // Wires a log row: a tap opens the route's drawer (or, for a route that's gone, the
+  // gallery prompt). On your own log a deliberate left swipe reveals Delete: the gesture
+  // only starts once the finger moves sideways more than up/down, and it has to travel
+  // SWIPE_OPEN px before the button stays open, so scrolling the list can't trigger it.
+  function wireLogCard(rowEl, entry) {
     const card = rowEl.querySelector(".log-card");
     const deleteBtn = rowEl.querySelector(".swipe-delete-btn");
-    if (!card) return;
     const OPEN_X = -84;
-    let startX = 0, baseX = 0, dragging = false, open = false, moved = false;
+    const SWIPE_OPEN = 120;
+    let startX = 0, startY = 0, baseX = 0, pressed = false, dragging = false, open = false, moved = false;
 
     if (deleteBtn) {
       card.style.touchAction = "pan-y";
       card.addEventListener("pointerdown", (e) => {
         if (e.pointerType === "mouse" && e.button !== 0) return;
-        dragging = true; moved = false;
-        startX = e.clientX; baseX = open ? OPEN_X : 0;
-        card.style.transition = "none";
-        card.setPointerCapture(e.pointerId);
+        pressed = true; dragging = false; moved = false;
+        startX = e.clientX; startY = e.clientY; baseX = open ? OPEN_X : 0;
       });
       card.addEventListener("pointermove", (e) => {
-        if (!dragging) return;
-        const dx = e.clientX - startX;
-        if (Math.abs(dx) > 4) moved = true;
-        card.style.transform = `translateX(${clamp(baseX + dx, OPEN_X, 0)}px)`;
+        if (!pressed) return;
+        const dx = e.clientX - startX, dy = e.clientY - startY;
+        if (!dragging) {
+          if (Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
+          if (Math.abs(dx) < Math.abs(dy) * 1.5) { pressed = false; return; } // a scroll, not a swipe
+          dragging = moved = true;
+          rowEl.classList.add("revealing"); // Delete stays hidden behind the card until a swipe starts
+          card.style.transition = "none";
+          try { card.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
+        }
+        card.style.transform = `translateX(${clamp(baseX + dx, OPEN_X * 1.6, 0)}px)`;
       });
       const endDrag = (e) => {
+        pressed = false;
         if (!dragging) return;
         dragging = false;
         card.style.transition = "";
         const dx = e.clientX - startX;
-        open = clamp(baseX + dx, OPEN_X, 0) < OPEN_X / 2;
+        open = open ? dx < 40 : dx <= -SWIPE_OPEN; // opening takes a strong swipe; a small nudge right closes it
         card.style.transform = `translateX(${open ? OPEN_X : 0}px)`;
+        if (!open) setTimeout(() => rowEl.classList.remove("revealing"), 200);
       };
       card.addEventListener("pointerup", endDrag);
       card.addEventListener("pointercancel", endDrag);
-      deleteBtn.addEventListener("click", (e) => { e.stopPropagation(); onDelete(); });
+      deleteBtn.addEventListener("click", (e) => { e.stopPropagation(); open = false; confirmDelete(entry, rowEl); });
     }
 
     card.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); card.click(); } });
     card.addEventListener("click", (e) => {
       if (e.target.closest("[data-delete-id]")) return; // the desktop Delete inside the row
-      if (moved) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+      if (moved) { e.preventDefault(); e.stopImmediatePropagation(); moved = false; return; }
       if (open) {
         e.preventDefault(); e.stopImmediatePropagation();
         open = false;
         card.style.transform = "translateX(0)";
         return;
       }
-      openGalleryPrompt(card.getAttribute("data-route-id"), card.getAttribute("data-label"));
+      if (entry.route) openRouteDetail(entry.routeId, { onChanged: load });
+      else openGalleryPrompt(entry.routeId, snapshotLabel(entry)); // the route was removed from the gym
     });
   }
 

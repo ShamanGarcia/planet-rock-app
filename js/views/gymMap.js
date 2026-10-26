@@ -764,7 +764,12 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
 
     // Only routes placed inside a wall section render as markers. Rope routes left
     // off the walls when the rope plan was redrawn still show, so they can be moved back.
-    visibleRoutes = visibleRoutes.filter((r) => discipline === "rope" || !!findWallSectionAt(r.mapX, r.mapY, discipline));
+    // Cave problems only show once the Cave itself is open in area view.
+    visibleRoutes = visibleRoutes.filter((r) => {
+      const sectionId = findWallSectionAt(r.mapX, r.mapY, discipline);
+      if (sectionId === CAVE_ID) return zoomedSectionId === CAVE_ID;
+      return discipline === "rope" || !!sectionId;
+    });
 
     const markersHTML = visibleRoutes
       .map((r) => {

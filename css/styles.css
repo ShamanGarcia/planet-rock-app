@@ -514,10 +514,24 @@ button.grade-badge{ border:none; }
 .log-list .lg-date{ font-size:12px; font-weight:600; color:var(--pr-text-soft); }
 .list-sort{ all:unset; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .lg-del{ color:var(--pr-danger); font-size:12.5px; font-weight:700; cursor:pointer; text-align:right; }
+.log-list .list-bubble{ min-width:0; padding:0 8px; } /* the pill fits its grade text */
+.lg-expand{ float:right; }
+.log-list .swipe-delete-btn{ visibility:hidden; }
+.log-list .swipe-row.revealing .swipe-delete-btn{ visibility:visible; }
+.lg-extra{ display:none; }
+.log-list.expanded .list-row{ height:auto; min-height:52px; padding-top:8px; padding-bottom:8px; }
+.log-list.expanded .lg-extra{
+  display:flex; grid-column:1/-1; flex-wrap:wrap; align-items:center; gap:5px;
+  font-size:12px; font-weight:600; color:var(--pr-text-soft);
+}
+.lg-extra .chip{ font-size:11px; padding:3px 9px; }
 .date-filter{ display:flex; align-items:center; gap:5px; font-size:12px; font-weight:600; color:var(--pr-text-soft); }
 @media (min-width:720px){
   .log-list .list-cols, .log-list .list-row{ grid-template-columns:84px minmax(0,1.3fr) minmax(0,1fr) 92px 104px minmax(0,.9fr) minmax(0,1.2fr) 56px; }
   .log-list .lg-wide{ display:block; }
+  /* wide screens already show hold type and tags; expanding just lets the tags wrap */
+  .log-list.expanded .lg-extra{ display:none; }
+  .log-list.expanded .list-tags{ flex-wrap:wrap; }
 }
 
 /* ---- Route list view (map -> List) ---- */
@@ -901,6 +915,7 @@ button.grade-badge{ border:none; }
 .news-item-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
 .news-item h3{ margin:0; font-size:15px; }
 .news-item p{ margin:6px 0 10px; font-size:13.5px; line-height:1.4; color:var(--pr-text-soft); }
+.news-icon-art{ display:block; margin:6px 0 2px; image-rendering:pixelated; border-radius:14px; }
 .news-shot{ position:relative; border-radius:10px; overflow:hidden; border:1px solid var(--pr-border); }
 .news-shot img{ width:100%; max-height:260px; object-fit:cover; object-position:top; }
 .news-tag{
