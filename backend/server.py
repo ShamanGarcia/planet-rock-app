@@ -1315,10 +1315,10 @@ class Handler(BaseHTTPRequestHandler):
         tabs = body.get("hiddenTabs")
         if tabs is not None and not (isinstance(tabs, list) and set(tabs) <= {"reel", "friends"}):
             raise ApiError(400, "hiddenTabs may only list reel and friends.")
-        for field in ["name", "age", "hometown", "climbingStartDate", "favoriteHoldType",
+        for field in ["name", "age", "hometown", "climbingStartDate", "favoriteHoldType", "climbingShoe",
                       "selfReportedHighestGrade", "profilePicture", "privacy", "accentColor", "hiddenTabs"]:
             if field in body:
-                user[field] = body[field]
+                user[field] = _clean_text(body[field], 60) if field == "climbingShoe" else body[field]
         save_db()
         self._json(200, public_user(user))
 

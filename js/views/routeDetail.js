@@ -3,7 +3,7 @@ import {
   getAcceptedFriends, updateRoute, deleteRoute, getCurrentUser,
 } from "../data/api.js";
 import {
-  formatGrade, formatEstimate, MAX_GRADE, ROPE_BASE_GRADES, CLIMB_TYPE_LABELS, disciplineOf, gradeScaleLabel,
+  formatGrade, formatEstimate, MAX_GRADE, ROPE_BASE_GRADES, CLIMB_TYPES, CLIMB_TYPE_LABELS, disciplineOf, gradeScaleLabel,
   HOLD_COLOR_HEX, HOLD_COLOR_TEXT, routeLabel,
 } from "../data/constants.js";
 import { renderRadarChart } from "../components/charts.js";
@@ -92,6 +92,8 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
           ${(route.climbTypes || []).length ? `<div class="chip-row">${route.climbTypes.map((t) => `<span class="chip">${escapeHtml(CLIMB_TYPE_LABELS[t] || t)}</span>`).join("")}</div>` : ""}
         </div>` : ""}
 
+        ${rope && !(route.climbTypes || []).length ? `<div class="chip-row" role="group" aria-label="Pick climb type">${CLIMB_TYPES.map((t) => `<button type="button" class="chip" data-climbtype="${t.id}">${t.label}</button>`).join("")}</div>` : ""}
+
         ${rope ? `<button class="btn btn-outline btn-sm" id="rd-name" style="align-self:flex-start;">${route.routeTitle || route.setterInitials ? "Edit" : "Add"} Name / Initials</button>` : ""}
 
         ${mySends ? `<div class="page-sub">You've sent this ${mySends}×</div>` : ""}
@@ -178,6 +180,11 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
     backdrop.querySelector("#rd-view-gallery")?.addEventListener("click", () => openFullGallery(routeId, label));
     backdrop.querySelector("#rd-add-media").addEventListener("click", () => openAddMediaForm(routeId, label, { onAdded: () => { if (backdrop.isConnected) render(); } })); // runs when the background upload lands
     backdrop.querySelector("#rd-remove-media")?.addEventListener("click", () => openRemoveMedia(routeId, label, { onChanged: () => { if (backdrop.isConnected) render(); } }));
+    backdrop.querySelectorAll("[data-climbtype]").forEach((b) => b.addEventListener("click", async () => {
+      await updateRoute(routeId, { climbTypes: [b.dataset.climbtype] });
+      onChanged?.();
+      render();
+    }));
     backdrop.querySelector("#rd-name")?.addEventListener("click", () => openNamePopup(route));
     backdrop.querySelector("#rd-community-badge").addEventListener("click", () => openGradeDistributionPopup(hasEstimates, gradeDistribution, discipline));
 

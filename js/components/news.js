@@ -10,7 +10,7 @@ export const NEWS_ICON = "/assets/icons/news.svg";
 const NEWS = [
   {
     id: "suggestions",
-    title: "Send Us Suggestions!",
+    title: "Send Me Suggestions!",
     text: "Got an idea or found something off? Go to Profile, scroll to Settings and tap Send a Suggestion.",
     image: "/assets/news/suggestions.png",
   },

@@ -355,17 +355,17 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
 }
 
 .route-marker{
-  position:absolute; width:30px; height:30px; margin-left:-15px; margin-top:-15px;
+  position:absolute; width:24px; height:24px; margin-left:-12px; margin-top:-12px;
   border-radius:50%; border:3px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.35);
-  display:flex; align-items:center; justify-content:center; font-size:10.5px; font-weight:800;
+  display:flex; align-items:center; justify-content:center; font-size:8.4px; font-weight:800;
   color:#fff; text-shadow:0 1px 1px rgba(0,0,0,.4); z-index:5;
 }
 .route-marker{ scale:var(--ms,1); } /* counter-zoom set from gymMap.js applyTransform; the individual property composes with transform and isn't transitioned */
 /* Rope routes are rounded rectangles: the grade ("5.10+") is wider than a boulder "V4". */
 .route-marker.rope{
-  width:58px; height:32px; margin-left:-29px; margin-top:-16px; border-radius:12px; font-size:13px;
+  width:46px; height:26px; margin-left:-23px; margin-top:-13px; border-radius:10px; font-size:10.4px;
 }
-.route-marker.rope.pending{ font-size:10px; }
+.route-marker.rope.pending{ font-size:8px; }
 .route-marker.completed{ box-shadow:0 0 0 3px var(--pr-success), 0 2px 6px rgba(0,0,0,.35); }
 .route-marker.just-added{ box-shadow:0 0 0 3px #FFD500, 0 2px 6px rgba(0,0,0,.35); }
 .route-marker.selected{ outline:3px solid var(--pr-ink); outline-offset:2px; z-index:10; transform:scale(1.15); }

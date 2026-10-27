@@ -148,6 +148,7 @@ export function renderProfile(container) {
         age: fd.get("age") ? Number(fd.get("age")) : null,
         hometown: fd.get("hometown") || null,
         climbingStartDate: fd.get("climbingStartDate") || null,
+        climbingShoe: fd.get("climbingShoe") || null,
         favoriteHoldType: fd.get("favoriteHoldType") || null,
         selfReportedHighestGrade: fd.get("selfReportedHighestGrade") !== "" ? Number(fd.get("selfReportedHighestGrade")) : null,
         profilePicture: photoDataUrl === "" ? null : photoDataUrl ?? user.profilePicture ?? null,
@@ -201,6 +202,7 @@ export function renderProfile(container) {
     const rows = [
       user.age !== null && user.age !== undefined ? `<div class="info-row"><span class="k">Age</span><span class="v">${user.age}</span></div>` : "",
       user.hometown ? `<div class="info-row"><span class="k">Hometown</span><span class="v">${escapeHtml(user.hometown)}</span></div>` : "",
+      user.climbingShoe ? `<div class="info-row"><span class="k">Climbing Shoe</span><span class="v">${escapeHtml(user.climbingShoe)}</span></div>` : "",
       `<div class="info-row"><span class="k">Favorite Hold Type</span><span class="v">${escapeHtml(user.favoriteHoldType) || "—"}</span></div>`,
       `<div class="info-row"><span class="k">Self-Reported Highest Grade</span><span class="v">${user.selfReportedHighestGrade !== null && user.selfReportedHighestGrade !== undefined ? formatGrade(user.selfReportedHighestGrade) : "—"}</span></div>`,
     ].join("");
@@ -226,6 +228,7 @@ export function renderProfile(container) {
           <div class="field"><label>Hometown</label><input type="text" name="hometown" value="${escapeHtml(user.hometown || "")}"/></div>
         </div>
         <div class="field"><label>Climbing Since</label><input type="date" name="climbingStartDate" value="${user.climbingStartDate || ""}"/></div>
+        <div class="field"><label>Climbing Shoe</label><input type="text" name="climbingShoe" maxlength="60" value="${escapeHtml(user.climbingShoe || "")}"/></div>
         <div class="form-row">
           <div class="field"><label>Favorite Hold Type</label>
             <select name="favoriteHoldType">
