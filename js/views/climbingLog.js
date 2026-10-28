@@ -203,7 +203,6 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
                 <span class="lg-date">${formatDate(e.completedAt)}</span>
                 <span class="list-route-cell">
                   <span class="list-bubble rope" style="background:${HOLD_COLOR_HEX[d.holdColor]};color:${HOLD_COLOR_TEXT[d.holdColor]};" data-hold="${d.holdColor}" title="${escapeHtml(d.holdColor)}">${formatGrade(d.officialGrade, discipline)}</span>
-                  ${rope ? `<span class="list-color">${escapeHtml(d.holdColor)}</span>` : ""}
                   ${e.flash ? `<span class="list-flashed" title="Flashed">${BOLT_ICON}</span>` : ""}
                 </span>
                 <span class="list-hold">${escapeHtml(areaLabel(e))}${!e.route ? ' <span class="badge-soft">retired</span>' : ""}</span>
