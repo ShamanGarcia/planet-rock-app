@@ -778,7 +778,7 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
         const { bg: markerBg, label: markerLabel, textStyle, holdAttr } = markerLook(r);
 
         return `
-          <div class="route-marker ${dim(findWallSectionAt(r.mapX, r.mapY, discipline))} ${discipline === "rope" ? "rope" : ""} ${completed ? "completed" : "uncompleted"} ${isNew ? "just-added" : ""} ${r.id === selectedRouteId ? "selected" : ""} ${!r.active ? "retired" : ""}"
+          <div class="route-marker ${dim(findWallSectionAt(r.mapX, r.mapY, discipline))} ${disciplineOf(r) === "rope" ? "rope" : ""} ${completed ? "completed" : "uncompleted"} ${isNew ? "just-added" : ""} ${r.id === selectedRouteId ? "selected" : ""} ${!r.active ? "retired" : ""}"
                style="left:${r.mapX}%; top:${r.mapY}%; background:${markerBg};${textStyle}"
                data-route-id="${r.id}" data-kind="${disciplineOf(r)}"${holdAttr}
                role="button" tabindex="0" aria-label="${escapeHtml(routeLabel(r))}, ${r.holdType}, ${completed ? "completed" : "not yet completed"}${r.mediaCount ? `, ${r.mediaCount} photo${r.mediaCount === 1 ? "" : "s"}/videos` : ""}">
@@ -789,7 +789,7 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
       .join("");
 
     const pendingHTML = pendingPoint
-      ? `<div class="route-marker pending ${discipline === "rope" ? "rope" : ""}" style="left:${pendingPoint.mapX}%; top:${pendingPoint.mapY}%;"><span class="marker-grade">NEW</span></div>`
+      ? `<div class="route-marker pending ${discipline === "rope" && pendingPoint.wallSection !== CAVE_ID ? "rope" : ""}" style="left:${pendingPoint.mapX}%; top:${pendingPoint.mapY}%;"><span class="marker-grade">NEW</span></div>`
       : "";
 
     canvas.innerHTML = zonesHTML + labelsHTML + markersHTML + pendingHTML;
@@ -1090,7 +1090,7 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
           </div>
 
           <div class="filter-group">
-            <h3>Hold Color</h3>
+            <h3>${discipline === "rope" ? "Tape" : "Hold"} Color</h3>
             <div class="chip-row">
               ${HOLD_COLORS.map((c) => `<button class="chip color-chip ${filters.holdColors.has(c) ? "active" : ""}" data-hold-color="${c}" style="background:${HOLD_COLOR_HEX[c]};color:${HOLD_COLOR_TEXT[c]};">${c}</button>`).join("")}
             </div>

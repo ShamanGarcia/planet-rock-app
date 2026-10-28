@@ -82,7 +82,7 @@ export function openAddRouteForm({ gymId, discipline = "boulder", mapX, mapY, wa
           </div>` : ""}
 
           <div class="field">
-            <label>Hold Color</label>
+            <label>${rope ? "Tape" : "Hold"} Color</label>
             <div class="chip-row">
               ${HOLD_COLORS.map((c) => `
                 <button type="button" class="chip color-chip ${selectedColor === c ? "active" : ""}" data-color="${c}" style="background:${HOLD_COLOR_HEX[c]};color:${HOLD_COLOR_TEXT[c]};">${c}</button>
@@ -230,7 +230,7 @@ export function openAddRouteForm({ gymId, discipline = "boulder", mapX, mapY, wa
     backdrop.querySelector("#ar-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       if (submitting) return;
-      if (!selectedColor) { error = "Pick the hold color."; render(); return; }
+      if (!selectedColor) { error = `Pick the ${rope ? "tape" : "hold"} color.`; render(); return; }
       if (!selectedHoldType) { error = "Pick the primary hold type."; render(); return; }
 
       submitting = true;

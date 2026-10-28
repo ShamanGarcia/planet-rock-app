@@ -170,7 +170,7 @@ export function renderClimbingLog(container, userId, { title = "Climbing Log", c
       <div class="filters-bar">
         <select id="f-grade"><option value="">Any Grade</option>${Array.from({ length: maxGradeFor(discipline) + 1 }, (_, g) => `<option value="${g}" ${filterState.officialGrade === String(g) ? "selected" : ""}>${gradeScaleLabel(g, discipline)}</option>`).join("")}</select>
         <select id="f-holdtype"><option value="">Any Hold Type</option>${HOLD_TYPES.map((h) => `<option ${filterState.holdType === h ? "selected" : ""}>${h}</option>`).join("")}</select>
-        <select id="f-holdcolor"><option value="">Any Hold Color</option>${HOLD_COLORS.map((c) => `<option ${filterState.holdColor === c ? "selected" : ""}>${c}</option>`).join("")}</select>
+        <select id="f-holdcolor"><option value="">Any ${discipline === "rope" ? "Tape" : "Hold"} Color</option>${HOLD_COLORS.map((c) => `<option ${filterState.holdColor === c ? "selected" : ""}>${c}</option>`).join("")}</select>
         <select id="f-tag"><option value="">Any Style</option>${tags.map((t) => `<option ${filterState.tag === t ? "selected" : ""}>${escapeHtml(t)}</option>`).join("")}</select>
         <select id="f-area"><option value="">Any Area</option>${areasFor(discipline).map((s) => `<option value="${s.id}" ${filterState.area === s.id ? "selected" : ""}>${escapeHtml(s.name)}</option>`).join("")}</select>
         <label class="date-filter">From <input type="date" id="f-from" value="${filterState.from}" max="${filterState.to}"/></label>
