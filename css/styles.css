@@ -386,7 +386,11 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
 
 .wall-label{
   position:absolute; font-size:16px; font-weight:800; text-transform:uppercase; letter-spacing:.6px;
-  color:#5c5847; pointer-events:none; transform:translate(-50%, -50%) rotate(var(--ur,0deg)); white-space:nowrap;
+  color:#5c5847; pointer-events:none; white-space:nowrap;
+  /* --ox/--oy: the side of its anchor the name sits on; the map's turn (--ut) swings that side round, so the name stays outside its wall while the text stays upright (--ur). */
+  --dx:calc(var(--ox,0) * cos(var(--ut,0deg)) - var(--oy,0) * sin(var(--ut,0deg)));
+  --dy:calc(var(--ox,0) * sin(var(--ut,0deg)) + var(--oy,0) * cos(var(--ut,0deg)));
+  transform:translate(calc(-50% + 50% * var(--dx)), calc(-50% + 50% * var(--dy))) rotate(var(--ur,0deg));
   text-shadow:0 1px 2px rgba(255,255,255,.7);
 }
 /* Rainbow text: the map's "New Set" tag and the Random Climb button share it. */

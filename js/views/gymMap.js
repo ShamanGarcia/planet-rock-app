@@ -597,6 +597,7 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
   function applyTransform() {
     canvas.style.transform = `translate(${viewState.tx}px, ${viewState.ty}px) scale(${viewState.scale}) translate(${CANVAS_W / 2}px, ${CANVAS_H / 2}px) rotate(${viewState.rot * 90}deg) translate(${-CANVAS_W / 2}px, ${-CANVAS_H / 2}px)`;
     // Markers shrink as you zoom in (they would otherwise grow with the map), so neighbours overlap less.
+    canvas.style.setProperty("--ut", `${viewState.rot * 90}deg`);
     canvas.style.setProperty("--ur", `${-viewState.rot * 90}deg`); // undoes the map turn so markers and names stay upright
     canvas.style.setProperty("--ms", clamp(Math.sqrt(fitScale / viewState.scale), 0.35, 1).toFixed(3));
   }
@@ -762,19 +763,19 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
       const isNewSet = resets[s.id] && Date.now() - new Date(resets[s.id]) < NEW_SET_MS;
       const newSet = isNewSet ? '<span class="new-set">New Set</span>' : "";
       if (s.labelAt) { // placed beside the wall, as on the rope floor plan
-        const shift = s.labelAlign === "left" ? "-100%" : s.labelAlign === "right" ? "0" : "-50%";
+        const ox = s.labelAlign === "left" ? -1 : s.labelAlign === "right" ? 1 : 0; // which side of its anchor the name sits on
         const text = s.labelWrap ? escapeHtml(s.name).replace(/ /g, "<br>") : escapeHtml(s.name);
-        return `<div class="wall-label ${s.labelSmall ? "sm" : ""} ${s.boulder ? "cave" : ""} ${dim(s.id)}" style="left:${s.labelAt[0]}%; top:${s.labelAt[1]}%; transform:translate(${shift},-50%) rotate(var(--ur,0deg)); text-align:${s.labelAlign === "left" ? "right" : s.labelAlign || "center"};">${newSet}${text}</div>`;
+        return `<div class="wall-label ${s.labelSmall ? "sm" : ""} ${s.boulder ? "cave" : ""} ${dim(s.id)}" style="left:${s.labelAt[0]}%; top:${s.labelAt[1]}%; --ox:${ox}; text-align:${s.labelAlign === "left" ? "right" : s.labelAlign || "center"};">${newSet}${text}</div>`;
       }
       const [cx, cy] = polygonCentroid(s.points);
       const bounds = polygonBounds(s.points);
       const margin = 3;
-      let left = cx, top = bounds.minY - margin, anchor = "";
-      if (s.labelPlacement === "left") { left = bounds.minX - margin; top = cy; }
+      let left = cx, top = bounds.minY - margin, anchor = "--oy:-1;"; // above the wall
+      if (s.labelPlacement === "left") { left = bounds.minX - margin; top = cy; anchor = "--ox:-1;"; }
       else if (s.labelPlacement === "bottom-right") {
         // Text's own right/bottom edge lands exactly on the polygon's
         // right edge and bottom corner, instead of centering on a point.
-        left = bounds.maxX - margin; top = bounds.maxY - margin; anchor = "transform:translate(-100%,-100%) rotate(var(--ur,0deg));";
+        left = bounds.maxX - margin; top = bounds.maxY - margin; anchor = "--ox:-1; --oy:-1;";
       }
       return `<div class="wall-label ${dim(s.id)}" style="left:${left}%; top:${top}%; ${anchor}">${newSet}${escapeHtml(s.name)}</div>`;
     }).join("");
