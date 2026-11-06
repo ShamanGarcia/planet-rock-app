@@ -192,23 +192,23 @@ export const CAVE_ID = "cave";
 
 export const ROPE_SECTIONS = [
   {
-    id: "whale-fin", name: "Whale Fin", labelAt: [2.5, -5.9],
+    id: "whale-fin", name: "Whale Fin", labelDirs: { 1: [1, 0], 3: [-1, 0] }, labelAt: [2.5, -5.9],
     points: [[0.0, 0.0], [16.47, 0.0], [16.86, 10.13], [14.15, 9.97], [12.4, 12.42], [11.24, 12.91], [11.24, 14.87], [0.0, 14.87]],
   },
   {
-    id: "bottle", name: "Bottle", labelAt: [27.1, -5.9],
+    id: "bottle", name: "Bottle", labelDirs: { 1: [1, 0] }, labelAt: [27.1, -5.9],
     points: [[16.47, 0.0], [39.34, 0.0], [39.34, 9.31], [39.73, 11.44], [36.63, 12.58], [29.46, 12.75], [25.97, 10.29], [16.86, 10.13]],
   },
   {
-    id: "zeus-wall", name: "Zeus Wall", labelAt: [55.2, -5.9],
+    id: "zeus-wall", name: "Zeus Wall", labelDirs: { 1: [1, 0], 3: [-1, 0] }, labelAt: [55.2, -5.9],
     points: [[39.34, 0.0], [70.54, 0.0], [71.32, 14.22], [42.64, 12.58], [39.53, 11.6]],
   },
   {
-    id: "amphitheater", name: "Amphitheater", labelAt: [90.1, -5.9],
+    id: "amphitheater", name: "Amphitheater", labelDirs: { 1: [1, 0], 3: [-1, 0] }, labelAt: [90.1, -5.9],
     points: [[70.54, 0.0], [99.81, 0.0], [100.0, 24.35], [86.24, 24.18], [86.24, 22.71], [75.58, 14.38], [71.32, 14.22]],
   },
   {
-    id: "slab-wall", name: "Slab Wall", labelAt: [-4.3, 21.7], labelAlign: "left", labelWrap: true,
+    id: "slab-wall", name: "Slab Wall", labelDirs: { 3: [-1, 0] }, labelAt: [-4.3, 21.7], labelAlign: "left", labelWrap: true,
     points: [[0.0, 14.87], [11.24, 14.87], [11.24, 20.75], [12.6, 22.22], [14.92, 29.08], [0.0, 29.08]],
   },
   {
@@ -216,7 +216,7 @@ export const ROPE_SECTIONS = [
     points: [[0.0, 29.08], [14.92, 29.08], [11.82, 43.3], [14.15, 55.07], [0.0, 54.9]],
   },
   {
-    id: "auto-belays", name: "Auto Belays", labelAt: [-1.7, 63.7], labelAlign: "left", labelWrap: true,
+    id: "auto-belays", name: "Auto Belays", labelDirs: { 1: [0, -1], 3: [0, 1] }, labelAt: [-1.7, 63.7], labelAlign: "left", labelWrap: true,
     points: [[0.0, 54.9], [14.15, 55.07], [11.24, 74.02], [0.0, 74.02]],
   },
   {
@@ -224,35 +224,35 @@ export const ROPE_SECTIONS = [
     points: [[86.24, 24.18], [100.0, 24.35], [100.0, 70.92], [84.3, 70.75], [86.05, 63.56], [87.02, 48.04]],
   },
   {
-    id: "speed-wall", name: "Speed Wall", labelAt: [105.4, 75.0], labelAlign: "right", labelWrap: true,
+    id: "speed-wall", name: "Speed Wall", labelDirs: { 1: [1, 0], 2: [-1, 0], 3: [-1, -1] }, labelAt: [105.4, 75.0], labelAlign: "right", labelWrap: true,
     points: [[84.3, 70.75], [100.0, 70.92], [100.0, 79.9], [84.11, 79.58]],
   },
   {
-    id: "chimney", name: "Chimney", labelAt: [105.4, 83.5], labelAlign: "right",
+    id: "chimney", name: "Chimney", labelDirs: { 2: [-1, 0] }, labelAt: [105.4, 83.5], labelAlign: "right",
     points: [[79.26, 81.37], [83.72, 80.07], [84.11, 79.58], [100.0, 79.9], [100.0, 87.91], [78.88, 87.58], [78.88, 85.78], [82.75, 85.78]],
   },
   {
-    id: "crack-corner", name: "Crack Corner", labelAt: [105.2, 93.8], labelAlign: "right", labelWrap: true,
+    id: "crack-corner", name: "Crack Corner", labelDirs: { 2: [-1, 0], 3: [1, 0] }, labelAt: [105.2, 93.8], labelAlign: "right", labelWrap: true,
     points: [[78.88, 87.58], [100.0, 87.91], [100.0, 99.84], [78.68, 99.84], [81.4, 94.28], [81.2, 93.3], [78.88, 91.01]],
   },
   {
-    id: "tower", name: "Tower", labelAt: [49.8, 24.0], labelSmall: true,
+    id: "tower", name: "Tower", labelDirs: { 1: [1, 0], 2: [1, 0], 3: [-1, 0] }, labelAt: [49.8, 24.0], labelSmall: true,
     points: [[33.14, 30.39], [41.47, 25.65], [55.04, 27.29], [60.47, 29.25], [65.7, 35.13], [59.69, 37.58], [59.69, 37.09], [53.49, 32.35], [42.44, 31.21], [39.92, 32.68], [39.15, 33.66], [33.72, 31.05]],
   },
   {
-    id: "rainbow-wall", name: "Rainbow Wall", labelAt: [66.9, 39.1], labelAlign: "right", labelSmall: true, labelWrap: true,
+    id: "rainbow-wall", name: "Rainbow Wall", labelDirs: { 1: [0, 1], 2: [-1, 0], 3: [0, -1] }, labelAt: [66.9, 39.1], labelAlign: "right", labelSmall: true, labelWrap: true,
     points: [[60.08, 37.42], [65.7, 35.13], [66.28, 45.26], [63.37, 51.8], [63.76, 52.45], [58.33, 50.49], [58.53, 46.57]],
   },
   {
-    id: "ships-row", name: "Ships Row", labelAt: [64.5, 57.2], labelAlign: "right", labelSmall: true, labelWrap: true,
+    id: "ships-row", name: "Ships Row", labelDirs: { 1: [0, 1], 2: [-1, 0], 3: [0, -1] }, labelAt: [64.5, 57.2], labelAlign: "right", labelSmall: true, labelWrap: true,
     points: [[58.14, 50.65], [58.91, 50.49], [63.57, 52.45], [63.57, 52.78], [63.18, 52.61], [63.57, 64.71], [57.56, 62.91], [57.36, 58.82]],
   },
   {
-    id: "arete", name: "Arete", labelAt: [59.7, 75.0], labelAlign: "right", labelSmall: true,
+    id: "arete", name: "Arete", labelDirs: { 1: [0, 1], 2: [-1, 0], 3: [0, -1] }, labelAt: [59.7, 75.0], labelAlign: "right", labelSmall: true,
     points: [[57.75, 62.91], [63.37, 64.54], [63.57, 65.69], [62.21, 70.26], [57.95, 74.51], [56.98, 78.1], [53.49, 80.56]],
   },
   {
-    id: "yosemite-wall", name: "Yosemite Wall", labelAt: [31.6, 44.6], labelAlign: "left", labelSmall: true, labelWrap: true,
+    id: "yosemite-wall", name: "Yosemite Wall", labelDirs: { 1: [0, -1], 2: [1, 0], 3: [0, 1] }, labelAt: [31.6, 44.6], labelAlign: "left", labelSmall: true, labelWrap: true,
     points: [[32.95, 30.56], [38.95, 33.5], [41.28, 62.91], [34.3, 62.42], [31.4, 57.52], [32.75, 43.14]],
   },
   {

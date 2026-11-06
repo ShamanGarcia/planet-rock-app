@@ -597,7 +597,7 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
   function applyTransform() {
     canvas.style.transform = `translate(${viewState.tx}px, ${viewState.ty}px) scale(${viewState.scale}) translate(${CANVAS_W / 2}px, ${CANVAS_H / 2}px) rotate(${viewState.rot * 90}deg) translate(${-CANVAS_W / 2}px, ${-CANVAS_H / 2}px)`;
     // Markers shrink as you zoom in (they would otherwise grow with the map), so neighbours overlap less.
-    canvas.style.setProperty("--ut", `${viewState.rot * 90}deg`);
+    placeLabels();
     canvas.style.setProperty("--ur", `${-viewState.rot * 90}deg`); // undoes the map turn so markers and names stay upright
     canvas.style.setProperty("--ms", clamp(Math.sqrt(fitScale / viewState.scale), 0.35, 1).toFixed(3));
   }
@@ -610,6 +610,20 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
     fn();
     canvas.addEventListener("transitionend", () => canvas.classList.remove("animating"), { once: true });
     setTimeout(() => canvas.classList.remove("animating"), 400); // safety net
+  }
+
+  // Area names stay upright and outside their walls as the map turns: each sits on a side of its
+  // anchor (screen direction, see labelDirs in constants.js), which by default swings round with the map.
+  function placeLabels() {
+    const k = ((viewState.rot % 4) + 4) % 4;
+    canvas.querySelectorAll(".wall-label[data-sid]").forEach((el) => {
+      let [x, y] = [Number(el.dataset.ox), Number(el.dataset.oy)];
+      const set = k && sections().find((s) => s.id === el.dataset.sid)?.labelDirs?.[k];
+      if (set) [x, y] = set;
+      else for (let i = 0; i < k; i++) [x, y] = [-y, x];
+      el.style.setProperty("--dx", x);
+      el.style.setProperty("--dy", y);
+    });
   }
 
   // Canvas point -> where it sits after the map's quarter turns (about the canvas centre); k is the turn count.
@@ -765,19 +779,19 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
       if (s.labelAt) { // placed beside the wall, as on the rope floor plan
         const ox = s.labelAlign === "left" ? -1 : s.labelAlign === "right" ? 1 : 0; // which side of its anchor the name sits on
         const text = s.labelWrap ? escapeHtml(s.name).replace(/ /g, "<br>") : escapeHtml(s.name);
-        return `<div class="wall-label ${s.labelSmall ? "sm" : ""} ${s.boulder ? "cave" : ""} ${dim(s.id)}" style="left:${s.labelAt[0]}%; top:${s.labelAt[1]}%; --ox:${ox}; text-align:${s.labelAlign === "left" ? "right" : s.labelAlign || "center"};">${newSet}${text}</div>`;
+        return `<div class="wall-label ${s.labelSmall ? "sm" : ""} ${s.boulder ? "cave" : ""} ${dim(s.id)}" data-sid="${s.id}" data-ox="${ox}" data-oy="0" style="left:${s.labelAt[0]}%; top:${s.labelAt[1]}%; text-align:${s.labelAlign === "left" ? "right" : s.labelAlign || "center"};">${newSet}${text}</div>`;
       }
       const [cx, cy] = polygonCentroid(s.points);
       const bounds = polygonBounds(s.points);
       const margin = 3;
-      let left = cx, top = bounds.minY - margin, anchor = "--oy:-1;"; // above the wall
-      if (s.labelPlacement === "left") { left = bounds.minX - margin; top = cy; anchor = "--ox:-1;"; }
+      let left = cx, top = bounds.minY - margin, dir = [0, -1]; // above the wall
+      if (s.labelPlacement === "left") { left = bounds.minX - margin; top = cy; dir = [-1, 0]; }
       else if (s.labelPlacement === "bottom-right") {
         // Text's own right/bottom edge lands exactly on the polygon's
         // right edge and bottom corner, instead of centering on a point.
-        left = bounds.maxX - margin; top = bounds.maxY - margin; anchor = "--ox:-1; --oy:-1;";
+        left = bounds.maxX - margin; top = bounds.maxY - margin; dir = [-1, -1];
       }
-      return `<div class="wall-label ${dim(s.id)}" style="left:${left}%; top:${top}%; ${anchor}">${newSet}${escapeHtml(s.name)}</div>`;
+      return `<div class="wall-label ${dim(s.id)}" data-sid="${s.id}" data-ox="${dir[0]}" data-oy="${dir[1]}" style="left:${left}%; top:${top}%;">${newSet}${escapeHtml(s.name)}</div>`;
     }).join("");
 
     // Only routes placed inside a wall section render as markers. Rope routes left
