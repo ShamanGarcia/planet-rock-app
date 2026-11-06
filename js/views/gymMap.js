@@ -71,7 +71,7 @@ const PIXEL_CHECK_ICON = pixelIconSVG([[1, 2], [2, 3], [3, 4], [4, 3], [5, 2], [
 // The actual starting scale/position is computed per-device on first show
 // (see fitToScreen) so the whole gym is visible instead of a narrow sliver
 // of it on small phones.
-const viewState = { scale: 1, tx: 0, ty: 0 };
+const viewState = { scale: 1, tx: 0, ty: 0, rot: 0 }; // rot counts quarter turns clockwise (never wrapped, so the ease keeps turning the same way)
 let hasFitToScreen = false;
 let fitScale = 1; // the scale that fits the whole map; markers are sized relative to it
 const MIN_SCALE = 0.25;
@@ -241,6 +241,7 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
             <button id="zoom-in" aria-label="Zoom in">+</button>
             <button id="zoom-out" aria-label="Zoom out">−</button>
             <button id="zoom-reset" aria-label="Reset view" style="font-size:13px;">⤢</button>
+            <button id="rotate-map" aria-label="Rotate map 90 degrees">⟳</button>
           </div>
           <div class="map-bottom-left">
             <button class="btn btn-danger btn-sm hidden" id="reset-wall-btn">RESET</button>
@@ -594,7 +595,7 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
   }
 
   function applyTransform() {
-    canvas.style.transform = `translate(${viewState.tx}px, ${viewState.ty}px) scale(${viewState.scale})`;
+    canvas.style.transform = `translate(${viewState.tx}px, ${viewState.ty}px) scale(${viewState.scale}) translate(${CANVAS_W / 2}px, ${CANVAS_H / 2}px) rotate(${viewState.rot * 90}deg) translate(${-CANVAS_W / 2}px, ${-CANVAS_H / 2}px)`;
     // Markers shrink as you zoom in (they would otherwise grow with the map), so neighbours overlap less.
     canvas.style.setProperty("--ms", clamp(Math.sqrt(fitScale / viewState.scale), 0.35, 1).toFixed(3));
   }
@@ -609,6 +610,19 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
     setTimeout(() => canvas.classList.remove("animating"), 400); // safety net
   }
 
+  // Canvas point -> where it sits after the map's quarter turns (about the canvas centre); k is the turn count.
+  function turnPoint(x, y, k = viewState.rot) {
+    let dx = x - CANVAS_W / 2, dy = y - CANVAS_H / 2;
+    for (let i = ((k % 4) + 4) % 4; i > 0; i--) [dx, dy] = [-dy, dx];
+    return [CANVAS_W / 2 + dx, CANVAS_H / 2 + dy];
+  }
+  // Screen point -> map position in percent (undoes pan, zoom and rotation).
+  function clientToMap(clientX, clientY) {
+    const rect = viewport.getBoundingClientRect();
+    const [x, y] = turnPoint((clientX - rect.left - viewState.tx) / viewState.scale, (clientY - rect.top - viewState.ty) / viewState.scale, -viewState.rot);
+    return { x: (x / CANVAS_W) * 100, y: (y / CANVAS_H) * 100 };
+  }
+
   // Fits a canvas-space pixel box (in the 0..CANVAS_W / 0..CANVAS_H frame)
   // into whatever viewport this device has, centered, so a narrow phone
   // screen shows the whole area at once instead of scale=1 (a small sliver
@@ -616,6 +630,8 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
   function fitToBounds(box) {
     const rect = viewport.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
+    const pts = [[box.minX, box.minY], [box.maxX, box.minY], [box.minX, box.maxY], [box.maxX, box.maxY]].map(([x, y]) => turnPoint(x, y)); // the box as the rotated map shows it
+    box = { minX: Math.min(...pts.map((p) => p[0])), maxX: Math.max(...pts.map((p) => p[0])), minY: Math.min(...pts.map((p) => p[1])), maxY: Math.max(...pts.map((p) => p[1])) };
     const w = box.maxX - box.minX || 1;
     const h = box.maxY - box.minY || 1;
     const scale = clamp(Math.min(rect.width / w, rect.height / h) * 0.85, MIN_SCALE, MAX_SCALE);
@@ -857,9 +873,9 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
         }
         return;
       }
-      const rect = canvas.getBoundingClientRect();
-      const dxPct = ((e.clientX - startClientX) / rect.width) * 100;
-      const dyPct = ((e.clientY - startClientY) / rect.height) * 100;
+      const now = clientToMap(e.clientX, e.clientY), from = clientToMap(startClientX, startClientY);
+      const dxPct = now.x - from.x;
+      const dyPct = now.y - from.y;
       if (Math.abs(dxPct) > 0.3 || Math.abs(dyPct) > 0.3) moved = true;
       el.style.left = `${clamp(startLeftPct + dxPct, 0, 100)}%`;
       el.style.top = `${clamp(startTopPct + dyPct, 0, 100)}%`;
@@ -1001,11 +1017,9 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
     viewport.addEventListener("click", (e) => {
       if (!placementMode || panMoved) return;
       if (e.target.closest(".route-marker") || e.target.closest("button")) return;
-      const rect = canvas.getBoundingClientRect();
-      const relX = (e.clientX - rect.left) / rect.width;
-      const relY = (e.clientY - rect.top) / rect.height;
-      const mapX = clamp(relX * 100, 0, 100);
-      const mapY = clamp(relY * 100, 0, 100);
+      const at = clientToMap(e.clientX, e.clientY);
+      const mapX = clamp(at.x, 0, 100);
+      const mapY = clamp(at.y, 0, 100);
       const wallSection = findWallSectionAt(mapX, mapY, discipline);
       if (!wallSection) {
         showToast(singleSection() ? "Tap on a wall to place a route" : "Tap inside a wall section to place a route", { small: true });
@@ -1033,6 +1047,11 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
     container.querySelector("#zoom-out").addEventListener("click", () => {
       const rect = viewport.getBoundingClientRect();
       animateNextTransform(() => zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, 0.8));
+    });
+    container.querySelector("#rotate-map").addEventListener("click", () => {
+      viewState.rot++;
+      if (zoomedSectionId && !singleSection()) enterZoomedSection(zoomedSectionId);
+      else animateNextTransform(fitToScreen);
     });
     container.querySelector("#zoom-reset").addEventListener("click", () => {
       if (zoomedSectionId && !singleSection()) exitZoomedSection();
