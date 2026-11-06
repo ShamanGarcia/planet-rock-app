@@ -283,6 +283,8 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
 /* Applied only for discrete jumps (zoom into/out of a wall, reset view) —
    never during a live pinch/drag, which needs to track the finger 1:1. */
 .map-canvas.animating{ transition:transform var(--t-base) var(--ease-out); }
+.map-canvas.animating .route-marker{ transition:transform var(--t-fast) var(--ease-out), rotate var(--t-base) var(--ease-out); }
+.map-canvas.animating .wall-label{ transition:transform var(--t-base) var(--ease-out), opacity var(--t-base) ease; }
 .floor-plan{ position:absolute; inset:0; width:100%; height:100%; display:block; }
 .wall-zone{ fill:#36454F; stroke:rgba(27,29,33,.35); stroke-width:.3; opacity:.92; cursor:pointer; }
 /* The Cave: a bouldering area inside the rope room, a lighter grey than the walls. */
@@ -360,7 +362,7 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
   display:flex; align-items:center; justify-content:center; font-size:8.4px; font-weight:800;
   color:#fff; text-shadow:0 1px 1px rgba(0,0,0,.4); z-index:5;
 }
-.route-marker{ scale:var(--ms,1); } /* counter-zoom set from gymMap.js applyTransform; the individual property composes with transform and isn't transitioned */
+.route-marker{ scale:var(--ms,1); rotate:var(--ur,0deg); } /* counter-zoom set from gymMap.js applyTransform; the individual property composes with transform and isn't transitioned */
 /* Rope routes are rounded rectangles: the grade ("5.10+") is wider than a boulder "V4". */
 .route-marker.rope{
   width:46px; height:26px; margin-left:-23px; margin-top:-13px; border-radius:10px; font-size:10.4px;
@@ -384,7 +386,7 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
 
 .wall-label{
   position:absolute; font-size:16px; font-weight:800; text-transform:uppercase; letter-spacing:.6px;
-  color:#5c5847; pointer-events:none; transform:translate(-50%, -50%); white-space:nowrap;
+  color:#5c5847; pointer-events:none; transform:translate(-50%, -50%) rotate(var(--ur,0deg)); white-space:nowrap;
   text-shadow:0 1px 2px rgba(255,255,255,.7);
 }
 /* Rainbow text: the map's "New Set" tag and the Random Climb button share it. */
