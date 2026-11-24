@@ -4,7 +4,7 @@ import {
 } from "../data/api.js";
 import {
   formatGrade, formatEstimate, MAX_GRADE, ROPE_BASE_GRADES, CLIMB_TYPES, CLIMB_TYPE_LABELS, disciplineOf, gradeScaleLabel,
-  HOLD_COLOR_HEX, HOLD_COLOR_TEXT, routeLabel,
+  HOLD_COLOR_HEX, HOLD_COLOR_TEXT, HOLD_COLORS, HOLD_TYPES, routeLabel,
 } from "../data/constants.js";
 import { renderRadarChart } from "../components/charts.js";
 import { ropeGradePickerHTML, wireRopeGradePicker } from "../components/ropeGradePicker.js";
@@ -94,7 +94,10 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
 
         ${rope && !(route.climbTypes || []).length ? `<div class="chip-row" role="group" aria-label="Pick climb type">${CLIMB_TYPES.map((t) => `<button type="button" class="chip" data-climbtype="${t.id}">${t.label}</button>`).join("")}</div>` : ""}
 
-        ${rope ? `<button class="btn btn-outline btn-sm" id="rd-name" style="align-self:flex-start;">${route.routeTitle || route.setterInitials ? "Edit" : "Add"} Name / Initials</button>` : ""}
+        <div class="chip-row">
+          ${rope ? `<button class="btn btn-outline btn-sm" id="rd-name">${route.routeTitle || route.setterInitials ? "Edit" : "Add"} Name / Initials</button>` : ""}
+          <button class="btn btn-outline btn-sm" id="rd-adjust">Adjust</button>
+        </div>
 
         ${mySends ? `<div class="page-sub">You've sent this ${mySends}×</div>` : ""}
 
@@ -186,6 +189,7 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
       render();
     }));
     backdrop.querySelector("#rd-name")?.addEventListener("click", () => openNamePopup(route));
+    backdrop.querySelector("#rd-adjust").addEventListener("click", () => openAdjustPopup(route, rope));
     backdrop.querySelector("#rd-community-badge").addEventListener("click", () => openGradeDistributionPopup(hasEstimates, gradeDistribution, discipline));
 
     // Rope grades come from the -/dropdown/+ picker, boulder grades from a plain select.
@@ -258,6 +262,44 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
       openLogSendSheet(routeId, label, {
         onLogged: () => { onChanged?.(); close(); }, // logging a send also closes the route drawer
       });
+    });
+  }
+
+  // Fix a route's color (tape color on rope) and hold type after it was posted.
+  function openAdjustPopup(route, rope) {
+    let color = route.holdColor, holdType = route.holdType;
+    const popup = document.createElement("div");
+    popup.className = "mini-popup-backdrop";
+    document.body.appendChild(popup);
+    const closePopup = () => dismissOverlay(popup);
+    popup.innerHTML = `
+      <form class="mini-popup" role="dialog" aria-modal="true" aria-label="Adjust route">
+        <div class="mini-popup-title">Adjust Route</div>
+        <div class="field"><label>${rope ? "Tape" : "Hold"} Color</label>
+          <div class="chip-row">${HOLD_COLORS.map((c) => `<button type="button" class="chip color-chip ${color === c ? "active" : ""}" data-color="${c}" style="background:${HOLD_COLOR_HEX[c]};color:${HOLD_COLOR_TEXT[c]};">${c}</button>`).join("")}</div>
+        </div>
+        <div class="field"><label>Hold Type</label>
+          <div class="chip-row">${HOLD_TYPES.map((t) => `<button type="button" class="chip ${holdType === t ? "active" : ""}" data-holdtype="${t}">${t}</button>`).join("")}</div>
+        </div>
+        <button class="btn btn-primary btn-block" type="submit">Save</button>
+        <button class="btn btn-ghost btn-block" type="button" id="ra-cancel">Cancel</button>
+      </form>`;
+    popup.addEventListener("click", (e) => { if (e.target === popup) closePopup(); });
+    popup.querySelector("#ra-cancel").addEventListener("click", closePopup);
+    const pick = (attr, set) => popup.querySelectorAll(`[${attr}]`).forEach((b) => b.addEventListener("click", () => {
+      set(b.getAttribute(attr));
+      popup.querySelectorAll(`[${attr}]`).forEach((o) => o.classList.toggle("active", o === b));
+    }));
+    pick("data-color", (c) => { color = c; });
+    pick("data-holdtype", (t) => { holdType = t; });
+    popup.querySelector("form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      try {
+        await updateRoute(routeId, { holdColor: color, holdType, holdTypes: [holdType] });
+      } catch (err) { showToast(err.message); return; }
+      closePopup();
+      onChanged?.();
+      render();
     });
   }
 

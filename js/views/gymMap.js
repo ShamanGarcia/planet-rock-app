@@ -116,7 +116,7 @@ function routeMatches(route, completedRouteIds) {
   if (filters.climbTypes.size > 0 && !(route.climbTypes || []).some((t) => filters.climbTypes.has(t))) return false;
   const sameScale = disciplineOf(route) === discipline; // Cave boulders on the rope map skip the rope grade sliders
   if (sameScale && (filters.gradeMin !== 0 || filters.gradeMax !== MAX_GRADE)) {
-    const g = route.officialGrade;
+    const g = route.officialGrade ?? (route.communityGrade != null ? Math.round(route.communityGrade) : null); // an ungraded route is drawn with its estimate, so it filters by it
     if (g === null || g < filters.gradeMin || g > filters.gradeMax) return false;
   }
   if (filters.completion.size > 0) {
@@ -1138,12 +1138,17 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
             </div>
           </div>
 
+          <button class="btn btn-outline btn-block" id="fd-reset">Reset Filters</button>
           <button class="btn btn-primary btn-block" id="fd-done">Show Results</button>
         </div>
       `;
 
       backdrop.querySelector("#fd-close").addEventListener("click", close);
       backdrop.querySelector("#fd-done").addEventListener("click", close);
+      backdrop.querySelector("#fd-reset").addEventListener("click", () => {
+        filters = filtersByDiscipline[discipline] = defaultFilters(discipline);
+        onApply(); renderDrawer();
+      });
       backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
 
       backdrop.querySelectorAll("[data-completion]").forEach((btn) => btn.addEventListener("click", () => {
