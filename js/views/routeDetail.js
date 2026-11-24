@@ -81,6 +81,7 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
         <div class="drawer-header">
           <div class="route-title-row" style="width:100%; justify-content:flex-end; gap:8px;">
             ${!route.active ? '<span class="badge-soft">Retired</span>' : ""}
+            <button class="icon-btn" style="background:#efece5;color:#1b1d21" id="rd-adjust" aria-label="Adjust color and hold type" title="Adjust color and hold type"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg></button>
             <button class="icon-btn" style="background:#efece5;color:#1b1d21" id="rd-close" aria-label="Close">X</button>
           </div>
         </div>
@@ -94,10 +95,7 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
 
         ${rope && !(route.climbTypes || []).length ? `<div class="chip-row" role="group" aria-label="Pick climb type">${CLIMB_TYPES.map((t) => `<button type="button" class="chip" data-climbtype="${t.id}">${t.label}</button>`).join("")}</div>` : ""}
 
-        <div class="chip-row">
-          ${rope ? `<button class="btn btn-outline btn-sm" id="rd-name">${route.routeTitle || route.setterInitials ? "Edit" : "Add"} Name / Initials</button>` : ""}
-          <button class="btn btn-outline btn-sm" id="rd-adjust">Adjust</button>
-        </div>
+        ${rope ? `<button class="btn btn-outline btn-sm" id="rd-name" style="align-self:flex-start;">${route.routeTitle || route.setterInitials ? "Edit" : "Add"} Name / Initials</button>` : ""}
 
         ${mySends ? `<div class="page-sub">You've sent this ${mySends}×</div>` : ""}
 
