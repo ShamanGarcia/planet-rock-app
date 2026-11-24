@@ -1069,6 +1069,12 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
       if (zoomedSectionId && !singleSection()) enterZoomedSection(zoomedSectionId);
       else animateNextTransform(fitToScreen);
     });
+    // A tap on bare background (not a wall, marker or control) backs out to the full map.
+    viewport.addEventListener("click", (e) => {
+      if (placementMode || moveMode || panMoved || e.target.closest(".wall-zone, .route-marker, button")) return;
+      if (zoomedSectionId && !singleSection()) exitZoomedSection();
+      animateNextTransform(fitToScreen);
+    });
     container.querySelector("#zoom-reset").addEventListener("click", () => {
       if (zoomedSectionId && !singleSection()) exitZoomedSection();
       animateNextTransform(fitToScreen);
