@@ -1,6 +1,7 @@
 import { updateRoute, submitGradeEstimate, logSend } from "../data/api.js";
 import { playSendCounter } from "../components/sendCounter.js";
-import { maxGradeFor, gradeScaleLabel, formatGrade, formatEstimate, routeLabel } from "../data/constants.js";
+import { gradeScaleLabel, formatGrade, formatEstimate, routeLabel, disciplineOf } from "../data/constants.js";
+import { openGradePopover, closeGradePopover, isGradePopoverOpen, gradePopoverAnchor } from "../components/gradePopover.js";
 import { showToast } from "../components/toast.js";
 import { escapeHtml, clamp } from "../utils.js";
 
@@ -14,18 +15,12 @@ const RESET_RED_DAYS = 30; // days since reset at which the number is fully red
 const CHECK_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
 const BOLT_ICON = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13.5 2L5 13.5h5.5L9.5 22 19 9.5h-5.5z"/></svg>`;
 
-let popover = null;
-let popoverAnchor = null;
-let popoverCleanup = null;
 let closeOpenRow = null; // closes whichever row is currently swiped open
 
 // True while a grade dropdown or a swiped-open row would be wiped by a re-render.
-export function isListBusy() { return popover !== null || closeOpenRow !== null; }
+export function isListBusy() { return isGradePopoverOpen() || closeOpenRow !== null; }
 
-export function closeListPopover() {
-  popoverCleanup?.();
-  popover = popoverAnchor = popoverCleanup = null;
-}
+export const closeListPopover = closeGradePopover;
 
 // Green at 0 days, red at RESET_RED_DAYS or more.
 function resetInfo(iso) {
@@ -176,8 +171,8 @@ function wireRow(row, route, ctx) {
     e.stopPropagation();
     if (moved) { moved = false; return; } // that was the end of a swipe, not a tap
     if (x !== 0) { close(); return; } // a revealed row closes first
-    if (popoverAnchor === btn) { closeListPopover(); return; }
-    openGradePopover(btn, btn.dataset.kind, route, ctx);
+    if (gradePopoverAnchor() === btn) { closeListPopover(); return; }
+    openListGradePopover(btn, btn.dataset.kind, route, ctx);
   }));
 
   async function sendLog(flash) {
@@ -193,57 +188,27 @@ function wireRow(row, route, ctx) {
   row.querySelector(".swipe-flash").addEventListener("click", () => sendLog(true));
 }
 
-// Grade dropdown anchored to a cell: official sets the route's grade (same call
+// Grade chooser anchored to a cell: official sets the route's grade (same call
 // the route popup uses), estimate submits the viewer's community vote.
-function openGradePopover(anchor, kind, route, ctx) {
-  closeListPopover();
+function openListGradePopover(anchor, kind, route, ctx) {
   const official = kind === "official";
-  const options = [
-    ...(official ? [{ label: "Ungraded", value: null }] : []),
-    ...Array.from({ length: maxGradeFor(ctx.discipline) + 1 }, (_, g) => ({ label: gradeScaleLabel(g, ctx.discipline), value: g })),
-  ];
-  const pop = document.createElement("div");
-  pop.className = "grade-popover";
-  pop.setAttribute("role", "listbox");
-  pop.innerHTML = `<div class="grade-popover-title">${official ? "Official grade" : "Your estimate"}</div>` +
-    options.map((o) => `<button type="button" role="option" class="grade-option ${official && o.value === route.officialGrade ? "active" : ""}" data-value="${o.value ?? ""}">${o.label}</button>`).join("");
-  document.body.appendChild(pop);
-
-  const a = anchor.getBoundingClientRect();
-  const w = pop.offsetWidth, h = pop.offsetHeight;
-  const below = a.bottom + 6 + h <= window.innerHeight - 8;
-  pop.style.left = `${clamp(a.left, 8, window.innerWidth - w - 8)}px`;
-  pop.style.top = `${below ? a.bottom + 6 : Math.max(8, a.top - 6 - h)}px`;
-
-  const onDown = (e) => { if (!pop.contains(e.target) && !anchor.contains(e.target)) closeListPopover(); };
-  const onKey = (e) => { if (e.key === "Escape") closeListPopover(); };
-  const onScroll = (e) => { if (!pop.contains(e.target)) closeListPopover(); };
-  document.addEventListener("pointerdown", onDown, true);
-  document.addEventListener("keydown", onKey);
-  window.addEventListener("scroll", onScroll, true);
-  popover = pop;
-  popoverAnchor = anchor;
-  popoverCleanup = () => {
-    pop.remove();
-    document.removeEventListener("pointerdown", onDown, true);
-    document.removeEventListener("keydown", onKey);
-    window.removeEventListener("scroll", onScroll, true);
-  };
-
-  pop.addEventListener("click", async (e) => {
-    const opt = e.target.closest(".grade-option");
-    if (!opt) return;
-    const value = opt.dataset.value === "" ? null : Number(opt.dataset.value);
-    closeListPopover();
-    try {
-      if (official) {
-        await updateRoute(route.id, { officialGrade: value });
-        showToast(value === null ? "Official grade cleared" : `Official grade set to ${gradeScaleLabel(value, ctx.discipline)}`);
-      } else {
-        await submitGradeEstimate(route.id, value);
-        showToast(`Estimate submitted: ${gradeScaleLabel(value, ctx.discipline)}`);
-      }
-      ctx.onChanged();
-    } catch (err) { showToast(err.message); }
+  const discipline = disciplineOf(route);
+  openGradePopover(anchor, {
+    title: official ? "Official grade" : "Your estimate",
+    discipline,
+    current: official ? route.officialGrade : undefined,
+    allowUngraded: official,
+    onPick: async (value) => {
+      try {
+        if (official) {
+          await updateRoute(route.id, { officialGrade: value });
+          showToast(value === null ? "Official grade cleared" : `Official grade set to ${gradeScaleLabel(value, discipline)}`);
+        } else {
+          await submitGradeEstimate(route.id, value);
+          showToast(`Estimate submitted: ${gradeScaleLabel(value, discipline)}`);
+        }
+        ctx.onChanged();
+      } catch (err) { showToast(err.message); }
+    },
   });
 }

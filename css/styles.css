@@ -293,15 +293,17 @@ h1, h2, h3, .mini-popup-title{ text-transform: uppercase; }
 .map-canvas.fading, .route-list-view.fading{ opacity:0; }
 .route-list-view{ transition:opacity .25s ease; }
 
-/* Rope grade input: - toggle, base grade dropdown, + toggle (components/ropeGradePicker.js). */
-.rope-grade-picker{ display:flex; align-items:stretch; gap:8px; }
-.rope-grade-picker .rgp-base{ flex:1; min-width:0; }
+/* Rope grade input: -/+ toggles over two rows of base grades (components/ropeGradePicker.js). */
+.rope-grade-picker{ display:flex; flex-direction:column; gap:8px; }
+.rope-grade-picker .rgp-mods{ display:flex; gap:8px; }
 .rope-grade-picker .rgp-mod{
-  flex:0 0 48px; border:1.5px solid var(--pr-border); border-radius:10px; background:#fff;
+  flex:1; padding:8px 0; border:1.5px solid var(--pr-border); border-radius:10px; background:#fff;
   font-size:20px; font-weight:800; color:var(--pr-ink);
 }
 .rope-grade-picker .rgp-mod.active{ background:var(--pr-ink); color:#fff; border-color:var(--pr-ink); }
-.rope-grade-picker .rgp-mod:disabled{ opacity:.4; }
+.rope-grade-picker .rgp-grid{ display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; }
+.rope-grade-picker .rgp-base{ padding:9px 0; border:none; border-radius:8px; background:#f7f6f2; font:inherit; font-size:13.5px; font-weight:700; color:var(--pr-ink); }
+.rope-grade-picker .rgp-base.active{ background:var(--pr-ink); color:#fff; }
 .rope-meta{ margin:0 0 12px; display:flex; flex-direction:column; gap:6px; }
 .rope-meta-title{ font-size:18px; font-weight:800; color:var(--pr-ink); }
 .field-row{ display:flex; gap:10px; }
@@ -604,6 +606,9 @@ button.grade-badge{ border:none; }
 .grade-option{ padding:9px 0; border:none; border-radius:8px; background:#f7f6f2; font:inherit; font-size:13.5px; font-weight:700; color:var(--pr-ink); }
 .grade-option[data-value=""]{ grid-column:1 / -1; }
 .grade-option.active{ background:var(--pr-ink); color:#fff; }
+.grade-popover.rope{ width:244px; }
+.grade-popover .rope-grade-picker{ grid-column:1 / -1; }
+.estimate-form .grade-cell{ padding:10px 6px; font-size:14px; }
 
 /* List view: grid of areas, then one area's full list */
 .list-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }

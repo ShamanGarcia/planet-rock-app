@@ -7,7 +7,7 @@ import {
   HOLD_COLOR_HEX, HOLD_COLOR_TEXT, HOLD_COLORS, HOLD_TYPES, routeLabel,
 } from "../data/constants.js";
 import { renderRadarChart } from "../components/charts.js";
-import { ropeGradePickerHTML, wireRopeGradePicker } from "../components/ropeGradePicker.js";
+import { openGradePopover, closeGradePopover, gradePopoverAnchor } from "../components/gradePopover.js";
 import { openLogSendSheet } from "../components/logSendSheet.js";
 import { openFullGallery, getCombinedMedia, openAddMediaForm, openRemoveMedia, previewThumbHTML, canRemove } from "../components/gallery.js";
 import { openPasswordPromptModal } from "../components/passwordPromptModal.js";
@@ -30,6 +30,7 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
   let sentClickCount = 0;
 
   function close() {
+    closeGradePopover();
     dismissOverlay(backdrop);
     document.removeEventListener("keydown", escHandler);
     onClose?.();
@@ -95,7 +96,6 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
 
         ${rope && !(route.climbTypes || []).length ? `<div class="chip-row" role="group" aria-label="Pick climb type">${CLIMB_TYPES.map((t) => `<button type="button" class="chip" data-climbtype="${t.id}">${t.label}</button>`).join("")}</div>` : ""}
 
-        ${rope ? `<button class="btn btn-outline btn-sm" id="rd-name" style="align-self:flex-start;">${route.routeTitle || route.setterInitials ? "Edit" : "Add"} Name / Initials</button>` : ""}
 
         ${mySends ? `<div class="page-sub">You've sent this ${mySends}×</div>` : ""}
 
@@ -115,23 +115,13 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
         <div class="section-title">Grade</div>
         <div class="estimate-form">
           <div class="grade-control-col">
-            <label class="g-label" for="rd-official-grade-select">Official Grade</label>
-            ${rope ? `<div id="rd-official-grade-select">${ropeGradePickerHTML({ label: "Official rope grade" })}</div>` : `
-            <select id="rd-official-grade-select" aria-label="Official grade">
-              <option value="">Ungraded</option>
-              ${Array.from({ length: MAX_GRADE + 1 }, (_, g) => `<option value="${g}" ${route.officialGrade === g ? "selected" : ""}>V${g}</option>`).join("")}
-            </select>`}
+            <span class="g-label">Official Grade</span>
+            <button type="button" class="grade-cell" id="rd-official-grade" aria-label="Set official grade">${formatGrade(route.officialGrade, discipline)}</button>
           </div>
-          <form id="rd-estimate-form" style="display:contents;">
-            <div class="grade-control-col">
-              <label class="g-label" for="rd-estimate-select">Estimated Grade</label>
-              ${rope ? `<div id="rd-estimate-select">${ropeGradePickerHTML({ label: "Your rope grade estimate", ungradedLabel: "Select grade" })}</div>` : `
-              <select id="rd-estimate-select" name="grade" aria-label="Your grade estimate">
-                ${Array.from({ length: MAX_GRADE + 1 }, (_, g) => `<option value="${g}" ${myEstimate === g ? "selected" : ""}>V${g}</option>`).join("")}
-              </select>`}
-            </div>
-            <button class="btn btn-outline btn-sm" type="submit">${myEstimate !== null && myEstimate !== undefined ? "Update Estimate" : "Submit Estimate"}</button>
-          </form>
+          <div class="grade-control-col">
+            <span class="g-label">Estimated Grade</span>
+            <button type="button" class="grade-cell" id="rd-estimate-grade" aria-label="Submit grade estimate">${myEstimate === null || myEstimate === undefined ? "Select grade" : formatGrade(myEstimate, discipline)}</button>
+          </div>
         </div>
 
         <div class="section-title">Route Tags</div>
@@ -186,36 +176,31 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
       onChanged?.();
       render();
     }));
-    backdrop.querySelector("#rd-name")?.addEventListener("click", () => openNamePopup(route));
     backdrop.querySelector("#rd-adjust").addEventListener("click", () => openAdjustPopup(route, rope));
     backdrop.querySelector("#rd-community-badge").addEventListener("click", () => openGradeDistributionPopup(hasEstimates, gradeDistribution, discipline));
-
-    // Rope grades come from the -/dropdown/+ picker, boulder grades from a plain select.
-    const estimatePicker = rope
-      ? wireRopeGradePicker(backdrop.querySelector("#rd-estimate-select [data-rope-grade]"), myEstimate ?? null)
-      : null;
-    backdrop.querySelector("#rd-estimate-form").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const grade = rope ? estimatePicker.get() : Number(new FormData(e.target).get("grade"));
-      if (grade === null) { showToast("Pick a grade to estimate", { small: true }); return; }
-      await submitGradeEstimate(routeId, grade);
-      onChanged?.();
-      render();
-    });
 
     async function saveOfficialGrade(grade) {
       await updateRoute(routeId, { officialGrade: grade });
       onChanged?.();
       render();
     }
-    if (rope) {
-      wireRopeGradePicker(backdrop.querySelector("#rd-official-grade-select [data-rope-grade]"), route.officialGrade ?? null, saveOfficialGrade);
-    } else {
-      backdrop.querySelector("#rd-official-grade-select").addEventListener("change", (e) => {
-        const val = e.target.value;
-        saveOfficialGrade(val === "" ? null : Number(val));
+    // Same chooser as the list view's grade cells; tapping the open one's button closes it.
+    function wireGradeButton(id, opts) {
+      const btn = backdrop.querySelector(id);
+      btn.addEventListener("click", () => {
+        if (gradePopoverAnchor() === btn) { closeGradePopover(); return; }
+        openGradePopover(btn, { discipline, ...opts });
       });
     }
+    wireGradeButton("#rd-official-grade", { title: "Official grade", current: route.officialGrade ?? null, allowUngraded: true, onPick: saveOfficialGrade });
+    wireGradeButton("#rd-estimate-grade", {
+      title: "Your estimate", current: myEstimate ?? undefined,
+      onPick: async (grade) => {
+        await submitGradeEstimate(routeId, grade);
+        onChanged?.();
+        render();
+      },
+    });
 
     backdrop.querySelector("#rd-delete-route").addEventListener("click", () => {
       openPasswordPromptModal({
@@ -263,15 +248,16 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
     });
   }
 
-  // Fix a route's color (tape color on rope) and hold type after it was posted.
+  // Fix a route's color (tape color on rope), hold type and, on rope, climb types, name and setter after it was posted.
   function openAdjustPopup(route, rope) {
     let color = route.holdColor, holdType = route.holdType;
+    const types = new Set(route.climbTypes || []);
     const popup = document.createElement("div");
     popup.className = "mini-popup-backdrop";
     document.body.appendChild(popup);
     const closePopup = () => dismissOverlay(popup);
     popup.innerHTML = `
-      <form class="mini-popup" role="dialog" aria-modal="true" aria-label="Adjust route">
+      <form class="mini-popup" role="dialog" aria-modal="true" aria-label="Adjust route" style="max-height:90vh;overflow-y:auto;">
         <div class="mini-popup-title">Adjust Route</div>
         <div class="field"><label>${rope ? "Tape" : "Hold"} Color</label>
           <div class="chip-row">${HOLD_COLORS.map((c) => `<button type="button" class="chip color-chip ${color === c ? "active" : ""}" data-color="${c}" style="background:${HOLD_COLOR_HEX[c]};color:${HOLD_COLOR_TEXT[c]};">${c}</button>`).join("")}</div>
@@ -279,6 +265,12 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
         <div class="field"><label>Hold Type</label>
           <div class="chip-row">${HOLD_TYPES.map((t) => `<button type="button" class="chip ${holdType === t ? "active" : ""}" data-holdtype="${t}">${t}</button>`).join("")}</div>
         </div>
+        ${rope ? `
+        <div class="field"><label>Type of Climb</label>
+          <div class="chip-row">${CLIMB_TYPES.map((t) => `<button type="button" class="chip ${types.has(t.id) ? "active" : ""}" data-climbtype="${t.id}" aria-pressed="${types.has(t.id)}">${t.label}</button>`).join("")}</div>
+        </div>
+        <div class="field"><label for="ra-title">Route Name</label><input id="ra-title" maxlength="60" value="${escapeHtml(route.routeTitle || "")}" autocomplete="off"/></div>
+        <div class="field"><label for="ra-initials">Setter Initials</label><input id="ra-initials" maxlength="4" value="${escapeHtml(route.setterInitials || "")}" autocomplete="off" style="text-transform:uppercase;"/></div>` : ""}
         <button class="btn btn-primary btn-block" type="submit">Save</button>
         <button class="btn btn-ghost btn-block" type="button" id="ra-cancel">Cancel</button>
       </form>`;
@@ -290,39 +282,22 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
     }));
     pick("data-color", (c) => { color = c; });
     pick("data-holdtype", (t) => { holdType = t; });
-    popup.querySelector("form").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      try {
-        await updateRoute(routeId, { holdColor: color, holdType, holdTypes: [holdType] });
-      } catch (err) { showToast(err.message); return; }
-      closePopup();
-      onChanged?.();
-      render();
-    });
-  }
-
-  // Rope routes: name the route and/or credit its setter after it was posted.
-  function openNamePopup(route) {
-    const popup = document.createElement("div");
-    popup.className = "mini-popup-backdrop";
-    document.body.appendChild(popup);
-    const closePopup = () => dismissOverlay(popup);
-    popup.innerHTML = `
-      <form class="mini-popup" role="dialog" aria-modal="true" aria-label="Route name and setter initials">
-        <div class="mini-popup-title">Name / Initials</div>
-        <div class="field"><label for="rn-title">Route Name</label><input id="rn-title" maxlength="60" value="${escapeHtml(route.routeTitle || "")}" autocomplete="off"/></div>
-        <div class="field"><label for="rn-initials">Setter Initials</label><input id="rn-initials" maxlength="4" value="${escapeHtml(route.setterInitials || "")}" autocomplete="off" style="text-transform:uppercase;"/></div>
-        <button class="btn btn-primary btn-block" type="submit">Save</button>
-        <button class="btn btn-ghost btn-block" type="button" id="rn-cancel">Cancel</button>
-      </form>`;
-    popup.addEventListener("click", (e) => { if (e.target === popup) closePopup(); });
-    popup.querySelector("#rn-cancel").addEventListener("click", closePopup);
+    popup.querySelectorAll("[data-climbtype]").forEach((b) => b.addEventListener("click", () => {
+      const id = b.dataset.climbtype;
+      types.has(id) ? types.delete(id) : types.add(id);
+      b.classList.toggle("active", types.has(id));
+      b.setAttribute("aria-pressed", String(types.has(id)));
+    }));
     popup.querySelector("form").addEventListener("submit", async (e) => {
       e.preventDefault();
       try {
         await updateRoute(routeId, {
-          routeTitle: popup.querySelector("#rn-title").value.trim(),
-          setterInitials: popup.querySelector("#rn-initials").value.trim(),
+          holdColor: color, holdType, holdTypes: [holdType],
+          ...(rope ? {
+            climbTypes: CLIMB_TYPES.map((t) => t.id).filter((id) => types.has(id)),
+            routeTitle: popup.querySelector("#ra-title").value.trim(),
+            setterInitials: popup.querySelector("#ra-initials").value.trim(),
+          } : {}),
         });
       } catch (err) { showToast(err.message); return; }
       closePopup();

@@ -26,14 +26,14 @@ export const HOLD_COLOR_TEXT = {
   Blue: "#fff", Purple: "#fff", Pink: "#fff", Black: "#fff", White: "#1b1d21",
 };
 
-export const MAX_GRADE = 10; // V0..V10
+export const MAX_GRADE = 11; // V0..V11
 
 // Rope climbs sit on a separate scale. A rope grade is stored as an index into
-// 5.7-, 5.7, 5.7+, 5.8-, ... 5.13+ (7 bases x 3 modifiers), so it stays an
+// 5.7-, 5.7, 5.7+, 5.8-, ... 5.14+ (8 bases x 3 modifiers), so it stays an
 // integer like boulder grades and the server's averaging/bucketing code keeps
 // working. Mirrored in backend/server.py (MAX_ROPE_GRADE).
-export const ROPE_BASE_GRADES = [7, 8, 9, 10, 11, 12, 13];
-export const MAX_ROPE_GRADE = ROPE_BASE_GRADES.length * 3 - 1; // 5.13+ -> 20
+export const ROPE_BASE_GRADES = [7, 8, 9, 10, 11, 12, 13, 14];
+export const MAX_ROPE_GRADE = ROPE_BASE_GRADES.length * 3 - 1; // 5.14+ -> 23
 
 export const DISCIPLINES = ["boulder", "rope"];
 export const DISCIPLINE_LABELS = { boulder: "Bouldering", rope: "Rope" };

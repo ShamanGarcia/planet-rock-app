@@ -1,63 +1,67 @@
 import { ROPE_BASE_GRADES, ropeGradeIndex, decodeRopeGrade } from "../data/constants.js";
 
-// Rope grade input: a "-" toggle, a dropdown of base grades (5.7-5.13), then a
-// "+" toggle. Neither toggle on means the plain grade; the two are exclusive.
-// The value it reports is the stored rope-grade index (see constants.js), or
-// null while the dropdown still says "Ungraded".
+// Rope grade input: "-" and "+" toggles on top, then the base grades (5.7-5.14)
+// in two rows below. Neither toggle on means the plain grade; the two are
+// exclusive. The value it reports is the stored rope-grade index (see
+// constants.js), or null while no grade is picked.
 
-export function ropeGradePickerHTML({ label = "Rope grade", ungradedLabel = "Ungraded" } = {}) {
+export function ropeGradePickerHTML({ label = "Rope grade" } = {}) {
   return `
     <div class="rope-grade-picker" data-rope-grade>
-      <button type="button" class="rgp-mod" data-mod="-" aria-pressed="false" aria-label="Minus (${label})">&minus;</button>
-      <select class="rgp-base" aria-label="${label}">
-        <option value="">${ungradedLabel}</option>
-        ${ROPE_BASE_GRADES.map((b) => `<option value="${b}">5.${b}</option>`).join("")}
-      </select>
-      <button type="button" class="rgp-mod" data-mod="+" aria-pressed="false" aria-label="Plus (${label})">+</button>
+      <div class="rgp-mods">
+        <button type="button" class="rgp-mod" data-mod="-" aria-pressed="false" aria-label="Minus (${label})">&minus;</button>
+        <button type="button" class="rgp-mod" data-mod="+" aria-pressed="false" aria-label="Plus (${label})">+</button>
+      </div>
+      <div class="rgp-grid">
+        ${ROPE_BASE_GRADES.map((b) => `<button type="button" class="rgp-base" data-base="${b}" aria-pressed="false">5.${b}</button>`).join("")}
+      </div>
     </div>`;
 }
 
 // Wires the markup above. `initial` is a grade index or null; onChange gets the
-// new index or null. Returns { get, set } for callers that need to read/replace it.
-export function wireRopeGradePicker(root, initial, onChange) {
-  const select = root.querySelector(".rgp-base");
+// new index or null. Tapping the picked base again clears it unless deselect is
+// false (a popup that commits on tap). Returns { get, set }.
+export function wireRopeGradePicker(root, initial, onChange, { deselect = true } = {}) {
   const mods = [...root.querySelectorAll(".rgp-mod")];
+  const bases = [...root.querySelectorAll(".rgp-base")];
+  let base = null;
   let modifier = "";
 
-  function value() {
-    return select.value === "" ? null : ropeGradeIndex(Number(select.value), modifier);
-  }
+  const value = () => (base === null ? null : ropeGradeIndex(base, modifier));
 
   function paint() {
-    const ungraded = select.value === "";
     mods.forEach((b) => {
-      const on = !ungraded && b.dataset.mod === modifier;
+      const on = b.dataset.mod === modifier;
       b.classList.toggle("active", on);
       b.setAttribute("aria-pressed", String(on));
-      b.disabled = ungraded;
+    });
+    bases.forEach((b) => {
+      const on = Number(b.dataset.base) === base;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-pressed", String(on));
     });
   }
 
   function set(index) {
     if (index === null || index === undefined || index === "") {
-      select.value = "";
+      base = null;
       modifier = "";
     } else {
       const d = decodeRopeGrade(Number(index));
-      select.value = String(d.base);
+      base = d.base;
       modifier = d.modifier;
     }
     paint();
   }
 
-  select.addEventListener("change", () => {
-    if (select.value === "") modifier = "";
-    paint();
-    onChange?.(value());
-  });
   mods.forEach((b) => b.addEventListener("click", () => {
-    if (select.value === "") return;
     modifier = modifier === b.dataset.mod ? "" : b.dataset.mod; // tap again to clear
+    paint();
+    if (base !== null) onChange?.(value());
+  }));
+  bases.forEach((b) => b.addEventListener("click", () => {
+    const n = Number(b.dataset.base);
+    if (deselect && base === n) { base = null; modifier = ""; } else base = n;
     paint();
     onChange?.(value());
   }));

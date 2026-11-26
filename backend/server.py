@@ -43,10 +43,10 @@ STATIC_DIR = BACKEND_DIR.parent
 DATA_DIR = Path(os.environ.get("DATA_DIR") or (BACKEND_DIR / "data"))
 UPLOADS_DIR = DATA_DIR / "uploads"
 DB_PATH = DATA_DIR / "db.json"
-MAX_GRADE = 10
-# Rope grades are stored as an index into 5.7-, 5.7, 5.7+, ... 5.13+ (7 bases x 3
+MAX_GRADE = 11
+# Rope grades are stored as an index into 5.7-, 5.7, 5.7+, ... 5.14+ (8 bases x 3
 # modifiers). Mirrored in js/data/constants.js.
-MAX_ROPE_GRADE = 20
+MAX_ROPE_GRADE = 23
 DISCIPLINES = ("boulder", "rope")
 ROPE_CLIMB_TYPES = ("top", "lead", "autobelay")
 # Given to route setters so they can clear a wall before resetting it —

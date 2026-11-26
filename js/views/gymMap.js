@@ -701,8 +701,8 @@ export function renderGymMap(container, gymId, { focusRouteId } = {}) {
         bg = HEAT_NO_DATA;
         textStyle = " color:#fff; text-shadow:0 1px 1px rgba(0,0,0,.4);";
       } else {
-        // Boulder is 0-10 by 1; rope's 0-20 is halved so both span the 11-step palette.
-        const { bg: heat, isDark } = magmaStyle(rope ? clamp(value, 0, 20) / 2 : clamp(value, 0, 10));
+        // Either scale is stretched over the 11-step palette.
+        const { bg: heat, isDark } = magmaStyle((clamp(value, 0, maxGradeFor(rope ? "rope" : "boulder")) * 10) / maxGradeFor(rope ? "rope" : "boulder"));
         bg = heat;
         textStyle = ` color:${isDark ? "#fff" : "#1b1d21"}; text-shadow:${isDark ? "0 1px 1px rgba(0,0,0,.4)" : "none"};`;
       }
