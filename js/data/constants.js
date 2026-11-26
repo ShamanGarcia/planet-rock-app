@@ -26,7 +26,7 @@ export const HOLD_COLOR_TEXT = {
   Blue: "#fff", Purple: "#fff", Pink: "#fff", Black: "#fff", White: "#1b1d21",
 };
 
-export const MAX_GRADE = 11; // V0..V11
+export const MAX_GRADE = 12; // V0..V11, then 12 = "V11+"
 
 // Rope climbs sit on a separate scale. A rope grade is stored as an index into
 // 5.7-, 5.7, 5.7+, 5.8-, ... 5.14+ (8 bases x 3 modifiers), so it stays an
@@ -71,7 +71,7 @@ export function formatRopeGrade(index) {
 
 // Short label for one point on a discipline's grade scale ("V4" / "5.10+").
 export function gradeScaleLabel(index, discipline = "boulder") {
-  return discipline === "rope" ? formatRopeGrade(index) : `V${index}`;
+  return discipline === "rope" ? formatRopeGrade(index) : index >= MAX_GRADE ? "V11+" : `V${index}`;
 }
 
 // Photos/videos at or under these sizes (after client-side compression, see
@@ -91,7 +91,7 @@ export function formatGrade(grade, discipline = "boulder") {
 export function formatEstimate(value, discipline = "boulder") {
   if (value === null || value === undefined || Number.isNaN(value)) return "No community estimate yet";
   // Rope estimates average whole-step indices, so they round to a real grade.
-  return discipline === "rope" ? formatRopeGrade(Math.round(value)) : `V${value.toFixed(1)}`;
+  return discipline === "rope" ? formatRopeGrade(Math.round(value)) : (value >= MAX_GRADE ? "V11+" : `V${value.toFixed(1)}`);
 }
 
 // Boulder problems have no name — climbers identify them by hold color + grade,

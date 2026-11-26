@@ -143,7 +143,7 @@ function rangeSliderHTML(key, label, lo, hi) {
   // grades are marked, each at its unmodified step.
   const markGrades = discipline === "rope" ? ROPE_BASE_GRADES.map((b) => (b - ROPE_BASE_GRADES[0]) * 3 + 1) : Array.from({ length: MAX_GRADE + 1 }, (_, g) => g);
   const marks = markGrades.map((g) =>
-    `<span style="left:${(g / MAX_GRADE) * 100}%">${discipline === "rope" ? `5.${ROPE_BASE_GRADES[0] + Math.floor(g / 3)}` : `V${g}`}</span>`).join("");
+    `<span style="left:${(g / MAX_GRADE) * 100}%">${discipline === "rope" ? `5.${ROPE_BASE_GRADES[0] + Math.floor(g / 3)}` : gradeScaleLabel(g)}</span>`).join("");
   return `
     <div class="range-slider" data-range="${key}">
       <div class="range-value"></div>

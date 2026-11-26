@@ -43,7 +43,7 @@ STATIC_DIR = BACKEND_DIR.parent
 DATA_DIR = Path(os.environ.get("DATA_DIR") or (BACKEND_DIR / "data"))
 UPLOADS_DIR = DATA_DIR / "uploads"
 DB_PATH = DATA_DIR / "db.json"
-MAX_GRADE = 11
+MAX_GRADE = 12  # 12 is shown as "V11+"
 # Rope grades are stored as an index into 5.7-, 5.7, 5.7+, ... 5.14+ (8 bases x 3
 # modifiers). Mirrored in js/data/constants.js.
 MAX_ROPE_GRADE = 23

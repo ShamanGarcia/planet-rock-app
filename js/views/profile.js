@@ -1,5 +1,5 @@
 import { getCurrentUser, updateUser, computeUserStats, logOut } from "../data/api.js";
-import { formatGrade, HOLD_TYPES, MAX_GRADE } from "../data/constants.js";
+import { formatGrade, gradeScaleLabel, HOLD_TYPES, MAX_GRADE } from "../data/constants.js";
 import { escapeHtml, compressImageFile, initials, ringStyle, dismissOverlay } from "../utils.js";
 import { showToast } from "../components/toast.js";
 import { openPasswordPromptModal } from "../components/passwordPromptModal.js";
@@ -239,7 +239,7 @@ export function renderProfile(container) {
           <div class="field"><label>Highest Grade Achieved</label>
             <select name="selfReportedHighestGrade">
               <option value="">—</option>
-              ${Array.from({ length: MAX_GRADE + 1 }, (_, g) => `<option value="${g}" ${user.selfReportedHighestGrade === g ? "selected" : ""}>V${g}</option>`).join("")}
+              ${Array.from({ length: MAX_GRADE + 1 }, (_, g) => `<option value="${g}" ${user.selfReportedHighestGrade === g ? "selected" : ""}>${gradeScaleLabel(g)}</option>`).join("")}
             </select>
           </div>
         </div>

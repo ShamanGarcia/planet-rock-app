@@ -1,6 +1,6 @@
 import { createRoute } from "../data/api.js";
 import { enqueueUpload } from "../data/upload.js";
-import { HOLD_COLORS, HOLD_COLOR_HEX, HOLD_COLOR_TEXT, HOLD_TYPES, MAX_GRADE, CLIMB_TYPES, WALL_SECTIONS, ROPE_SECTIONS, formatGrade } from "../data/constants.js";
+import { HOLD_COLORS, HOLD_COLOR_HEX, HOLD_COLOR_TEXT, HOLD_TYPES, MAX_GRADE, CLIMB_TYPES, WALL_SECTIONS, ROPE_SECTIONS, formatGrade, gradeScaleLabel } from "../data/constants.js";
 import { ropeGradePickerHTML, wireRopeGradePicker } from "./ropeGradePicker.js";
 import { escapeHtml, dismissOverlay } from "../utils.js";
 import { showToast } from "./toast.js";
@@ -114,7 +114,7 @@ export function openAddRouteForm({ gymId, discipline = "boulder", mapX, mapY, wa
             ${rope ? ropeGradePickerHTML({ label: "Official rope grade" }) : `
             <select name="officialGrade" id="ar-grade">
               <option value="" ${officialGrade === "" ? "selected" : ""}>Ungraded</option>
-              ${Array.from({ length: MAX_GRADE + 1 }, (_, g) => `<option value="${g}" ${officialGrade === String(g) ? "selected" : ""}>V${g}</option>`).join("")}
+              ${Array.from({ length: MAX_GRADE + 1 }, (_, g) => `<option value="${g}" ${officialGrade === String(g) ? "selected" : ""}>${gradeScaleLabel(g)}</option>`).join("")}
             </select>`}
             <div class="field-hint">Leave blank if this hasn't been officially graded yet — climbers can still submit community estimates.</div>
           </div>
