@@ -94,8 +94,6 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
           ${(route.climbTypes || []).length ? `<div class="chip-row">${route.climbTypes.map((t) => `<span class="chip">${escapeHtml(CLIMB_TYPE_LABELS[t] || t)}</span>`).join("")}</div>` : ""}
         </div>` : ""}
 
-        ${rope && !(route.climbTypes || []).length ? `<div class="chip-row" role="group" aria-label="Pick climb type">${CLIMB_TYPES.map((t) => `<button type="button" class="chip" data-climbtype="${t.id}">${t.label}</button>`).join("")}</div>` : ""}
-
 
         ${mySends ? `<div class="page-sub">You've sent this ${mySends}×</div>` : ""}
 
@@ -171,11 +169,6 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
     backdrop.querySelector("#rd-view-gallery")?.addEventListener("click", () => openFullGallery(routeId, label));
     backdrop.querySelector("#rd-add-media").addEventListener("click", () => openAddMediaForm(routeId, label, { onAdded: () => { if (backdrop.isConnected) render(); } })); // runs when the background upload lands
     backdrop.querySelector("#rd-remove-media")?.addEventListener("click", () => openRemoveMedia(routeId, label, { onChanged: () => { if (backdrop.isConnected) render(); } }));
-    backdrop.querySelectorAll("[data-climbtype]").forEach((b) => b.addEventListener("click", async () => {
-      await updateRoute(routeId, { climbTypes: [b.dataset.climbtype] });
-      onChanged?.();
-      render();
-    }));
     backdrop.querySelector("#rd-adjust").addEventListener("click", () => openAdjustPopup(route, rope));
     backdrop.querySelector("#rd-community-badge").addEventListener("click", () => openGradeDistributionPopup(hasEstimates, gradeDistribution, discipline));
 
