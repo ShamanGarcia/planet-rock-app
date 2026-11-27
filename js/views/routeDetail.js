@@ -29,10 +29,24 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
   let justSent = false;
   let sentClickCount = 0;
 
-  function close() {
+  // Grades picked here are held until the drawer closes, so the page isn't refreshed under the user's thumb.
+  let pending = {}; // { official?: grade|null, estimate?: grade }
+  async function flushGrades() {
+    const p = pending;
+    pending = {};
+    if (!Object.keys(p).length) return;
+    try {
+      if ("official" in p) await updateRoute(routeId, { officialGrade: p.official });
+      if ("estimate" in p) await submitGradeEstimate(routeId, p.estimate);
+    } catch (err) { showToast(err.message); }
+    onChanged?.();
+  }
+
+  async function close() {
     closeGradePopover();
     dismissOverlay(backdrop);
     document.removeEventListener("keydown", escHandler);
+    await flushGrades();
     onClose?.();
   }
 
@@ -63,7 +77,9 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
       close();
       return;
     }
-    const { route, tagDetails, communityGrade, gradeDistribution, mySends, myEstimate, senders } = detail;
+    const { route, tagDetails, communityGrade, gradeDistribution, mySends, senders } = detail;
+    if ("official" in pending) route.officialGrade = pending.official; // not saved yet, but it's what the user picked
+    const myEstimate = "estimate" in pending ? pending.estimate : detail.myEstimate;
     const media = await getCombinedMedia(routeId);
     const label = routeLabel(route);
     const discipline = disciplineOf(route);
@@ -172,28 +188,23 @@ export function openRouteDetail(routeId, { onClose, onChanged } = {}) {
     backdrop.querySelector("#rd-adjust").addEventListener("click", () => openAdjustPopup(route, rope));
     backdrop.querySelector("#rd-community-badge").addEventListener("click", () => openGradeDistributionPopup(hasEstimates, gradeDistribution, discipline));
 
-    async function saveOfficialGrade(grade) {
-      await updateRoute(routeId, { officialGrade: grade });
-      onChanged?.();
-      render();
-    }
     // Same chooser as the list view's grade cells; tapping the open one's button closes it.
     function wireGradeButton(id, opts) {
       const btn = backdrop.querySelector(id);
       btn.addEventListener("click", () => {
         if (gradePopoverAnchor() === btn) { closeGradePopover(); return; }
-        openGradePopover(btn, { discipline, ...opts });
+        openGradePopover(btn, { discipline, ...opts() });
       });
     }
-    wireGradeButton("#rd-official-grade", { title: "Official grade", current: route.officialGrade ?? null, allowUngraded: true, onPick: saveOfficialGrade });
-    wireGradeButton("#rd-estimate-grade", {
-      title: "Your estimate", current: myEstimate ?? undefined,
-      onPick: async (grade) => {
-        await submitGradeEstimate(routeId, grade);
-        onChanged?.();
-        render();
-      },
-    });
+    const official = backdrop.querySelector("#rd-official-grade"), estimate = backdrop.querySelector("#rd-estimate-grade");
+    wireGradeButton("#rd-official-grade", () => ({
+      title: "Official grade", current: route.officialGrade ?? null, allowUngraded: true,
+      onPick: (grade) => { pending.official = route.officialGrade = grade; official.textContent = formatGrade(grade, discipline); },
+    }));
+    wireGradeButton("#rd-estimate-grade", () => ({
+      title: "Your estimate", current: pending.estimate ?? myEstimate ?? undefined,
+      onPick: (grade) => { pending.estimate = grade; estimate.textContent = formatGrade(grade, discipline); },
+    }));
 
     backdrop.querySelector("#rd-delete-route").addEventListener("click", () => {
       openPasswordPromptModal({
